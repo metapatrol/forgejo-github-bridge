@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <title>forgejo-github-bridge</title>
+  <!-- GitHub's social preview: 1280×640. Content stays inside a 60px margin,
+       which is what survives the crops of the sites that show it. -->
+  <rect width="1280" height="640" fill="#f1f5f9"/>
+  <g transform="translate(96 128) scale(0.75)">
+    <g stroke-linecap="round" stroke-width="14">
+      <line x1="256" y1="112" x2="92" y2="352" stroke="#d97706"/>
+      <line x1="256" y1="150" x2="146" y2="352" stroke="#d97706"/>
+      <line x1="256" y1="188" x2="200" y2="352" stroke="#d97706"/>
+      <line x1="256" y1="112" x2="420" y2="352" stroke="#0284c7"/>
+      <line x1="256" y1="150" x2="366" y2="352" stroke="#0284c7"/>
+      <line x1="256" y1="188" x2="312" y2="352" stroke="#0284c7"/>
+    </g>
+    <rect x="236" y="84" width="40" height="330" rx="10" fill="#1e293b"/>
+    <rect x="60" y="346" width="392" height="30" rx="15" fill="#1e293b"/>
+  </g>
+  <g font-family="Noto Sans, DejaVu Sans, sans-serif" fill="#1e293b">
+    <text x="520" y="282" font-size="62" font-weight="700">forgejo-github-bridge</text>
+    <text x="522" y="352" font-size="30" fill="#475569">Issues and pull requests from GitHub,</text>
+    <text x="522" y="394" font-size="30" fill="#475569">worked on in a private Forgejo.</text>
+    <g font-size="24" font-weight="700">
+      <text x="522" y="462" fill="#d97706">private</text>
+      <text x="628" y="462" fill="#94a3b8">·</text>
+      <text x="652" y="462" fill="#0284c7">public</text>
+    </g>
+  </g>
+</svg>
