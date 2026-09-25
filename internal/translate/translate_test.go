@@ -16,7 +16,7 @@ func newTranslator() *Translator {
 	return New(config.Repository{
 		GitHub:  config.RepoRef{Owner: "metapatrol", Name: "foo"},
 		Forgejo: config.RepoRef{Owner: "platform", Name: "foo"},
-	}, []*url.URL{api, web}, map[string]string{"ska": "denisneuling"})
+	}, []*url.URL{api, web}, map[string]string{"jdoe": "janedoe"})
 }
 
 func TestToGitHub(t *testing.T) {
@@ -34,10 +34,10 @@ func TestToGitHub(t *testing.T) {
 		{name: "unmapped reference", in: "Blocked by #5.", want: []string{"Blocked by `internal reference`."}, absent: []string{"#5"}},
 		{name: "reference to another Forgejo repository", in: "see platform/bar#3", want: []string{"see `internal reference`"}},
 		{name: "not a reference", in: "page#3 and a1#2", want: []string{"page#3 and a1#2"}},
-		{name: "mapped maintainer", in: "cc @ska", want: []string{"cc @denisneuling"}},
+		{name: "mapped maintainer", in: "cc @jdoe", want: []string{"cc @janedoe"}},
 		{name: "participant", in: "thanks @alice!", want: []string{"thanks @alice!"}},
 		{name: "stranger", in: "ask @bob", want: []string{"ask bob"}, absent: []string{"@bob"}},
-		{name: "e-mail address", in: "mail ska@example.com", want: []string{"mail ska@example.com"}},
+		{name: "e-mail address", in: "mail jdoe@example.com", want: []string{"mail jdoe@example.com"}},
 		{name: "team", in: "@org/team", want: []string{"@org/team"}},
 		{name: "issue link, mapped", in: "https://forgejo.internal/platform/foo/issues/71",
 			want: []string{"https://github.com/metapatrol/foo/issues/42"}, absent: []string{"forgejo.internal"}},
@@ -84,7 +84,7 @@ func TestToForgejo(t *testing.T) {
 			want: []string{"see [github#9](https://github.com/metapatrol/foo/issues/9)"}},
 		{name: "other GitHub repository", in: "like golang/go#123",
 			want: []string{"[github:golang/go#123](https://github.com/golang/go/issues/123)"}},
-		{name: "mention of a maintainer's GitHub account", in: "@denisneuling please", want: []string{"@ska please"}},
+		{name: "mention of a maintainer's GitHub account", in: "@janedoe please", want: []string{"@jdoe please"}},
 		{name: "mention of anybody else is a link", in: "@alice said",
 			want: []string{"[alice](https://github.com/alice) said"}, absent: []string{"@alice"}},
 		{name: "empty body", in: "  ", want: []string{noDescription}},
@@ -127,7 +127,7 @@ func TestUnmappedMaintainersAreNotNamed(t *testing.T) {
 
 func TestAttachmentsAreNoted(t *testing.T) {
 	tr := newTranslator()
-	got := tr.CommentToGitHub(forge.Comment{ID: 1, Author: "ska", Attachments: 2}, nil, nil)
+	got := tr.CommentToGitHub(forge.Comment{ID: 1, Author: "jdoe", Attachments: 2}, nil, nil)
 	if !strings.Contains(got, "2 attachment(s) not available publicly") {
 		t.Errorf("attachments not noted:\n%s", got)
 	}

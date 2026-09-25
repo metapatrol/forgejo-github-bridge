@@ -333,10 +333,10 @@ func TestConversationAndReviewsCross(t *testing.T) {
 	fj := p.forgejoPull()
 
 	p.gh.Comment(ghRepo, src.Number, "alice", "Ready for review.")
-	p.fj.Comment(fjRepo, fj.Number, "ska", "Thanks @alice, one question.")
-	p.fj.Review(fjRepo, fj.Number, "ska", "REQUEST_CHANGES", "Please add a test.")
-	p.fj.Review(fjRepo, fj.Number, "ska", "COMMENT", "")
-	p.fj.Review(fjRepo, fj.Number, "ska", "APPROVED", "")
+	p.fj.Comment(fjRepo, fj.Number, "jdoe", "Thanks @alice, one question.")
+	p.fj.Review(fjRepo, fj.Number, "jdoe", "REQUEST_CHANGES", "Please add a test.")
+	p.fj.Review(fjRepo, fj.Number, "jdoe", "COMMENT", "")
+	p.fj.Review(fjRepo, fj.Number, "jdoe", "APPROVED", "")
 	p.settle()
 
 	bodies := ""
@@ -362,7 +362,7 @@ func TestConversationAndReviewsCross(t *testing.T) {
 
 func TestMaintainersOwnPullRequestsStayPrivate(t *testing.T) {
 	p := newPullHarness(t, nil)
-	p.fj.OpenPull(fjRepo, "ska", "Internal refactoring", "", "develop", "x", "a.go")
+	p.fj.OpenPull(fjRepo, "jdoe", "Internal refactoring", "", "develop", "x", "a.go")
 	p.fj.SetLabels(fjRepo, p.fj.Issues(fjRepo)[0].Number, "public")
 	p.settle()
 	if n := len(p.gh.Issues(ghRepo)); n != 0 {
@@ -463,7 +463,7 @@ func TestClosingWithACommentShowsTheCommentFirst(t *testing.T) {
 		src := p.gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1")
 		p.settle()
 		fj := p.forgejoPull()
-		p.fj.Comment(fjRepo, fj.Number, "ska", "Thanks, but this is out of scope for us.")
+		p.fj.Comment(fjRepo, fj.Number, "jdoe", "Thanks, but this is out of scope for us.")
 		p.fj.SetClosed(fjRepo, fj.Number, true)
 		p.gh.Log = nil
 		p.settle()
@@ -477,7 +477,7 @@ func TestClosingWithACommentShowsTheCommentFirst(t *testing.T) {
 		src := h.gh.Open(ghRepo, "alice", "Bug", "Broken.")
 		h.settle()
 		proj := h.only(h.fj, fjRepo)
-		h.fj.Comment(fjRepo, proj.Number, "ska", "Fixed on develop.")
+		h.fj.Comment(fjRepo, proj.Number, "jdoe", "Fixed on develop.")
 		h.fj.SetClosed(fjRepo, proj.Number, true)
 		h.gh.Log = nil
 		h.settle()

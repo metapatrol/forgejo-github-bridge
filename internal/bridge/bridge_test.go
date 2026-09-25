@@ -65,7 +65,7 @@ func (h *harness) restart() {
 		PollInterval: time.Minute,
 		FullResync:   time.Hour,
 		ForgejoURLs:  []*url.URL{base},
-		UserMapping:  map[string]string{"ska": "denisneuling"},
+		UserMapping:  map[string]string{"jdoe": "janedoe"},
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err := h.b.Init(context.Background()); err != nil {
 		h.t.Fatal(err)
@@ -155,19 +155,19 @@ func TestImportsAGitHubIssueWithAttributionAndLabel(t *testing.T) {
 
 func TestForgejoIssuesArePrivateUnlessLabelled(t *testing.T) {
 	h := newHarness(t)
-	h.fj.Open(fjRepo, "ska", "Internal refactoring", "Secret plans.")
+	h.fj.Open(fjRepo, "jdoe", "Internal refactoring", "Secret plans.")
 	h.settle()
 	if n := len(h.gh.Issues(ghRepo)); n != 0 {
 		t.Fatalf("an unlabelled Forgejo issue reached GitHub (%d issues)", n)
 	}
 
-	pub := h.fj.Open(fjRepo, "ska", "Roadmap", "What comes next.", "public")
+	pub := h.fj.Open(fjRepo, "jdoe", "Roadmap", "What comes next.", "public")
 	h.settle()
 	got := h.only(h.gh, ghRepo)
 	if got.Title != "Roadmap" || !strings.Contains(got.Body, "What comes next.") {
 		t.Errorf("projection = %+v", got)
 	}
-	if !strings.Contains(got.Body, "[denisneuling](https://github.com/denisneuling)") {
+	if !strings.Contains(got.Body, "[janedoe](https://github.com/janedoe)") {
 		t.Errorf("a mapped maintainer is not named:\n%s", got.Body)
 	}
 	if mk, _ := marker.Parse(got.Body); mk.Origin != marker.OriginForgejo || mk.ID != pub.Number {
@@ -182,7 +182,7 @@ func TestCommentsFlowBothWaysWithoutLooping(t *testing.T) {
 	proj := h.only(h.fj, fjRepo)
 
 	h.gh.Comment(ghRepo, src.Number, "alice", "Any news?")
-	h.fj.Comment(fjRepo, proj.Number, "ska", "Looking into it, @alice.")
+	h.fj.Comment(fjRepo, proj.Number, "jdoe", "Looking into it, @alice.")
 	h.settle()
 
 	ghc := h.gh.CommentsOf(ghRepo, src.Number)
@@ -194,7 +194,7 @@ func TestCommentsFlowBothWaysWithoutLooping(t *testing.T) {
 	if !strings.Contains(reply.Body, "Looking into it, @alice.") {
 		t.Errorf("a mention of a participant must still notify them:\n%s", reply.Body)
 	}
-	if !strings.Contains(reply.Body, "[denisneuling](https://github.com/denisneuling) wrote:") {
+	if !strings.Contains(reply.Body, "[janedoe](https://github.com/janedoe) wrote:") {
 		t.Errorf("attribution:\n%s", reply.Body)
 	}
 	if imported := findBy(fjc, bridgeUser); !strings.Contains(imported.Body, "Any news?") {
@@ -208,7 +208,7 @@ func TestInternalCommentsStayInForgejo(t *testing.T) {
 	h.settle()
 	proj := h.only(h.fj, fjRepo)
 
-	c := h.fj.Comment(fjRepo, proj.Number, "ska", "/internal this is the customer from last week")
+	c := h.fj.Comment(fjRepo, proj.Number, "jdoe", "/internal this is the customer from last week")
 	h.settle()
 	if n := len(h.gh.CommentsOf(ghRepo, src.Number)); n != 0 {
 		t.Fatalf("an internal comment reached GitHub")
@@ -286,13 +286,13 @@ func TestClosingAndReopeningWorksFromEitherSide(t *testing.T) {
 
 func TestRemovingThePublishLabelFreezesThePair(t *testing.T) {
 	h := newHarness(t)
-	src := h.fj.Open(fjRepo, "ska", "Roadmap", "v1", "public")
+	src := h.fj.Open(fjRepo, "jdoe", "Roadmap", "v1", "public")
 	h.settle()
 	pub := h.only(h.gh, ghRepo)
 
 	h.fj.SetLabels(fjRepo, src.Number)
 	h.fj.EditBody(fjRepo, src.Number, "Roadmap", "v2 with internal details")
-	h.fj.Comment(fjRepo, src.Number, "ska", "internal follow-up")
+	h.fj.Comment(fjRepo, src.Number, "jdoe", "internal follow-up")
 	h.gh.Comment(ghRepo, pub.Number, "alice", "will this land?")
 	h.settle()
 
@@ -330,8 +330,8 @@ func TestReferencesAreTranslated(t *testing.T) {
 		t.Errorf("an unmapped reference must point at GitHub:\n%s", secondFJ.Body)
 	}
 
-	private := h.fj.Open(fjRepo, "ska", "Private", "nothing public")
-	h.fj.Comment(fjRepo, secondFJ.Number, "ska",
+	private := h.fj.Open(fjRepo, "jdoe", "Private", "nothing public")
+	h.fj.Comment(fjRepo, secondFJ.Number, "jdoe",
 		"Duplicate of #"+itoa(firstFJ.Number)+", related to #"+itoa(private.Number)+
 			" and https://forgejo.internal/platform/foo/issues/"+itoa(private.Number))
 	h.settle()
@@ -371,8 +371,8 @@ func TestALostDatabaseDoesNotDuplicateAnything(t *testing.T) {
 	h := newHarness(t)
 	gi := h.gh.Open(ghRepo, "alice", "Bug", "Broken.")
 	h.gh.Comment(ghRepo, gi.Number, "alice", "details")
-	roadmap := h.fj.Open(fjRepo, "ska", "Roadmap", "v1", "public")
-	h.fj.Comment(fjRepo, roadmap.Number, "ska", "reply")
+	roadmap := h.fj.Open(fjRepo, "jdoe", "Roadmap", "v1", "public")
+	h.fj.Comment(fjRepo, roadmap.Number, "jdoe", "reply")
 	h.settle()
 	ghBefore, fjBefore := len(h.gh.Issues(ghRepo)), len(h.fj.Issues(fjRepo))
 
@@ -466,7 +466,7 @@ func TestOwnItemsAreNeverSources(t *testing.T) {
 	// Someone types a marker into their own issue, claiming it is the
 	// projection of Forgejo #71.
 	h.gh.Open(ghRepo, "mallory", "Totally legit", "<!-- forgejo-github-bridge origin=forgejo kind=issue id=71 -->")
-	h.fj.Open(fjRepo, "ska", "Secret", "private")
+	h.fj.Open(fjRepo, "jdoe", "Secret", "private")
 	h.settle()
 
 	all := h.fj.Issues(fjRepo)

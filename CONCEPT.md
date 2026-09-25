@@ -260,7 +260,7 @@ repositories:
     publishLabel: public
 
 userMapping:
-  ska: denisneuling      # Forgejo login → GitHub login, for mentions only
+  jdoe: janedoe          # Forgejo login → GitHub login, for mentions only
 ```
 
 Every Git URL, every repository name and every branch the bridge touches is derived from this file. Nothing read from GitHub can name a repository, remote or branch outside it.

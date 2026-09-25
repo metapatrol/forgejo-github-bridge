@@ -120,7 +120,7 @@ func TestBridgeOnPostgres(t *testing.T) {
 	if len(proj) != 1 {
 		t.Fatalf("want one imported issue, have %d", len(proj))
 	}
-	fj.Comment(fjRepo, proj[0].Number, "ska", "fixed on develop")
+	fj.Comment(fjRepo, proj[0].Number, "jdoe", "fixed on develop")
 	fj.SetClosed(fjRepo, proj[0].Number, true)
 	sync()
 	sync()

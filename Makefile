@@ -144,7 +144,7 @@ helm-verify:
 		--set networkPolicy.enabled=true \
 		--set forgejo.caSecret=forgejo-ca \
 		--set forgejo.webURL=https://forgejo.example.com \
-		--set 'userMapping.ska=denisneuling' \
+		--set 'userMapping.jdoe=janedoe' \
 		--set forgejo.contribExistingSecret=bridge-contrib \
 		--set 'repositories[0].contrib=github-contrib/example' \
 		--set 'repositories[0].targetBranches={develop}' \

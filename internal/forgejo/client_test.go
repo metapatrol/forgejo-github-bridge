@@ -39,11 +39,11 @@ func TestClient(t *testing.T) {
 			t.Error("since was not passed")
 		}
 		fmt.Fprint(w, `[{"number":71,"title":"t","state":"open","user":{"login":"github-bridge"},"labels":[{"id":1,"name":"github"}]},
-			{"number":72,"title":"pr","state":"open","user":{"login":"ska"},"pull_request":{"merged":false}}]`)
+			{"number":72,"title":"pr","state":"open","user":{"login":"jdoe"},"pull_request":{"merged":false}}]`)
 	}))
 	mux.HandleFunc("GET /forge/api/v1/repos/platform/foo/issues/comments", auth(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, `[{"id":5,"user":{"login":"ska"},"issue_url":"https://f/platform/foo/issues/71"},
-			{"id":6,"user":{"login":"ska"},"pull_request_url":"https://f/platform/foo/pulls/72","assets":[{},{}]}]`)
+		fmt.Fprint(w, `[{"id":5,"user":{"login":"jdoe"},"issue_url":"https://f/platform/foo/issues/71"},
+			{"id":6,"user":{"login":"jdoe"},"pull_request_url":"https://f/platform/foo/pulls/72","assets":[{},{}]}]`)
 	}))
 	mux.HandleFunc("GET /forge/api/v1/repos/platform/foo/labels", auth(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `[{"id":1,"name":"GitHub"}]`)
