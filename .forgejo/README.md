@@ -50,6 +50,14 @@ semantic-release's `successCmd`, which dispatches `release.yml` directly.
 
 `on: push: tags` stays for tags pushed by hand, which do raise the event.
 
+Not every token-created tag stays silent, though. A tag created through the
+API with a personal access token (`POST /repos/{owner}/{repo}/tags`, as `fgj
+api` does) **did** start `release.yml` here: the baseline tag `v0.0.0` set that
+way on 2026-09-26 started a release run, which had to be cancelled before its
+image job. To set a tag that must not be published, cancel the run it starts,
+or create it from an account whose token the instance treats like the
+automation token.
+
 ## Before the first run
 
 **The runner label.** Every job says `runs-on: docker` — a label, not an image.
