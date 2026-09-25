@@ -10,14 +10,18 @@ Forgejo, polls both sides, and carries issues and conversations across in
 both directions. It has no public endpoint.
 
 [CONCEPT.md](CONCEPT.md) is the design: what crosses the bridge and what never
-does, and why.
+does, and why. The [documentation](docs/README.md) covers the rest:
+[architecture](docs/architecture.md), [installation](docs/installation.md),
+[configuration](docs/configuration.md), [operations](docs/operations.md),
+[working with it as a maintainer](docs/maintainers.md),
+[security](docs/security.md) and [development](docs/development.md).
 
 ## Status
 
-Phases 1 and 2 of [CONCEPT.md §19](CONCEPT.md#19-phases) are implemented.
-Issues (phase 1) have passed an end-to-end test against GitHub and Forgejo;
-pull requests (phase 2) are tested against fakes and real git, and are still
-to be tried end to end.
+Phases 1 and 2 of [CONCEPT.md §19](CONCEPT.md#19-phases) are implemented and
+have passed end-to-end tests against GitHub and Forgejo 16, including a stress
+run with concurrent issues and pull requests. An optional read-only API and
+console are proposed as phase 4 ([§23](CONCEPT.md#23-inspection-api-and-console-proposal)).
 
 Issues:
 

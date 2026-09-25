@@ -628,7 +628,7 @@ rebase requests (per-repository rebaseRequests)
 touches-ci labelling
 ```
 
-Status: implemented; end-to-end test against GitHub and Forgejo pending.
+Status: implemented; end-to-end tested against GitHub and Forgejo 16.
 
 ### Phase 3: refinement
 
@@ -637,6 +637,15 @@ CI status → GitHub commit status on the PR head
 line-level review comments
 optional Forgejo webhook as reconcile hint
 ```
+
+### Phase 4: inspection (optional)
+
+```text
+read-only REST API: pairs, queue, failures, activity
+optional web console on top of it
+```
+
+See §23. Not started; the design below is a proposal with open questions.
 
 ---
 
@@ -666,3 +675,61 @@ full bidirectional state replication
 ## 22. Architectural principle
 
 > GitHub is the public contribution interface. Forgejo is the private development authority. The bridge lives on the private side, reaches out, and carries intent and state across without ever letting the outside reach in.
+
+---
+
+## 23. Inspection API and console (proposal)
+
+Today the bridge is observed through metrics, logs and, when something is
+stuck, a query against its database. That answers "is it healthy", not "what
+happened to alice's pull request" or "why is this one not on GitHub". Phase 4
+adds a read-only view for maintainers and operators. Both parts are optional,
+off by default, and change nothing about what the bridge does.
+
+### Read-only REST API
+
+Served by the bridge itself, on its own listener, cluster-internal like
+everything else it serves. Described in OpenAPI, which is the source of truth
+for both the server and any client, as with mcp-gateway's inspect API.
+
+| Endpoint | Answers |
+|---|---|
+| `GET /api/v1/repositories` | the configured pairs, with counts of bridged issues and pull requests, open and failing |
+| `GET /api/v1/repositories/{repo}/pairs` | the pairs of one repository, filterable by kind and state: both numbers, links to both sides, origin, synced state |
+| `GET /api/v1/repositories/{repo}/pairs/{github-number}` | one pair in full: its comment mappings, and for a pull request the contrib branch, imported head, frozen, touches-ci, rebase request, outcome |
+| `GET /api/v1/queue` | what is queued: due when, how many attempts, the last error |
+| `GET /api/v1/activity` | what the bridge did, newest first: every write, with side, kind, action and both numbers |
+| `GET /api/v1/status` | leader or waiting, poll cursors and last successful polls, rate-limit budget, build |
+
+Activity needs one addition: a bounded table recording each write the bridge
+makes (today they are only counted in `changes_total`). Everything else reads
+existing state.
+
+What the API never contains: tokens, keys or the DSN; titles, bodies or
+comments of Forgejo issues that are not public. It returns numbers and links,
+and the text of what is public anyway.
+
+**Read-only, deliberately.** Actions such as "retry now", "unfreeze this
+branch" or "forget this pair" are tempting and are left out: each is a way to
+change the bridge's state that bypasses the reconciler's rules, and an
+endpoint that can do it is an endpoint that has to be protected like a
+credential. If one proves necessary, it gets its own design.
+
+### Console
+
+An optional web UI on top of the API, for the questions people actually ask:
+where is this contribution, what is stuck and why, what did the bridge do
+today. Shipped as a separate image, the way mcp-gateway ships its console, so
+a deployment that does not want a UI does not carry one.
+
+### Open questions
+
+- **Authentication.** Cluster-internal is not enough for a UI people open in a
+  browser. Behind the platform's existing authentication (as mcp-gateway's
+  console is), or a gateway in front of it — to be decided with the platform.
+- **Console technology.** The same stack as mcp-gateway's console, for one way
+  of building consoles on the platform, or server-rendered pages from the
+  bridge itself, for no second image and no build toolchain.
+- **Activity retention.** How long, and whether it lives in the bridge's
+  database or goes to the platform's log store instead.
+
