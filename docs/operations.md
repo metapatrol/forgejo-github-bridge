@@ -30,6 +30,10 @@ no public endpoint.
 
 The queue gauges are refreshed every 15 seconds.
 
+A Grafana dashboard covering all of them ships as its own chart,
+[forgejo-github-bridge-grafana-dashboard](../charts/forgejo-github-bridge-grafana-dashboard/README.md),
+for the namespace the Grafana sidecar watches.
+
 ### Alerts worth having
 
 ```yaml

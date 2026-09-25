@@ -57,6 +57,11 @@ func run() error {
 	log := newLogger(cfg.LogFormat, cfg.LogLevel)
 	slog.SetDefault(log)
 	telemetry.SetBuildInfo(version, commit, builtAt)
+	keys := make([]string, len(cfg.Repositories))
+	for i, r := range cfg.Repositories {
+		keys[i] = r.Key()
+	}
+	telemetry.Register(keys)
 
 	repos := make([]string, len(cfg.Repositories))
 	for i, r := range cfg.Repositories {

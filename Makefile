@@ -28,7 +28,7 @@ LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buil
 
 .PHONY: build test integration-test integration-db integration-stop lint fmt vet clean \
         build-binary build-all install-tools secret-scan secret-scan-history \
-        helm-docs helm-lint helm-verify helm-package changelog
+        helm-docs helm-lint helm-verify helm-package changelog dashboard
 
 build:
 	go build ./...
@@ -114,6 +114,7 @@ helm-docs:
 helm-lint: helm-verify
 
 CHART ?= charts/forgejo-github-bridge
+DASHBOARD_CHART := charts/forgejo-github-bridge-grafana-dashboard
 
 # The values a real deployment must supply. The chart refuses to render without
 # them, which is deliberate and is asserted below.
@@ -191,7 +192,16 @@ helm-verify:
 		WHY="no Forgejo token" ARGS="$(HELM_MINIMUM) --set forgejo.existingSecret="; \
 	$(MAKE) --no-print-directory helm-refuses \
 		WHY="no repositories" ARGS="$(HELM_NO_REPOSITORIES)"; \
-	echo "helm chart OK"
+	echo "--- the dashboard chart"; \
+	helm lint $(DASHBOARD_CHART); \
+	helm template $(DASHBOARD_CHART) > /dev/null; \
+	$(MAKE) --no-print-directory helm-contains CHART=$(DASHBOARD_CHART) \
+		WHY="the sidecar discovery label" WANT="grafana_dashboard:" ARGS=""; \
+	$(MAKE) --no-print-directory helm-contains CHART=$(DASHBOARD_CHART) \
+		WHY="the dashboard under its own key" WANT="forgejo-github-bridge.json:" ARGS=""; \
+	$(MAKE) --no-print-directory helm-contains CHART=$(DASHBOARD_CHART) \
+		WHY="real panels, not an empty file" WANT="forgejo_github_bridge_dirty_failing" ARGS=""; \
+	echo "helm charts OK"
 
 # Asserts that a render contains something. The Secret keys in particular:
 # rendering successfully proves nothing about which key was referenced, and a
@@ -234,6 +244,13 @@ helm-refuses:
 
 helm-package:
 	helm package $(CHART) --destination bin/
+	helm package $(DASHBOARD_CHART) --destination bin/
+
+# Regenerates the Grafana dashboard from its generator. Not in CI: the checks
+# that run there are Go tests over the committed JSON, so CI needs no Python.
+dashboard:
+	python3 $(DASHBOARD_CHART)/dashboards/generate.py > $(DASHBOARD_CHART)/dashboards/forgejo-github-bridge.json
+	@go test ./tests/chart/ >/dev/null && echo "dashboard regenerated and checked"
 
 changelog:
 	git-cliff --config cliff.toml -o CHANGELOG.md

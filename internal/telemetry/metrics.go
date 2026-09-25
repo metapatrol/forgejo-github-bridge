@@ -92,6 +92,26 @@ var (
 	})
 )
 
+// Register creates the series of the configured repositories at zero.
+//
+// A counter labelled by repository does not exist until the first event, and
+// a dashboard panel over a series that does not exist says "No data" — which
+// reads as broken, not as "no poll has failed yet".
+func Register(repositories []string) {
+	for _, r := range repositories {
+		for _, side := range []string{"github", "forgejo"} {
+			pollErrors.WithLabelValues(r, side)
+			pollDuration.WithLabelValues(r, side)
+		}
+		for _, outcome := range []string{"ok", "error"} {
+			reconciles.WithLabelValues(r, outcome)
+		}
+		for _, source := range []string{"poll", "resync"} {
+			marked.WithLabelValues(r, source)
+		}
+	}
+}
+
 // SetBuildInfo records the build.
 func SetBuildInfo(version, commit, builtAt string) {
 	buildInfo.WithLabelValues(version, commit, builtAt).Set(1)

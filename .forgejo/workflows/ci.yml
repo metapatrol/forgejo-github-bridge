@@ -148,7 +148,7 @@ jobs:
         run: |
           set -eu
           FAIL=0
-          for chart in charts/forgejo-github-bridge; do
+          for chart in charts/forgejo-github-bridge charts/forgejo-github-bridge-grafana-dashboard; do
             name=$(basename "$chart")
             cp "$chart/README.md" "/tmp/readme-$name-original.md"
             helm-docs --chart-search-root "$chart" --output-file README.md --log-level warning

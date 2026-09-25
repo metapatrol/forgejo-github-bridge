@@ -8,7 +8,7 @@ repository applies to the others.
 |---|---|---|
 | `ci.yml` | pull requests, and pushes to develop | secret scan, lint, unit tests with the race detector, integration tests against PostgreSQL, chart lint, render and docs |
 | `main.yml` | pushes to main | the checks again, then the image from the commit, then semantic-release |
-| `release.yml` | a `v*` tag, and `workflow_dispatch` | validate the tag, test, the tagged image, the Forgejo release, binaries, the chart, docs rebuild |
+| `release.yml` | a `v*` tag, and `workflow_dispatch` | validate the tag, test, the tagged image, the Forgejo release, binaries, both charts, docs rebuild |
 
 ## Ordering
 
@@ -26,6 +26,11 @@ A cheap check gates an expensive one:
 In `release.yml` nothing is published until the image is pushed: `notes`
 creates the Forgejo release, and a release whose image does not exist is worse
 than none. `binaries` and `chart` follow `notes` because both attach assets.
+
+## Image
+
+`chart` publishes both charts at the release version: `forgejo-github-bridge`
+and `forgejo-github-bridge-grafana-dashboard`.
 
 ## Image
 

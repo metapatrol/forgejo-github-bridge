@@ -206,6 +206,9 @@ mapped appears on GitHub as "a maintainer"; their Forgejo login never does.
 | `forgejo_github_bridge_github_rate_limit_remaining` | |
 | `forgejo_github_bridge_leader` | 1 on the active instance |
 
+The [dashboard chart](charts/forgejo-github-bridge-grafana-dashboard/README.md)
+ships a Grafana dashboard for all of them.
+
 ## Development
 
 ```bash

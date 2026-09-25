@@ -1,0 +1,17 @@
+apiVersion: v2
+name: forgejo-github-bridge-grafana-dashboard
+description: Grafana dashboard for forgejo-github-bridge (deployed as a ConfigMap for the Grafana sidecar)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - forgejo
+  - github
+  - grafana
+  - dashboard
+home: https://forgejo.metapatrol.local/platform/forgejo-github-bridge
+sources:
+  - https://forgejo.metapatrol.local/platform/forgejo-github-bridge
+maintainers:
+  - name: Denis Neuling
+    email: denisneuling@gmail.com

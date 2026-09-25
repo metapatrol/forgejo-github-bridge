@@ -1,0 +1,17 @@
+{{- if .Values.grafana.dashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "forgejo-github-bridge-grafana-dashboard.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "forgejo-github-bridge-grafana-dashboard.labels" . | nindent 4 }}
+    {{ .Values.grafana.dashboard.label }}: {{ .Values.grafana.dashboard.labelValue | quote }}
+  annotations:
+    {{- if .Values.grafana.dashboard.folder }}
+    {{ .Values.grafana.dashboard.folderAnnotation }}: {{ .Values.grafana.dashboard.folder | quote }}
+    {{- end }}
+data:
+  forgejo-github-bridge.json: |
+    {{ .Files.Get "dashboards/forgejo-github-bridge.json" | nindent 4 }}
+{{- end }}

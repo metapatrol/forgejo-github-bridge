@@ -36,4 +36,5 @@ ordered by who reads them.
 - **[Development](./development.md)** — layout, the test suites and their
   fakes, running it locally, releases
 - **[Chart values](../charts/forgejo-github-bridge/README.md)** — the Helm chart
+- **[Grafana dashboard](../charts/forgejo-github-bridge-grafana-dashboard/README.md)** — the dashboard chart, and what each row shows
 - **[CI](../.forgejo/README.md)** — what the workflows do and what they need

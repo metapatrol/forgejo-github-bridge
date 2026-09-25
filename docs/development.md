@@ -23,7 +23,10 @@ internal/marker             the hidden provenance line
 internal/config             environment and repository file
 internal/telemetry          Prometheus metrics
 charts/forgejo-github-bridge
+charts/forgejo-github-bridge-grafana-dashboard
+                            the dashboard; dashboards/generate.py writes its JSON
 tests/integration           against real PostgreSQL
+tests/chart                 the dashboard against the metrics the bridge publishes
 ```
 
 The reconciler knows only `internal/forge`'s types. The two clients
@@ -38,6 +41,7 @@ make integration-test   # starts postgres:18 in Docker, then tests/integration
 make lint               # golangci-lint at the version CI pins
 make helm-verify        # renders the chart, checks keys it must honour and values it must refuse
 make secret-scan        # gitleaks over the working tree
+make dashboard          # regenerates the dashboard JSON from dashboards/generate.py
 ```
 
 What covers what:
@@ -50,6 +54,7 @@ What covers what:
 | `internal/gitops` | the real git against local repositories: import, force-push, a refused lease |
 | `internal/translate` | translation cases, one per rule |
 | `tests/integration` | migrations, the leader lock handing over between two instances, an issue and a pull request lifecycle on PostgreSQL |
+| `tests/chart` | the dashboard: every panel queries a published metric, every published metric has a panel, the datasource is a variable, panels fit the grid and do not overlap |
 
 ### The fakes
 
@@ -94,6 +99,8 @@ helm upgrade forgejo-github-bridge charts/forgejo-github-bridge --kube-context k
   `internal/store/postgres/migrations`. Never edit one that was released; the
   bridge refuses to start against a database where it was applied with other
   content.
+- **A new metric** gets a panel in `dashboards/generate.py` (`make dashboard`);
+  `tests/chart` fails until it has one.
 - **A new message** goes into `translate.DefaultMessages` with a friendly
   default, and into the tables in [configuration](./configuration.md#messages)
   and the README.
