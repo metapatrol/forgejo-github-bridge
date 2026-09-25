@@ -21,11 +21,12 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/marker"
 )
 
-// Placeholders for what cannot cross.
+// Placeholders for what cannot cross. Set as code spans, so that a reader
+// sees at a glance that something was taken out rather than written so.
 const (
-	internalReference = "(internal reference)"
-	internalLink      = "(internal link)"
-	missingAttachment = "_(attachment not available publicly)_"
+	internalReference = "`internal reference`"
+	internalLink      = "`internal link`"
+	missingAttachment = "`attachment not available publicly`"
 	noDescription     = "_No description provided._"
 )
 
@@ -232,7 +233,7 @@ func (t *Translator) textToGitHub(body string, refs map[int64]int64, participant
 		})
 	})
 	if attachments > 0 {
-		out = strings.TrimSpace(out + "\n\n" + fmt.Sprintf("_(%d attachment(s) not available publicly)_", attachments))
+		out = strings.TrimSpace(out + "\n\n" + fmt.Sprintf("`%d attachment(s) not available publicly`", attachments))
 	}
 	return out
 }

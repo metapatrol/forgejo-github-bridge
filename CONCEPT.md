@@ -451,13 +451,15 @@ Text crossing the bridge is rewritten so that it means the same thing on the oth
 
 | Element | GitHub → Forgejo | Forgejo → GitHub |
 |---|---|---|
-| `#N` reference | mapped Forgejo number, else link to the GitHub item | mapped GitHub number, else `(internal reference)` |
+| `#N` reference | mapped Forgejo number, else link to the GitHub item | mapped GitHub number, else `` `internal reference` `` |
 | `@user` mention | link to the GitHub profile; never a Forgejo mention | mapped via `userMapping`, else plain text without `@` |
-| Links to the Forgejo host | — | removed; the target is not reachable |
-| Attachments and images | kept as links (GitHub-hosted) | replaced by a note; GitHub's API cannot receive uploads |
+| Links to the Forgejo host | — | a link to a mapped issue points at its GitHub counterpart; any other becomes its link text, or `` `internal link` `` when bare |
+| Attachments and images | kept as links (GitHub-hosted) | `` `attachment not available publicly` ``; GitHub's API cannot receive uploads |
 | Commit SHAs | unchanged | unchanged; the push mirror publishes them |
 
 A mention must never notify an unrelated account that happens to share a name in the other system.
+
+Placeholders are set as code spans, so that a reader on GitHub sees at a glance that something was taken out, rather than reading it as what the author wrote.
 
 ---
 
