@@ -92,6 +92,12 @@ Once per installation:
    and opens the imported pull requests. Never approve its workflow runs with
    *Approve always* ([CONCEPT.md §12](CONCEPT.md#12-ci-isolation)).
 
+Per maintainer who merges in Forgejo: set the account's primary e-mail to
+the address of their GitHub account (or its `…@users.noreply.github.com`
+address). Merges record the merging account as committer, and the push mirror
+publishes it; an internal address would end up public and unlinked
+([CONCEPT.md §17](CONCEPT.md#17-deployment)).
+
 Per bridged repository:
 
 1. Install the GitHub App on the GitHub repository, and only there.

@@ -359,7 +359,7 @@ The merge strategy is the repository's, configured in Forgejo. The platform's re
 | the pull request is up to date with its base | a plain fast-forward; the contributor's SHAs are kept | GitHub sees the head commit on the base branch and marks the pull request **merged** by itself |
 | the base has moved on | the commits are rebased and get new SHAs | GitHub cannot recognise the merge; the pull request stays open |
 
-A rebase keeps each commit's **author**; only the committer becomes the maintainer. The contributor stays in the history and GitHub attributes the commits to them either way. What the second case loses is only the pull request's merged state.
+A rebase keeps each commit's **author**; only the committer becomes the maintainer, with the e-mail address of their Forgejo account (§17). The contributor stays in the history and GitHub attributes the commits to them either way. What the second case loses is only the pull request's merged state.
 
 The bridge handles both:
 
@@ -545,6 +545,10 @@ database:
 ```
 
 Once per installation, a CloudNativePG database and the GitHub App are created.
+
+Per maintainer who merges in Forgejo:
+
+- Forgejo: set the account's primary e-mail to an address that may be public and belongs to the maintainer's GitHub account — their GitHub-verified address, or their `…@users.noreply.github.com` address. A merge through the web interface, and a rebase merge in particular, records the merging account as the committer of every commit, and the push mirror publishes it. An internal address would be published as it is, and GitHub could not link the committer to anyone. This is Forgejo's behaviour, not the bridge's, and applies to every commit made through Forgejo's web interface.
 
 Per bridged repository, the one-time setup is:
 
