@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo.svg" alt="" width="128" height="128">
+</p>
+
 # forgejo-github-bridge
 
 Keeps issues and comments in step between a private Forgejo and the public
