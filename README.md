@@ -111,13 +111,21 @@ Per bridged repository:
    request that workflow runs from it wait for approval.
 4. Add the pair to `repositories` in the chart values.
 
-[samples/values-k3s-dev.yaml](samples/values-k3s-dev.yaml) puts it together.
+[samples/values-example.yaml](samples/values-example.yaml) puts it together.
 
 ```bash
-helm upgrade --install forgejo-github-bridge charts/forgejo-github-bridge \
-  --kube-context k3s-dev --namespace forgejo-github-bridge --create-namespace \
-  -f samples/values-k3s-dev.yaml
+helm upgrade --install forgejo-github-bridge \
+  oci://ghcr.io/metapatrol/charts/forgejo-github-bridge --version 0.1.0 \
+  --namespace forgejo-github-bridge --create-namespace \
+  -f samples/values-example.yaml
 ```
+
+Images (`linux/amd64`, `linux/arm64`) are at
+`ghcr.io/metapatrol/forgejo-github-bridge`, charts at
+`oci://ghcr.io/metapatrol/charts/`, and binaries on the
+[releases page](https://github.com/metapatrol/forgejo-github-bridge/releases).
+The step-by-step version, with the checks to run before the first real
+contribution, is [docs/installation.md](docs/installation.md).
 
 ## Configuration
 
@@ -147,7 +155,7 @@ The repository file:
 
 ```yaml
 repositories:
-  - github: metapatrol/foo          # the public repository
+  - github: example-org/foo          # the public repository
     forgejo: platform/foo           # its source of truth
     publishLabel: public            # default
     importLabel: github             # default
@@ -158,7 +166,7 @@ repositories:
     rebaseRequests: false           # ask contributors to rebase outdated PRs
     ciPaths: [.forgejo/, .github/]  # default
 userMapping:
-  ska: denisneuling                 # Forgejo login: GitHub login
+  jdoe: janedoe                     # Forgejo login: GitHub login
 ```
 
 ### Messages
@@ -233,6 +241,13 @@ CI is described in [.forgejo/README.md](.forgejo/README.md).
     internal/marker             the hidden provenance line
     charts/                     the Helm chart
     tests/integration           against real PostgreSQL
+
+## Contributing
+
+This project is developed in a private Forgejo and published here — through
+itself. Issues and pull requests opened on GitHub are carried into Forgejo by
+the bridge, and the maintainers' answers come back the same way. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

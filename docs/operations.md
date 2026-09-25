@@ -84,7 +84,7 @@ something did not cross.
    and the queue keeps the last one:
 
    ```bash
-   kubectl --context k3s-dev -n forgejo-github-bridge exec forgejo-github-bridge-db-1 -- \
+   kubectl -n forgejo-github-bridge exec forgejo-github-bridge-db-1 -- \
      psql -U postgres -d app -c \
      "SELECT repository, side, number, attempts, not_before, last_error FROM dirty WHERE attempts > 0"
    ```
@@ -130,7 +130,7 @@ A migration is never edited once released; a changed one stops the start with
 | database password | CloudNativePG rotates it in its app Secret; restart the bridge |
 
 The bridge reads credentials at startup, so every rotation needs a restart
-(`kubectl --context k3s-dev -n forgejo-github-bridge rollout restart deploy/forgejo-github-bridge`).
+(`kubectl -n forgejo-github-bridge rollout restart deploy/forgejo-github-bridge`).
 
 ## Losing the database
 
@@ -163,5 +163,5 @@ Scale to zero. Nothing is lost; on scale-up the bridge polls from its cursors
 and catches up.
 
 ```bash
-kubectl --context k3s-dev -n forgejo-github-bridge scale deploy/forgejo-github-bridge --replicas=0
+kubectl -n forgejo-github-bridge scale deploy/forgejo-github-bridge --replicas=0
 ```

@@ -80,5 +80,5 @@ account ([Installation](./installation.md#4-per-maintainer)).
 
 ## Reporting a problem
 
-Security problems in the bridge itself go to the maintainers of
-`platform/forgejo-github-bridge` in Forgejo, not to a public tracker.
+Security problems in the bridge itself are reported privately, as described
+in [SECURITY.md](../SECURITY.md), not in a public issue.

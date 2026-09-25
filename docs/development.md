@@ -75,22 +75,21 @@ were each checked by breaking the code and watching them fail.
 
 ## Running it locally
 
-There is no local stand-in for GitHub; run it against the sandbox pair
-(`metapatrol/forgejo-github-bridge-sandbox` ↔
-`sandbox/forgejo-github-bridge-sandbox`) with a test App, or rely on the
-tests.
+There is no local stand-in for GitHub. To see the bridge work end to end,
+give it a pair of its own to play with: a throwaway public GitHub repository
+with the App installed, a Forgejo repository with a push mirror to it, and a
+contrib fork. Then open issues and pull requests on both sides and watch them
+cross. The tests cover the logic without any of that.
 
-To try an unreleased image on `k3s-dev`, whose node is the development
-machine:
+To try an unreleased image on a single-node k3s cluster without a registry:
 
 ```bash
-docker build -t zot.metapatrol.local/images/platform/forgejo-github-bridge:dev-local \
-  --build-arg GO_IMAGE=docker.io/library/golang:1.27-alpine \
-  --build-arg RUNTIME_IMAGE=docker.io/library/alpine:3.24 .
-docker save zot.metapatrol.local/images/platform/forgejo-github-bridge:dev-local -o /tmp/bridge.tar
+docker build -t forgejo-github-bridge:dev .
+docker save forgejo-github-bridge:dev -o /tmp/bridge.tar
 sudo k3s ctr images import /tmp/bridge.tar
-helm upgrade forgejo-github-bridge charts/forgejo-github-bridge --kube-context k3s-dev \
-  -n forgejo-github-bridge -f values.yaml --set image.tag=dev-local --set image.pullPolicy=Never
+helm upgrade forgejo-github-bridge charts/forgejo-github-bridge -n forgejo-github-bridge \
+  -f values.yaml --set image.repository=docker.io/library/forgejo-github-bridge \
+  --set image.tag=dev --set image.pullPolicy=Never
 ```
 
 ## Changing things

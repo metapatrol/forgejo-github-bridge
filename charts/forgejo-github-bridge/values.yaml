@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: zot.metapatrol.local/images/platform/forgejo-github-bridge
+  repository: ghcr.io/metapatrol/forgejo-github-bridge
   pullPolicy: IfNotPresent
   # -- Defaults to the chart's appVersion, or to the commit when the chart is
   # read from Git by Flux.
@@ -70,7 +70,7 @@ forgejo:
 # -- The bridged repositories. Each entry pairs a public GitHub repository
 # with the private Forgejo repository that is its source of truth.
 #
-#   - github: metapatrol/foo      # required
+#   - github: example-org/foo      # required
 #     forgejo: platform/foo       # required
 #     publishLabel: public        # makes a Forgejo issue public
 #     importLabel: github         # marks issues imported from GitHub

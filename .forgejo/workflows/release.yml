@@ -113,6 +113,8 @@ jobs:
           VERSION="${TAG#v}"
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           podman --storage-driver=vfs build --tls-verify=false \
+            --build-arg GO_IMAGE="$REGISTRY/library/golang:$GO_VERSION-alpine" \
+            --build-arg RUNTIME_IMAGE="$REGISTRY/library/alpine:3.24" \
             --build-arg VERSION="$VERSION" \
             --build-arg COMMIT="$COMMIT" \
             --build-arg BUILT_AT="$BUILD_TIME" \
@@ -271,6 +273,9 @@ jobs:
 
           for CHART_DIR in charts/forgejo-github-bridge charts/forgejo-github-bridge-grafana-dashboard; do
             CHART_NAME=$(basename "$CHART_DIR")
+            # The chart defaults to the public image on ghcr.io; the one
+            # released here points at the internal registry's instead.
+            sed -i "s#^  repository: .*forgejo-github-bridge\$#  repository: $REGISTRY/images/platform/forgejo-github-bridge#" "$CHART_DIR/values.yaml"
             sed -i "s/^version:.*/version: $VERSION/" "$CHART_DIR/Chart.yaml"
             sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" "$CHART_DIR/Chart.yaml"
             helm package "$CHART_DIR" -d /tmp/

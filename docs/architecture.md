@@ -10,7 +10,7 @@ records the decision and this page the result.
                        Internet
                 ┌─────────────────────┐
                 │ GitHub              │
-                │  metapatrol/foo     │◀──────── push mirror ─────────┐
+                │  example-org/foo     │◀──────── push mirror ─────────┐
                 │  (public)           │                               │
                 └───▲─────────▲───────┘                               │
           REST API  │         │ git fetch refs/pull/<n>/head          │

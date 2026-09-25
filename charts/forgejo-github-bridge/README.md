@@ -16,14 +16,14 @@ belongs to something else:
 | `forgejo.existingSecret` | `token` | an access token of the `github-bridge` Forgejo account |
 
 ```bash
-helm install forgejo-github-bridge oci://zot.metapatrol.local/charts/platform/forgejo-github-bridge \
+helm install forgejo-github-bridge oci://ghcr.io/metapatrol/charts/forgejo-github-bridge \
   --namespace forgejo-github-bridge --create-namespace \
   --set database.existingSecret=forgejo-github-bridge-db-app \
   --set github.appID=123456 \
   --set github.existingSecret=forgejo-github-bridge-github \
   --set forgejo.url=http://forgejo-http.forgejo:3000 \
   --set forgejo.existingSecret=forgejo-github-bridge-forgejo \
-  --set 'repositories[0].github=metapatrol/foo' \
+  --set 'repositories[0].github=example-org/foo' \
   --set 'repositories[0].forgejo=platform/foo'
 ```
 
@@ -60,7 +60,7 @@ shortens a failover and nothing else.
 | github.existingSecret | string | `""` | The Secret holding the App's private key. Required. |
 | github.existingSecretKey | string | `"private-key.pem"` | The key inside that Secret. |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
-| image.repository | string | `"zot.metapatrol.local/images/platform/forgejo-github-bridge"` |  |
+| image.repository | string | `"ghcr.io/metapatrol/forgejo-github-bridge"` |  |
 | image.tag | string | `""` | Defaults to the chart's appVersion, or to the commit when the chart is read from Git by Flux. |
 | imagePullSecrets | list | `[]` |  |
 | logging.format | string | `"json"` | json or text. |
@@ -75,7 +75,7 @@ shortens a failover and nothing else.
 | poll.interval | string | `"60s"` | How often each repository is polled on each side. |
 | port | int | `8080` | The port probes and metrics are served on. Cluster-internal; the bridge has no public endpoint. |
 | replicaCount | int | `1` | One replica does the work. A second one waits on the leader lock and only shortens a failover; it never shares the work (CONCEPT.md §7). |
-| repositories | list | `[]` | The bridged repositories. Each entry pairs a public GitHub repository with the private Forgejo repository that is its source of truth.    - github: metapatrol/foo      # required     forgejo: platform/foo       # required     publishLabel: public        # makes a Forgejo issue public     importLabel: github         # marks issues imported from GitHub     internalPrefix: /internal   # keeps a Forgejo comment private     importSince: "2026-09-01T00:00:00Z"     # Pull requests (phase 2), only with a contrib repository:     contrib: github-contrib/foo # the fork imported heads are pushed to     targetBranches: [develop]   # the bases a pull request may target     rebaseRequests: false       # ask contributors to rebase outdated PRs     ciPaths: [.forgejo/, .github/]     messages: {}                # per-repository overrides of `messages` |
+| repositories | list | `[]` | The bridged repositories. Each entry pairs a public GitHub repository with the private Forgejo repository that is its source of truth.    - github: example-org/foo      # required     forgejo: platform/foo       # required     publishLabel: public        # makes a Forgejo issue public     importLabel: github         # marks issues imported from GitHub     internalPrefix: /internal   # keeps a Forgejo comment private     importSince: "2026-09-01T00:00:00Z"     # Pull requests (phase 2), only with a contrib repository:     contrib: github-contrib/foo # the fork imported heads are pushed to     targetBranches: [develop]   # the bases a pull request may target     rebaseRequests: false       # ask contributors to rebase outdated PRs     ciPaths: [.forgejo/, .github/]     messages: {}                # per-repository overrides of `messages` |
 | resources.limits.cpu | string | `"500m"` |  |
 | resources.limits.memory | string | `"128Mi"` |  |
 | resources.requests.cpu | string | `"10m"` |  |

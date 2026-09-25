@@ -11,7 +11,7 @@ GitHub as they would for any project and need not know Forgejo exists.
 An issue opened on GitHub appears in Forgejo within a minute or two, with the
 label `github`. It starts with who reported it and a link to the original:
 
-> Reported by [alice](https://github.com/alice) via GitHub: https://github.com/metapatrol/foo/issues/42
+> Reported by [alice](https://github.com/alice) via GitHub: https://github.com/example-org/foo/issues/42
 
 The imported issue is yours to triage. Labels, milestones, assignees and
 projects you set in Forgejo stay in Forgejo and are never overwritten. Title
@@ -59,7 +59,7 @@ The bridge rewrites them so they mean the same on GitHub and leak nothing:
 |---|---|
 | `#12`, where #12 is bridged | its GitHub number |
 | `#13`, where #13 is private | `` `internal reference` `` |
-| `@denis` (mapped) | `@denisneuling` |
+| `@jdoe` (mapped to `janedoe`) | `@janedoe` |
 | `@alice`, who takes part in the GitHub issue | `@alice`, and she is notified |
 | `@bob`, who does not | `bob`, and nobody is notified |
 | a link to a bridged Forgejo issue | the GitHub issue's link |

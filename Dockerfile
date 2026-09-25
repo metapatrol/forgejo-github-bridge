@@ -1,10 +1,10 @@
-# The base images come from the internal registry's mirror; a build outside
-# the network passes the public ones:
+# Public base images, so that `docker build .` works anywhere. A build that
+# should pull through a registry mirror passes its own:
 #
-#   --build-arg GO_IMAGE=docker.io/library/golang:1.27-alpine
-#   --build-arg RUNTIME_IMAGE=docker.io/library/alpine:3.24
-ARG GO_IMAGE=zot.metapatrol.local/library/golang:1.27-alpine
-ARG RUNTIME_IMAGE=zot.metapatrol.local/library/alpine:3.24
+#   --build-arg GO_IMAGE=registry.example.com/library/golang:1.27-alpine
+#   --build-arg RUNTIME_IMAGE=registry.example.com/library/alpine:3.24
+ARG GO_IMAGE=docker.io/library/golang:1.27-alpine
+ARG RUNTIME_IMAGE=docker.io/library/alpine:3.24
 
 FROM ${GO_IMAGE} AS builder
 

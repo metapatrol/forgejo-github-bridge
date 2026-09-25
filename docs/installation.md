@@ -1,13 +1,14 @@
 # Installation
 
-From nothing to a bridged repository. The examples use the platform's names
-— the `k3s-dev` cluster, Forgejo at `forgejo.metapatrol.local`, the GitHub
-organisation `metapatrol` — and one repository pair:
+From nothing to a bridged repository. The examples use Forgejo at
+`forgejo.example.com`, the GitHub organisation `example-org`, a namespace
+`forgejo-github-bridge` in a Kubernetes cluster with CloudNativePG, and one
+repository pair:
 
 | | |
 |---|---|
 | canonical, in Forgejo | `platform/foo` |
-| public, on GitHub | `metapatrol/foo` |
+| public, on GitHub | `example-org/foo` |
 | contrib fork, in Forgejo | `github-contrib/foo` (only for pull requests) |
 
 Parts 1 to 3 are done once per installation, part 4 once per maintainer,
@@ -16,9 +17,9 @@ part 5 once per repository.
 ## 1. Namespace and database
 
 ```bash
-kubectl --context k3s-dev create namespace forgejo-github-bridge
-kubectl --context k3s-dev apply -f samples/cnpg-cluster.yaml
-kubectl --context k3s-dev -n forgejo-github-bridge wait \
+kubectl create namespace forgejo-github-bridge
+kubectl apply -f samples/cnpg-cluster.yaml
+kubectl -n forgejo-github-bridge wait \
   cluster.postgresql.cnpg.io/forgejo-github-bridge-db --for=condition=Ready --timeout=5m
 ```
 
@@ -31,7 +32,7 @@ do; the bridge can rebuild most of its state without them
 ## 2. The GitHub App
 
 Create it in the organisation:
-<https://github.com/organizations/metapatrol/settings/apps/new>
+`https://github.com/organizations/<your-org>/settings/apps/new`
 
 | Field | Value |
 |---|---|
@@ -51,7 +52,7 @@ Then, on the App's page:
 3. Store it in the cluster and delete the local copy:
 
    ```bash
-   kubectl --context k3s-dev -n forgejo-github-bridge create secret generic \
+   kubectl -n forgejo-github-bridge create secret generic \
      forgejo-github-bridge-github --from-file=private-key.pem=./<app>.private-key.pem
    ```
 
@@ -71,7 +72,7 @@ The account that writes issues and comments.
    `read:user`, and store it:
 
    ```bash
-   kubectl --context k3s-dev -n forgejo-github-bridge create secret generic \
+   kubectl -n forgejo-github-bridge create secret generic \
      forgejo-github-bridge-forgejo --from-literal=token=<token>
    ```
 
@@ -79,7 +80,7 @@ A token can be created without logging in as the account:
 
 ```bash
 curl -u '<login-or-email>:<password>' -H 'Content-Type: application/json' \
-  -X POST https://forgejo.metapatrol.local/api/v1/users/github-bridge/tokens \
+  -X POST https://forgejo.example.com/api/v1/users/github-bridge/tokens \
   -d '{"name":"forgejo-github-bridge","scopes":["write:issue","read:repository","read:user"]}'
 ```
 
@@ -96,7 +97,7 @@ by.
 3. Create a token with `write:repository` and `read:user`, and store it:
 
    ```bash
-   kubectl --context k3s-dev -n forgejo-github-bridge create secret generic \
+   kubectl -n forgejo-github-bridge create secret generic \
      forgejo-github-bridge-contrib --from-literal=token=<token>
    ```
 
@@ -118,7 +119,7 @@ nobody.
 
 ### On GitHub
 
-1. Create the public repository, e.g. `metapatrol/foo`, public.
+1. Create the public repository, e.g. `example-org/foo`, public.
 2. Set its default branch to the branch contributions go to, e.g. `develop`
    (it exists once the mirror has pushed it).
 3. Install the App on it: App page → *Install App* → the organisation →
@@ -126,7 +127,7 @@ nobody.
 
 ### In Forgejo
 
-1. Add a push mirror on `platform/foo` to `ssh://git@github.com/metapatrol/foo.git`
+1. Add a push mirror on `platform/foo` to `ssh://git@github.com/example-org/foo.git`
    with **sync on commit** enabled, so merges reach GitHub within seconds.
 2. Give `github-bridge` write access (part 3).
 3. Keep the merge style *rebase, then fast-forward*. To have GitHub show every
@@ -140,7 +141,7 @@ For pull requests, additionally:
 
    ```bash
    curl -H "Authorization: token <contrib-token>" -H 'Content-Type: application/json' \
-     -X POST https://forgejo.metapatrol.local/api/v1/repos/platform/foo/forks -d '{}'
+     -X POST https://forgejo.example.com/api/v1/repos/platform/foo/forks -d '{}'
    ```
 
    The fork must have **no push mirror, no Actions secrets and no
@@ -150,54 +151,54 @@ For pull requests, additionally:
 
 ```yaml
 repositories:
-  - github: metapatrol/foo
+  - github: example-org/foo
     forgejo: platform/foo
     # for pull requests:
     contrib: github-contrib/foo
     targetBranches: [develop]
     rebaseRequests: true
 userMapping:
-  denis: denisneuling    # Forgejo login: GitHub login
+  jdoe: janedoe    # Forgejo login: GitHub login
 ```
 
 ## 6. Deploy
 
-A values file for `k3s-dev`, starting from
-[samples/values-k3s-dev.yaml](../samples/values-k3s-dev.yaml):
+A values file, starting from
+[samples/values-example.yaml](../samples/values-example.yaml):
 
 ```yaml
 database:
   existingSecret: forgejo-github-bridge-db-app
 github:
-  appID: 5074555
+  appID: 123456
   existingSecret: forgejo-github-bridge-github
 forgejo:
   url: http://forgejo-http.forgejo:3000
-  webURL: https://forgejo.metapatrol.local
+  webURL: https://forgejo.example.com
   existingSecret: forgejo-github-bridge-forgejo
   contribExistingSecret: forgejo-github-bridge-contrib
 repositories:
-  - github: metapatrol/foo
+  - github: example-org/foo
     forgejo: platform/foo
     contrib: github-contrib/foo
     targetBranches: [develop]
     rebaseRequests: true
 userMapping:
-  denis: denisneuling
+  jdoe: janedoe
 ```
 
 `forgejo.webURL` matters whenever `forgejo.url` is an in-cluster address:
 links starting with either are recognised as internal and kept off GitHub.
 
 ```bash
-helm upgrade --install forgejo-github-bridge oci://zot.metapatrol.local/charts/platform/forgejo-github-bridge \
-  --kube-context k3s-dev -n forgejo-github-bridge -f values.yaml
+helm upgrade --install forgejo-github-bridge oci://ghcr.io/metapatrol/charts/forgejo-github-bridge \
+  -n forgejo-github-bridge -f values.yaml
 ```
 
 The logs of a healthy start:
 
 ```text
-msg="starting forgejo-github-bridge" version=… repositories="[metapatrol/foo=platform/foo]"
+msg="starting forgejo-github-bridge" version=… repositories="[example-org/foo=platform/foo]"
 msg="applying migration" name=0001_initial.sql            (first start only)
 msg="holding the leader lock; this instance does the work"
 msg="identities resolved" github=<slug>[bot] forgejo=github-bridge contrib=github-contrib

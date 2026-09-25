@@ -1,13 +1,13 @@
-# The bridge on k3s-dev, next to Forgejo.
+# An example installation next to Forgejo in the same cluster.
 #
 # Secrets this expects in the namespace:
 #   forgejo-github-bridge-db-app   written by CNPG (samples/cnpg-cluster.yaml)
 #   forgejo-github-bridge-github   key private-key.pem: the GitHub App's key
 #   forgejo-github-bridge-forgejo  key token: the github-bridge account's token
 #
-#   kubectl --context k3s-dev -n forgejo-github-bridge create secret generic \
+#   kubectl -n forgejo-github-bridge create secret generic \
 #     forgejo-github-bridge-github --from-file=private-key.pem=./app.private-key.pem
-#   kubectl --context k3s-dev -n forgejo-github-bridge create secret generic \
+#   kubectl -n forgejo-github-bridge create secret generic \
 #     forgejo-github-bridge-forgejo --from-literal=token=...
 
 database:
@@ -21,11 +21,11 @@ forgejo:
   # In-cluster, plain HTTP: no private CA to trust on this path.
   url: http://forgejo-http.forgejo:3000
   # What maintainers' links look like. Both are kept off GitHub.
-  webURL: https://forgejo.metapatrol.local
+  webURL: https://forgejo.example.com
   existingSecret: forgejo-github-bridge-forgejo
 
 repositories:
-  - github: metapatrol/example
+  - github: example-org/example
     forgejo: platform/example
 
 userMapping: {}

@@ -25,8 +25,8 @@ Prometheus scrapes the bridge, or point a scrape config at its `http` port.
 
 ```bash
 helm upgrade --install forgejo-github-bridge-grafana-dashboard \
-  oci://zot.metapatrol.local/charts/platform/forgejo-github-bridge-grafana-dashboard \
-  --kube-context k3s-dev -n monitoring
+  oci://ghcr.io/metapatrol/charts/forgejo-github-bridge-grafana-dashboard \
+  -n monitoring
 ```
 
 ## What it shows

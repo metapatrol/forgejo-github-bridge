@@ -1,7 +1,6 @@
-# The bridge's database: a single-instance CloudNativePG cluster, like the
-# other platform services on k3s-dev. CNPG writes the connection string into
-# the Secret forgejo-github-bridge-db-app, under "uri", which is what the
-# chart reads by default.
+# The bridge's database: a single-instance CloudNativePG cluster. CNPG writes
+# the connection string into the Secret forgejo-github-bridge-db-app, under
+# "uri", which is what the chart reads by default.
 #
 # The state is small — mappings, cursors, a queue — and can be rebuilt from
 # the markers in the projections if it is lost (CONCEPT.md §7). Backups are

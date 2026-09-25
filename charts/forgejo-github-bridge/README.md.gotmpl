@@ -17,14 +17,14 @@ belongs to something else:
 | `forgejo.existingSecret` | `token` | an access token of the `github-bridge` Forgejo account |
 
 ```bash
-helm install forgejo-github-bridge oci://zot.metapatrol.local/charts/platform/forgejo-github-bridge \
+helm install forgejo-github-bridge oci://ghcr.io/metapatrol/charts/forgejo-github-bridge \
   --namespace forgejo-github-bridge --create-namespace \
   --set database.existingSecret=forgejo-github-bridge-db-app \
   --set github.appID=123456 \
   --set github.existingSecret=forgejo-github-bridge-github \
   --set forgejo.url=http://forgejo-http.forgejo:3000 \
   --set forgejo.existingSecret=forgejo-github-bridge-forgejo \
-  --set 'repositories[0].github=metapatrol/foo' \
+  --set 'repositories[0].github=example-org/foo' \
   --set 'repositories[0].forgejo=platform/foo'
 ```
 

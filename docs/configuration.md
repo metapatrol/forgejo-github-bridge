@@ -37,7 +37,7 @@ filesystem is read-only.
 
 ```yaml
 repositories:
-  - github: metapatrol/foo              # required
+  - github: example-org/foo              # required
     forgejo: platform/foo               # required
     importLabel: github                 # default
     publishLabel: public                # default
@@ -50,7 +50,7 @@ repositories:
     messages: {}                        # per-repository overrides
 
 userMapping:
-  denis: denisneuling                   # Forgejo login: GitHub login
+  jdoe: janedoe                   # Forgejo login: GitHub login
 
 messages: {}                            # overrides for every repository
 ```
@@ -89,8 +89,8 @@ are named when text crosses:
 - A maintainer's comment on GitHub is attributed to their GitHub account;
   an unmapped maintainer appears as "a maintainer". A Forgejo login never
   appears on GitHub.
-- `@denis` in Forgejo becomes `@denisneuling` on GitHub, and
-  `@denisneuling` on GitHub becomes `@denis` in Forgejo.
+- `@jdoe` in Forgejo becomes `@janedoe` on GitHub, and `@janedoe` on GitHub
+  becomes `@jdoe` in Forgejo.
 
 It grants nothing.
 

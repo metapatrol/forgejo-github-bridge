@@ -8,9 +8,9 @@ keywords:
   - platform
   - forgejo
   - github
-home: https://forgejo.metapatrol.local/platform/forgejo-github-bridge
+home: https://github.com/metapatrol/forgejo-github-bridge
 sources:
-  - https://forgejo.metapatrol.local/platform/forgejo-github-bridge
+  - https://github.com/metapatrol/forgejo-github-bridge
 maintainers:
   - name: Denis Neuling
-    email: denisneuling@gmail.com
+    url: https://github.com/denisneuling

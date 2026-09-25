@@ -63,10 +63,10 @@ automation token.
 **The runner label.** Every job says `runs-on: docker` — a label, not an image.
 If the runners are registered under another label, the workflows sit queued.
 
-**Fully qualified base images.** podman does not guess registries, so the
-Dockerfile's `FROM` names zot: `zot.metapatrol.local/library/golang:1.27-alpine`.
-The image jobs build with `--tls-verify=false` because zot uses the instance's
-private CA.
+**Base images through zot.** The Dockerfile defaults to the public images, so
+that a build anywhere works; the image jobs here pass zot's mirrors instead
+(`--build-arg GO_IMAGE=$REGISTRY/library/golang:…`), and build with
+`--tls-verify=false` because zot uses the instance's private CA.
 
 **The race detector** needs cgo and a C compiler; the test jobs install `gcc` when
 the runner image lacks it.
