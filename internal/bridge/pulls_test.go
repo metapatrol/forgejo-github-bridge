@@ -394,3 +394,28 @@ func TestAnInterruptedImportIsFinished(t *testing.T) {
 	p.settle()
 	p.forgejoPull()
 }
+
+func TestARebaseRequestIsNotRepeatedWhileTheBaseKeepsMoving(t *testing.T) {
+	p := newPullHarness(t, func(r *config.Repository) { r.RebaseRequests = true })
+	p.gh.SetBehind("sha1", 1)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1")
+	p.settle()
+	first := p.botComments(src.Number)
+	if len(first) != 1 {
+		t.Fatalf("want one request, have %d", len(first))
+	}
+
+	// develop moves on twice more; the contributor does nothing.
+	for _, behind := range []int{2, 5} {
+		p.gh.SetBehind("sha1", behind)
+		p.gh.Comment(ghRepo, src.Number, "bob", "any news?") // something that makes the bridge look again
+		p.settle()
+	}
+	notes := p.botComments(src.Number)
+	if len(notes) != 1 || notes[0].ID != first[0].ID {
+		t.Fatalf("want the same single request, have %d comments", len(notes))
+	}
+	if !strings.Contains(notes[0].Body, "moved on by 5 commit(s)") {
+		t.Errorf("the request was not kept up to date:\n%s", notes[0].Body)
+	}
+}
