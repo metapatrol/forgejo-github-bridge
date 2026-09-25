@@ -78,7 +78,7 @@ build-binary:
 # Cross-compile for the release platforms.
 build-all:
 	@mkdir -p bin
-	@for arch in amd64 arm64; do \
+	@for arch in amd64; do \
 		echo "Building $(BINARY) linux/$$arch..."; \
 		CGO_ENABLED=0 GOOS=linux GOARCH=$$arch go build -trimpath \
 			-ldflags="$(LDFLAGS)" -o bin/$(BINARY)-linux-$$arch ./cmd/$(BINARY); \

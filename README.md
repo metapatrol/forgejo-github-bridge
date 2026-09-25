@@ -120,7 +120,7 @@ helm upgrade --install forgejo-github-bridge \
   -f samples/values-example.yaml
 ```
 
-Images (`linux/amd64`, `linux/arm64`) are at
+Images (`linux/amd64`) are at
 `ghcr.io/metapatrol/forgejo-github-bridge`, charts at
 `oci://ghcr.io/metapatrol/charts/`, and binaries on the
 [releases page](https://github.com/metapatrol/forgejo-github-bridge/releases).
