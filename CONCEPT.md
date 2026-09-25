@@ -608,6 +608,8 @@ rebase requests (per-repository rebaseRequests)
 touches-ci labelling
 ```
 
+Status: implemented; end-to-end test against GitHub and Forgejo pending.
+
 ### Phase 3: refinement
 
 ```text

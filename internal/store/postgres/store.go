@@ -77,13 +77,13 @@ func conflict(err error) error {
 	return err
 }
 
-const issueColumns = `id, repository, github_number, forgejo_number, origin, synced_closed`
+const issueColumns = `id, repository, kind, github_number, forgejo_number, origin, synced_closed`
 
 func scanIssue(row pgx.Row) (store.IssueMapping, error) {
 	var m store.IssueMapping
-	var origin string
-	err := row.Scan(&m.ID, &m.Repository, &m.GitHubNumber, &m.ForgejoNumber, &origin, &m.SyncedClosed)
-	m.Origin = store.Side(origin)
+	var origin, kind string
+	err := row.Scan(&m.ID, &m.Repository, &kind, &m.GitHubNumber, &m.ForgejoNumber, &origin, &m.SyncedClosed)
+	m.Origin, m.Kind = store.Side(origin), store.Kind(kind)
 	return m, err
 }
 
@@ -111,10 +111,10 @@ func (s *Store) IssueByForgejo(ctx context.Context, repo string, n int64) (store
 // InsertIssue implements store.Store.
 func (s *Store) InsertIssue(ctx context.Context, m store.IssueMapping) (store.IssueMapping, error) {
 	out, err := scanIssue(s.pool.QueryRow(ctx, `
-		INSERT INTO issue_mapping (repository, github_number, forgejo_number, origin, synced_closed)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO issue_mapping (repository, kind, github_number, forgejo_number, origin, synced_closed)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING `+issueColumns,
-		m.Repository, m.GitHubNumber, m.ForgejoNumber, string(m.Origin), m.SyncedClosed))
+		m.Repository, string(kindOf(m)), m.GitHubNumber, m.ForgejoNumber, string(m.Origin), m.SyncedClosed))
 	if err != nil {
 		return store.IssueMapping{}, conflict(err)
 	}
@@ -151,6 +151,57 @@ func (s *Store) OpenIssues(ctx context.Context, repo string) ([]store.IssueMappi
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+func kindOf(m store.IssueMapping) store.Kind {
+	if m.Kind == "" {
+		return store.KindIssue
+	}
+	return m.Kind
+}
+
+// PullRequest implements store.Store.
+func (s *Store) PullRequest(ctx context.Context, id int64) (store.PullRequestState, bool, error) {
+	var p store.PullRequestState
+	var state string
+	var rebase *int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT issue_mapping_id, contrib_branch, imported_head_sha, state, head_frozen, touches_ci,
+		       rebase_comment_id, outcome_reported
+		FROM pull_request_state WHERE issue_mapping_id = $1`, id).Scan(
+		&p.IssueMappingID, &p.ContribBranch, &p.ImportedHeadSHA, &state, &p.HeadFrozen, &p.TouchesCI,
+		&rebase, &p.OutcomeReported)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return store.PullRequestState{}, false, nil
+	}
+	if err != nil {
+		return store.PullRequestState{}, false, err
+	}
+	p.State = store.PullState(state)
+	if rebase != nil {
+		p.RebaseCommentID = *rebase
+	}
+	return p, true, nil
+}
+
+// SavePullRequest implements store.Store.
+func (s *Store) SavePullRequest(ctx context.Context, p store.PullRequestState) error {
+	var rebase *int64
+	if p.RebaseCommentID != 0 {
+		rebase = &p.RebaseCommentID
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO pull_request_state (issue_mapping_id, contrib_branch, imported_head_sha, state,
+		                                head_frozen, touches_ci, rebase_comment_id, outcome_reported)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (issue_mapping_id) DO UPDATE SET
+			contrib_branch = excluded.contrib_branch, imported_head_sha = excluded.imported_head_sha,
+			state = excluded.state, head_frozen = excluded.head_frozen, touches_ci = excluded.touches_ci,
+			rebase_comment_id = excluded.rebase_comment_id, outcome_reported = excluded.outcome_reported,
+			updated_at = now()`,
+		p.IssueMappingID, p.ContribBranch, p.ImportedHeadSHA, string(p.State),
+		p.HeadFrozen, p.TouchesCI, rebase, p.OutcomeReported)
+	return conflict(err)
 }
 
 const commentColumns = `id, issue_mapping_id, github_comment_id, forgejo_comment_id, origin`

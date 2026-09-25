@@ -28,7 +28,20 @@ type side struct {
 // Forgejo comment marked internal. Every source has exactly one projection
 // on the other side. A projection whose source was deleted, or turned
 // internal, is deleted with it; one somebody deleted is written again.
-func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping, ghComments, fjComments []forge.Comment, participants map[string]bool) error {
+//
+// Reviews of a pull request in Forgejo are sources too, projected to GitHub
+// as comments. They take part under their negated ID: Forgejo numbers
+// reviews and comments separately, and the two must not collide in the
+// mapping.
+func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping, ghComments, fjComments []forge.Comment, reviews []forge.Review, participants map[string]bool) error {
+	b.reviews = map[int64]forge.Review{}
+	for _, rv := range reviews {
+		b.reviews[-rv.ID] = rv
+		fjComments = append(fjComments, forge.Comment{
+			ID: -rv.ID, IssueNumber: m.ForgejoNumber, Body: rv.Body, Author: rv.Author, URL: rv.URL,
+			CreatedAt: rv.SubmittedAt, UpdatedAt: rv.SubmittedAt,
+		})
+	}
 	gh := newSide(store.GitHub, b.github, b.githubSelf, m.GitHubNumber, ghComments)
 	fj := newSide(store.Forgejo, b.forgej, b.forgejoSelf, m.ForgejoNumber, fjComments)
 
@@ -52,20 +65,28 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 				continue
 			}
 			mk, ok := marker.Parse(c.Body)
-			if !ok || mk.Kind != marker.KindComment || store.Side(mk.Origin) != src.name {
+			if !ok || store.Side(mk.Origin) != src.name {
 				continue
 			}
-			if _, exists := src.comments[mk.ID]; !exists || mapped[src.name][mk.ID] {
+			srcID := mk.ID
+			switch mk.Kind {
+			case marker.KindComment:
+			case marker.KindReview:
+				srcID = -mk.ID
+			default:
+				continue
+			}
+			if _, exists := src.comments[srcID]; !exists || mapped[src.name][srcID] {
 				continue
 			}
 			cm := store.CommentMapping{IssueMappingID: m.ID, Origin: src.name}
-			cm.GitHubCommentID, cm.ForgejoCommentID = ids(src.name, mk.ID, c.ID)
+			cm.GitHubCommentID, cm.ForgejoCommentID = ids(src.name, srcID, c.ID)
 			cm, err := b.store.InsertComment(ctx, cm)
 			if err != nil {
 				return err
 			}
 			mappings = append(mappings, cm)
-			mapped[proj.name][c.ID], mapped[src.name][mk.ID] = true, true
+			mapped[proj.name][c.ID], mapped[src.name][srcID] = true, true
 		}
 	}
 
@@ -145,9 +166,13 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 }
 
 // isSource reports whether a comment is to be projected: not the bridge's
-// own, and on the Forgejo side not marked internal.
+// own, and on the Forgejo side not marked internal. A review that neither
+// decides anything nor says anything has nothing to project.
 func (b *Bridge) isSource(r *repo, s *side, c forge.Comment) bool {
-	if c.Author == s.self {
+	if b.own(s.name, c.Author) {
+		return false
+	}
+	if rv, ok := b.reviews[c.ID]; ok && c.ID < 0 && rv.State == "COMMENT" && strings.TrimSpace(rv.Body) == "" {
 		return false
 	}
 	if s.name == store.Forgejo && r.cfg.InternalPrefix != "" {
@@ -169,6 +194,9 @@ func (b *Bridge) renderComment(ctx context.Context, r *repo, origin store.Side, 
 	refs, err := b.refsToGitHub(ctx, r, c.Body)
 	if err != nil {
 		return "", err
+	}
+	if rv, ok := b.reviews[c.ID]; ok && c.ID < 0 {
+		return r.tr.ReviewToGitHub(rv, refs, participants), nil
 	}
 	return r.tr.CommentToGitHub(c, refs, participants), nil
 }

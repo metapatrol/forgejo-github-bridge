@@ -53,8 +53,7 @@ func (b *Bridge) importIssue(ctx context.Context, r *repo, n int64) error {
 	}
 	switch {
 	case is.IsPullRequest:
-		// Phase 2 (CONCEPT.md §11).
-		return nil
+		return b.importPull(ctx, r, n)
 	case is.Author == b.githubSelf:
 		return b.adopt(ctx, r, store.GitHub, is)
 	case is.Closed:
@@ -65,7 +64,7 @@ func (b *Bridge) importIssue(ctx context.Context, r *repo, n int64) error {
 		return nil
 	}
 
-	m, found, err := b.findProjection(ctx, r, store.Forgejo, marker.OriginGitHub, n)
+	m, found, err := b.findProjection(ctx, r, store.Forgejo, n)
 	if err != nil || found {
 		if found {
 			return b.pair(ctx, r, m)
@@ -105,7 +104,10 @@ func (b *Bridge) publishIssue(ctx context.Context, r *repo, n int64) error {
 		return err
 	}
 	switch {
+	case is.IsPullRequest && is.Author == b.contribSelf && b.contribSelf != "":
+		return b.adopt(ctx, r, store.Forgejo, is)
 	case is.IsPullRequest:
+		// Maintainers' own pull requests stay in Forgejo.
 		return nil
 	case is.Author == b.forgejoSelf:
 		return b.adopt(ctx, r, store.Forgejo, is)
@@ -117,7 +119,7 @@ func (b *Bridge) publishIssue(ctx context.Context, r *repo, n int64) error {
 		return nil
 	}
 
-	m, found, err := b.findProjection(ctx, r, store.GitHub, marker.OriginForgejo, n)
+	m, found, err := b.findProjection(ctx, r, store.GitHub, n)
 	if err != nil || found {
 		if found {
 			return b.pair(ctx, r, m)
@@ -154,7 +156,11 @@ func (b *Bridge) adopt(ctx context.Context, r *repo, side store.Side, projection
 		want = marker.OriginGitHub
 	}
 	mk, ok := marker.Parse(projection.Body)
-	if !ok || mk.Origin != want || mk.Kind != marker.KindIssue {
+	wantKind := marker.KindIssue
+	if projection.IsPullRequest {
+		wantKind = marker.KindPull
+	}
+	if !ok || mk.Origin != want || mk.Kind != wantKind {
 		return nil
 	}
 	m, err := b.store.InsertIssue(ctx, recoveredMapping(r.cfg.Key(), side, projection, mk))
@@ -173,10 +179,20 @@ func (b *Bridge) adopt(ctx context.Context, r *repo, side store.Side, projection
 // the projection of source number n, and records it when there is one. It is
 // the guard against duplicating an issue when the process died between
 // creating a projection and recording it.
-func (b *Bridge) findProjection(ctx context.Context, r *repo, side store.Side, origin marker.Origin, n int64) (store.IssueMapping, bool, error) {
-	client, self, ref := b.github, b.githubSelf, r.cfg.GitHub
+func (b *Bridge) findProjection(ctx context.Context, r *repo, side store.Side, n int64) (store.IssueMapping, bool, error) {
+	self := b.githubSelf
 	if side == store.Forgejo {
-		client, self, ref = b.forgej, b.forgejoSelf, r.cfg.Forgejo
+		self = b.forgejoSelf
+	}
+	return b.findProjectionAs(ctx, r, side, self, marker.KindIssue, n)
+}
+
+// findProjectionAs is findProjection for projections opened by a given
+// account, of a given kind.
+func (b *Bridge) findProjectionAs(ctx context.Context, r *repo, side store.Side, self string, kind marker.Kind, n int64) (store.IssueMapping, bool, error) {
+	client, ref, origin := b.github, r.cfg.GitHub, marker.OriginForgejo
+	if side == store.Forgejo {
+		client, ref, origin = b.forgej, r.cfg.Forgejo, marker.OriginGitHub
 	}
 	recent, err := client.ListIssuesByAuthor(ctx, ref, self, b.now().Add(-projectionLookback))
 	if err != nil {
@@ -187,7 +203,7 @@ func (b *Bridge) findProjection(ctx context.Context, r *repo, side store.Side, o
 			continue
 		}
 		mk, ok := marker.Parse(is.Body)
-		if !ok || mk.Origin != origin || mk.Kind != marker.KindIssue || mk.ID != n {
+		if !ok || mk.Origin != origin || mk.Kind != kind || mk.ID != n {
 			continue
 		}
 		m, err := b.store.InsertIssue(ctx, recoveredMapping(r.cfg.Key(), side, is, mk))
@@ -203,6 +219,9 @@ func (b *Bridge) findProjection(ctx context.Context, r *repo, side store.Side, o
 
 // pair reconciles a mapped issue: content, state and comments.
 func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error {
+	if m.Kind == store.KindPull {
+		return b.pairPull(ctx, r, m)
+	}
 	gh, ghErr := b.github.GetIssue(ctx, r.cfg.GitHub, m.GitHubNumber)
 	fj, fjErr := b.forgej.GetIssue(ctx, r.cfg.Forgejo, m.ForgejoNumber)
 	if isNotFound(ghErr) || isNotFound(fjErr) {
@@ -228,7 +247,7 @@ func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error 
 	if err != nil {
 		return err
 	}
-	participants := b.participants(gh, ghComments)
+	participants := b.participantsOf(gh.Author, ghComments)
 
 	if err := b.syncContent(ctx, r, m, gh, fj, participants); err != nil {
 		return err
@@ -236,15 +255,15 @@ func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error 
 	if err := b.syncState(ctx, r, m, gh, fj); err != nil {
 		return err
 	}
-	return b.syncComments(ctx, r, m, ghComments, fjComments, participants)
+	return b.syncComments(ctx, r, m, ghComments, fjComments, nil, participants)
 }
 
-// participants are the GitHub accounts taking part in an issue. A Forgejo
+// participantsOf are the GitHub accounts taking part in an issue. A Forgejo
 // comment that mentions one of them is meant for them, and may notify them.
-func (b *Bridge) participants(is forge.Issue, comments []forge.Comment) map[string]bool {
+func (b *Bridge) participantsOf(author string, comments []forge.Comment) map[string]bool {
 	p := map[string]bool{}
-	if is.Author != b.githubSelf {
-		p[strings.ToLower(is.Author)] = true
+	if author != b.githubSelf {
+		p[strings.ToLower(author)] = true
 	}
 	for _, c := range comments {
 		if c.Author != b.githubSelf {

@@ -60,6 +60,12 @@ forgejo:
   caSecret: ""
   # -- The key inside that Secret.
   caSecretKey: ca.crt
+  # -- The Secret holding the github-contrib account's token. Required as soon
+  # as a repository sets `contrib`: imported pull requests are opened by this
+  # account, which must have no write access to the canonical repository.
+  contribExistingSecret: ""
+  # -- The key inside that Secret.
+  contribExistingSecretKey: token
 
 # -- The bridged repositories. Each entry pairs a public GitHub repository
 # with the private Forgejo repository that is its source of truth.
@@ -70,6 +76,11 @@ forgejo:
 #     importLabel: github         # marks issues imported from GitHub
 #     internalPrefix: /internal   # keeps a Forgejo comment private
 #     importSince: "2026-09-01T00:00:00Z"
+#     # Pull requests (phase 2), only with a contrib repository:
+#     contrib: github-contrib/foo # the fork imported heads are pushed to
+#     targetBranches: [develop]   # the bases a pull request may target
+#     rebaseRequests: false       # ask contributors to rebase outdated PRs
+#     ciPaths: [.forgejo/, .github/]
 repositories: []
 
 # -- Forgejo logins mapped to GitHub logins, for mentions and attribution
@@ -88,6 +99,11 @@ logging:
   format: json
   # -- debug, info, warn or error.
   level: info
+
+# -- The size limit of the cache pull request heads pass through: one bare
+# repository per bridged pair. Lost on restart, which only costs a fuller
+# fetch the next time.
+gitCacheSize: 1Gi
 
 # -- The port probes and metrics are served on. Cluster-internal; the bridge
 # has no public endpoint.

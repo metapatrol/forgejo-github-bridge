@@ -1,8 +1,10 @@
-# The base image comes from the internal registry's mirror; a build outside the
-# network passes the public one:
+# The base images come from the internal registry's mirror; a build outside
+# the network passes the public ones:
 #
 #   --build-arg GO_IMAGE=docker.io/library/golang:1.27-alpine
+#   --build-arg RUNTIME_IMAGE=docker.io/library/alpine:3.24
 ARG GO_IMAGE=zot.metapatrol.local/library/golang:1.27-alpine
+ARG RUNTIME_IMAGE=zot.metapatrol.local/library/alpine:3.24
 
 FROM ${GO_IMAGE} AS builder
 
@@ -19,9 +21,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.builtAt=${BUILT_AT}" \
     -o /forgejo-github-bridge ./cmd/forgejo-github-bridge
 
-# Distroless while the bridge only speaks HTTP. Importing pull requests
-# (phase 2) needs the git CLI, and the runtime image changes with it.
-FROM gcr.io/distroless/static:nonroot
+# Alpine rather than distroless: importing pull requests runs the git CLI
+# (CONCEPT.md §18). Nothing else is added, and the process runs as the same
+# unprivileged user distroless would use.
+FROM ${RUNTIME_IMAGE}
+RUN apk add --no-cache git ca-certificates
 COPY --from=builder /forgejo-github-bridge /forgejo-github-bridge
+USER 65532:65532
+ENV HOME=/tmp
 EXPOSE 8080
 ENTRYPOINT ["/forgejo-github-bridge"]

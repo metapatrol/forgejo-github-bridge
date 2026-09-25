@@ -14,7 +14,12 @@ does, and why.
 
 ## Status
 
-Phase 1 of [CONCEPT.md §19](CONCEPT.md#19-phases) is implemented:
+Phases 1 and 2 of [CONCEPT.md §19](CONCEPT.md#19-phases) are implemented.
+Issues (phase 1) have passed an end-to-end test against GitHub and Forgejo;
+pull requests (phase 2) are tested against fakes and real git, and are still
+to be tried end to end.
+
+Issues:
 
 - GitHub issues are imported into Forgejo, labelled `github`.
 - Forgejo issues are published to GitHub only when labelled `public`.
@@ -26,7 +31,23 @@ Phase 1 of [CONCEPT.md §19](CONCEPT.md#19-phases) is implemented:
 - `#N` references, `@mentions` and links into Forgejo are translated
   ([§13](CONCEPT.md#13-content-translation)).
 
-Pull requests (phase 2) are not imported yet; they are skipped.
+Pull requests, for repositories that configure a contrib fork:
+
+- A GitHub pull request against one of the `targetBranches` is pushed to
+  `pr/<n>` in the contrib fork and opened in Forgejo by the `github-contrib`
+  account, which has no write access, so its CI waits for approval.
+- New commits follow. A branch somebody else pushed to is never overwritten;
+  the bridge stops importing into it and says so.
+- Changes under `.forgejo/` or `.github/` get the label `touches-ci` and a
+  warning.
+- Conversation comments cross both ways; Forgejo reviews appear on GitHub as
+  comments.
+- A merge in Forgejo is reported on GitHub once the push mirror has brought
+  it there: GitHub marks a fast-forwarded pull request merged by itself; a
+  rebased one is closed with a comment naming the commit.
+- Closing, withdrawing and reopening work from either side.
+- With `rebaseRequests`, a pull request behind its base gets one comment
+  asking for a rebase, kept up to date.
 
 ## How it works
 
@@ -65,12 +86,20 @@ Once per installation:
    write access to each bridged repository and a token with the
    `write:issue`, `read:repository` and `read:user` scopes. Put the token into
    a Secret.
+4. **For pull requests, a second Forgejo account**, conventionally
+   `github-contrib`, with read access only to the canonical repositories and
+   a token with `write:repository` and `read:user`. It owns the contrib forks
+   and opens the imported pull requests. Never approve its workflow runs with
+   *Approve always* ([CONCEPT.md §12](CONCEPT.md#12-ci-isolation)).
 
 Per bridged repository:
 
 1. Install the GitHub App on the GitHub repository, and only there.
 2. Make sure Forgejo's push mirror to it has *sync on commit* enabled.
-3. Add the pair to `repositories` in the chart values.
+3. For pull requests: fork the canonical repository as `github-contrib`, with
+   no push mirror, no secrets and no variables, and verify with a test pull
+   request that workflow runs from it wait for approval.
+4. Add the pair to `repositories` in the chart values.
 
 [samples/values-k3s-dev.yaml](samples/values-k3s-dev.yaml) puts it together.
 
@@ -95,7 +124,9 @@ The chart renders all of this; the table is for running the binary directly.
 | `BRIDGE_FORGEJO_URL` | — | the address the bridge talks to Forgejo on. Required. |
 | `BRIDGE_FORGEJO_WEB_URL` | — | the address browsers use, when it differs. Links starting with either never reach GitHub. |
 | `BRIDGE_FORGEJO_TOKEN` | — | the `github-bridge` account's token. Required. |
+| `BRIDGE_FORGEJO_CONTRIB_TOKEN` | — | the `github-contrib` account's token; required when a repository sets `contrib` |
 | `BRIDGE_FORGEJO_CA_FILE` | — | an extra CA to trust for Forgejo |
+| `BRIDGE_GIT_CACHE_DIR` | `/var/cache/forgejo-github-bridge` | bare repositories pull request heads pass through |
 | `BRIDGE_POLL_INTERVAL` | `60s` | |
 | `BRIDGE_FULL_RESYNC` | `6h` | how often every open pair is reconciled regardless of polls |
 | `BRIDGE_LISTEN_ADDR` | `:8080` | `/healthz`, `/readyz`, `/metrics` |
@@ -112,6 +143,10 @@ repositories:
     importLabel: github             # default
     internalPrefix: /internal       # default; "" makes every comment public
     importSince: "2026-09-01T00:00:00Z"  # optional: never import older GitHub issues
+    contrib: github-contrib/foo     # pull requests: the fork heads are pushed to
+    targetBranches: [develop]       # required with contrib
+    rebaseRequests: false           # ask contributors to rebase outdated PRs
+    ciPaths: [.forgejo/, .github/]  # default
 userMapping:
   ska: denisneuling                 # Forgejo login: GitHub login
 ```
@@ -151,6 +186,7 @@ CI is described in [.forgejo/README.md](.forgejo/README.md).
     internal/github             GitHub App client
     internal/forgejo            Forgejo client
     internal/rest               the JSON client both share
+    internal/gitops             moves pull request heads into the contrib fork
     internal/store              state: memory for tests, postgres for real
     internal/marker             the hidden provenance line
     charts/                     the Helm chart

@@ -25,6 +25,7 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forgejo"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/github"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/gitops"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store/postgres"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 )
@@ -113,6 +114,15 @@ func run() error {
 		ForgejoURLs:  cfg.ForgejoURLs(),
 		UserMapping:  cfg.UserMapping,
 	}, log)
+	if cfg.ForgejoContribToken != "" {
+		contrib := forgejo.New(cfg.ForgejoURL, cfg.ForgejoContribToken, forgejoHTTP)
+		login, err := contrib.Self(ctx)
+		if err != nil {
+			return fmt.Errorf("identifying the Forgejo contrib account: %w", err)
+		}
+		git := gitops.New(cfg.GitCacheDir, "https://github.com", cfg.ForgejoURL, login, cfg.ForgejoContribToken, cfg.ForgejoCAFile)
+		b.WithPullRequests(bridge.Pulls{GitHub: gh, Forgejo: fj, Contrib: contrib, Git: git})
+	}
 	if err := b.Init(ctx); err != nil {
 		return err
 	}

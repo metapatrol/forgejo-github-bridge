@@ -34,10 +34,22 @@ const (
 	Comments Stream = "comments"
 )
 
-// IssueMapping pairs a GitHub issue with a Forgejo issue.
+// Kind is what a pair is.
+type Kind string
+
+// The kinds of pair.
+const (
+	KindIssue Kind = "issue"
+	KindPull  Kind = "pull"
+)
+
+// IssueMapping pairs a GitHub issue with a Forgejo issue, or a GitHub pull
+// request with a Forgejo pull request.
 type IssueMapping struct {
-	ID            int64
-	Repository    string
+	ID         int64
+	Repository string
+	// Kind is KindIssue or KindPull. Empty is stored as KindIssue.
+	Kind          Kind
 	GitHubNumber  int64
 	ForgejoNumber int64
 	// Origin is the side the issue was opened on. That side is authoritative
@@ -56,6 +68,35 @@ type CommentMapping struct {
 	GitHubCommentID  int64
 	ForgejoCommentID int64
 	Origin           Side
+}
+
+// PullState is how far a pull request pair has come.
+type PullState string
+
+// The states of a pull request pair.
+const (
+	PullOpen   PullState = "open"
+	PullMerged PullState = "merged"
+	PullClosed PullState = "closed"
+)
+
+// PullRequestState is what a pull request pair has on top of an issue pair.
+type PullRequestState struct {
+	IssueMappingID int64
+	ContribBranch  string
+	// ImportedHeadSHA is what the bridge last pushed to ContribBranch.
+	ImportedHeadSHA string
+	State           PullState
+	// HeadFrozen is set when somebody else pushed to the contrib branch: the
+	// bridge stops updating it rather than overwrite their work.
+	HeadFrozen bool
+	TouchesCI  bool
+	// RebaseCommentID is the GitHub comment asking for a rebase; zero if
+	// there is none.
+	RebaseCommentID int64
+	// OutcomeReported is set once the merge or close has been reported on
+	// GitHub.
+	OutcomeReported bool
 }
 
 // DirtyKey names a resource that needs reconciling: an issue on one side of a
@@ -89,6 +130,11 @@ type Store interface {
 	// OpenIssues lists the pairs of a repository that were open at their last
 	// reconcile.
 	OpenIssues(ctx context.Context, repository string) ([]IssueMapping, error)
+
+	// PullRequest returns the pull request state of a pair.
+	PullRequest(ctx context.Context, issueMappingID int64) (PullRequestState, bool, error)
+	// SavePullRequest creates or replaces the pull request state of a pair.
+	SavePullRequest(ctx context.Context, p PullRequestState) error
 
 	Comments(ctx context.Context, issueMappingID int64) ([]CommentMapping, error)
 	// InsertComment records a new comment pair. ErrConflict if either ID is

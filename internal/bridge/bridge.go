@@ -74,6 +74,14 @@ type Bridge struct {
 
 	githubSelf  string
 	forgejoSelf string
+	// contribSelf is the account imported pull requests are opened by. Like
+	// forgejoSelf, nothing it wrote is ever a source.
+	contribSelf string
+
+	pulls *Pulls
+	// reviews holds the Forgejo reviews of the pull request being
+	// reconciled, by negated ID. Touched only by the single worker.
+	reviews map[int64]forge.Review
 
 	// seen is touched only by the poll loop.
 	seen seenSet
@@ -116,7 +124,23 @@ func (b *Bridge) Init(ctx context.Context) error {
 	if b.forgejoSelf, err = b.forgej.Self(ctx); err != nil {
 		return fmt.Errorf("identifying the Forgejo account: %w", err)
 	}
-	b.log.Info("identities resolved", "github", b.githubSelf, "forgejo", b.forgejoSelf)
+	if b.pulls != nil {
+		for _, r := range b.repos {
+			if !r.cfg.ImportsPullRequests() {
+				continue
+			}
+			if b.contribSelf, err = b.pulls.Contrib.Self(ctx); err != nil {
+				return fmt.Errorf("identifying the Forgejo contrib account: %w", err)
+			}
+			if b.contribSelf == b.forgejoSelf {
+				// The split is what keeps imported pull requests untrusted in
+				// CI (CONCEPT.md §8, §12). One account for both defeats it.
+				return fmt.Errorf("the contrib token belongs to %s, the same account as the bridge token", b.contribSelf)
+			}
+			break
+		}
+	}
+	b.log.Info("identities resolved", "github", b.githubSelf, "forgejo", b.forgejoSelf, "contrib", b.contribSelf)
 	return nil
 }
 
@@ -254,6 +278,10 @@ func (b *Bridge) Step(ctx context.Context) (bool, error) {
 			return true, ctx.Err()
 		}
 		delay := backoff(d.Attempts)
+		if errors.Is(err, errWaitingForMirror) {
+			b.log.Info("merged; waiting for the push mirror", "repository", d.Repository, "number", d.Number, "retry_in", delay)
+			return true, b.store.DeferDirty(ctx, d, b.now().Add(delay), err.Error())
+		}
 		b.log.Warn("reconcile failed; retrying later",
 			"repository", d.Repository, "side", d.Side, "number", d.Number,
 			"attempt", d.Attempts+1, "retry_in", delay, "error", err)
@@ -290,3 +318,11 @@ func hasLabel(labels []string, name string) bool {
 }
 
 func isNotFound(err error) bool { return errors.Is(err, forge.ErrNotFound) }
+
+// own reports whether login is one of the bridge's own accounts on a side.
+func (b *Bridge) own(side store.Side, login string) bool {
+	if side == store.GitHub {
+		return login == b.githubSelf
+	}
+	return login == b.forgejoSelf || (b.contribSelf != "" && login == b.contribSelf)
+}

@@ -10,12 +10,14 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/bridge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge/fake"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store/postgres"
@@ -37,7 +39,7 @@ func open(t *testing.T) *postgres.Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(st.Close)
-	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, poll_cursor, dirty`); err != nil {
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty`); err != nil {
 		t.Fatal(err)
 	}
 	return st
@@ -136,5 +138,72 @@ func TestBridgeOnPostgres(t *testing.T) {
 	}
 	if n, _, _ := st.DirtyStats(ctx); n != 0 {
 		t.Errorf("the queue is not empty: %d", n)
+	}
+}
+
+// TestPullRequestOnPostgres takes a pull request from import to a rebased
+// merge with the real store underneath.
+func TestPullRequestOnPostgres(t *testing.T) {
+	st := open(t)
+	gh, fj := fake.New("bridge-app[bot]", 41), fake.New("github-bridge", 71)
+	ghRepo := config.RepoRef{Owner: "metapatrol", Name: "foo"}
+	fjRepo := config.RepoRef{Owner: "platform", Name: "foo"}
+	base, _ := url.Parse("https://forgejo.internal")
+	b := bridge.New(st, gh, fj, []config.Repository{{
+		GitHub: ghRepo, Forgejo: fjRepo, Contrib: config.RepoRef{Owner: "github-contrib", Name: "foo"},
+		TargetBranches: []string{"develop"}, CIPaths: config.DefaultCIPaths,
+		ImportLabel: "github", PublishLabel: "public", InternalPrefix: "/internal",
+	}}, bridge.Options{PollInterval: time.Minute, FullResync: time.Hour, ForgejoURLs: []*url.URL{base}}, quiet).
+		WithPullRequests(bridge.Pulls{GitHub: gh, Forgejo: fj, Contrib: fj.As("github-contrib"), Git: &fake.Git{GitHub: gh, Forgejo: fj}})
+	ctx := context.Background()
+	if err := b.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	sync := func() {
+		b.PollAll(ctx)
+		for i := 0; i < 100; i++ {
+			processed, err := b.Step(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !processed {
+				return
+			}
+		}
+		t.Fatal("the queue does not drain")
+	}
+
+	src := gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1", ".forgejo/workflows/ci.yml")
+	sync()
+	gh.PushPull(ghRepo, src.Number, "sha2")
+	sync()
+	var pr forge.Issue
+	for _, is := range fj.Issues(fjRepo) {
+		if is.IsPullRequest {
+			pr = is
+		}
+	}
+	if pr.Number == 0 || pr.Author != "github-contrib" {
+		t.Fatalf("no imported pull request: %+v", fj.Issues(fjRepo))
+	}
+	if sha, _ := fj.Branch("pr/" + strconv.FormatInt(src.Number, 10)); sha != "sha2" {
+		t.Fatalf("contrib branch at %q", sha)
+	}
+
+	fj.MergePull(fjRepo, pr.Number, "rebased")
+	gh.Mirror(ghRepo, "develop", "rebased")
+	sync()
+	got, _ := gh.GetPullRequest(ctx, ghRepo, src.Number)
+	if got.Open {
+		t.Error("the GitHub pull request is still open after the merge was reported")
+	}
+	var reported int
+	for _, c := range gh.CommentsOf(ghRepo, src.Number) {
+		if strings.Contains(c.Body, "Integrated into `develop` as rebased") {
+			reported++
+		}
+	}
+	if reported != 1 {
+		t.Errorf("the merge was reported %d times", reported)
 	}
 }

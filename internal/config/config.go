@@ -49,6 +49,10 @@ func (r RepoRef) Empty() bool { return r.Owner == "" && r.Name == "" }
 // references end up in URL paths and in Git remotes, and a character neither
 // forge would allow in an owner or a name is one that has no reason to be
 // there.
+// branchPattern bounds target branch names. They end up in Git refspecs and
+// compare paths.
+var branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+
 var repoRefPattern = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9._-]*)/([A-Za-z0-9._-]+)$`)
 
 // ParseRepoRef parses owner/name.
@@ -70,6 +74,13 @@ type Repository struct {
 	Contrib RepoRef
 	// TargetBranches are the base branches an imported pull request may target.
 	TargetBranches []string
+	// RebaseRequests asks contributors on GitHub to rebase a pull request
+	// whose base has moved on. It mirrors a branch protection that blocks
+	// outdated merges, which the bridge's account is not allowed to read.
+	RebaseRequests bool
+	// CIPaths are path prefixes whose change in a pull request gets it the
+	// touches-ci label and a warning (CONCEPT.md §12).
+	CIPaths []string
 
 	// ImportLabel marks Forgejo issues that were imported from GitHub, so a
 	// maintainer can tell them apart in the issue list.
@@ -83,6 +94,14 @@ type Repository struct {
 	// ImportSince bounds the first import. Zero imports every open issue.
 	ImportSince time.Time
 }
+
+// ImportsPullRequests reports whether pull requests are imported for this
+// pair. They are only once a contrib repository is configured.
+func (r Repository) ImportsPullRequests() bool { return !r.Contrib.Empty() }
+
+// DefaultCIPaths are where Forgejo reads workflows from. .github counts: a
+// repository without .forgejo/workflows has its .github/workflows run.
+var DefaultCIPaths = []string{".forgejo/", ".github/"}
 
 // Key identifies the pair in the database. The GitHub side names it because
 // that is the side a repository mapping cannot be reassigned on without also
@@ -121,6 +140,10 @@ type Config struct {
 
 	// PollInterval is how often each repository is polled on each side.
 	PollInterval time.Duration
+	// GitCacheDir holds the bare repositories pull request heads pass
+	// through on their way to the contrib repository.
+	GitCacheDir string
+
 	// FullResync is how often every open bridged issue is reconciled whether or
 	// not a poll saw it change. It is what notices deletions, which incremental
 	// polls cannot.
@@ -139,6 +162,8 @@ type file struct {
 		Forgejo        string   `yaml:"forgejo"`
 		Contrib        string   `yaml:"contrib"`
 		TargetBranches []string `yaml:"targetBranches"`
+		RebaseRequests bool     `yaml:"rebaseRequests"`
+		CIPaths        []string `yaml:"ciPaths"`
 		ImportLabel    string   `yaml:"importLabel"`
 		PublishLabel   string   `yaml:"publishLabel"`
 		InternalPrefix *string  `yaml:"internalPrefix"`
@@ -233,8 +258,17 @@ func load(getenv func(string) string) (*Config, error) {
 		errs = append(errs, err)
 	}
 
+	cfg.GitCacheDir = env("GIT_CACHE_DIR", "/var/cache/forgejo-github-bridge")
+
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
+	}
+	// Pull requests are opened by a second account (CONCEPT.md §8), and
+	// without its token they cannot be imported at all.
+	for _, r := range cfg.Repositories {
+		if r.ImportsPullRequests() && cfg.ForgejoContribToken == "" {
+			return nil, fmt.Errorf("%sFORGEJO_CONTRIB_TOKEN is required: %s imports pull requests", EnvPrefix, r.GitHub)
+		}
 	}
 	return cfg, nil
 }
@@ -277,6 +311,8 @@ func (c *Config) apply(f file) error {
 		where := fmt.Sprintf("repositories[%d]", i)
 		repo := Repository{
 			TargetBranches: r.TargetBranches,
+			RebaseRequests: r.RebaseRequests,
+			CIPaths:        r.CIPaths,
 			ImportLabel:    orDefault(r.ImportLabel, DefaultImportLabel),
 			PublishLabel:   orDefault(r.PublishLabel, DefaultPublishLabel),
 			InternalPrefix: DefaultInternalPrefix,
@@ -301,6 +337,19 @@ func (c *Config) apply(f file) error {
 				// The whole point of the contrib repository is that it is not the
 				// canonical one: see CONCEPT.md §11 and §12.
 				errs = append(errs, fmt.Errorf("%s.contrib must not be the canonical repository", where))
+			}
+		}
+		if len(repo.CIPaths) == 0 {
+			repo.CIPaths = DefaultCIPaths
+		}
+		if !repo.Contrib.Empty() && len(repo.TargetBranches) == 0 {
+			// Which branches outsiders may propose changes to is a decision,
+			// not something to default.
+			errs = append(errs, fmt.Errorf("%s.targetBranches must name the branches pull requests may target", where))
+		}
+		for _, b := range repo.TargetBranches {
+			if !branchPattern.MatchString(b) {
+				errs = append(errs, fmt.Errorf("%s.targetBranches: %q is not a branch name the bridge accepts", where, b))
 			}
 		}
 		if r.ImportSince != "" {

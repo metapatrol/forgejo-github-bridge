@@ -21,14 +21,28 @@ import (
 // Forge is an in-memory forge.Client. Its methods that are not part of the
 // interface act as a user of the forge would, as someone other than the
 // client's own account.
+//
+// As returns a client for another account on the same forge: the state is
+// shared, only the identity differs.
 type Forge struct {
+	*shared
+	self string
+}
+
+type shared struct {
 	mu       sync.Mutex
-	self     string
+	first    int64
 	clock    time.Time
 	issues   map[string]map[int64]*forge.Issue
 	comments map[int64]*stored
 	nextID   int64
-	first    int64
+	pulls    map[string]map[int64]*pull
+	reviews  map[string]map[int64][]forge.Review
+	branches map[string]string
+	// contains and behind are what GitHub knows about its branches: which
+	// commits a branch holds, and how far a commit is behind it.
+	contains map[string]bool
+	behind   map[string]int
 
 	// Writes counts every change made through the forge.Client interface,
 	// which is to say by the bridge.
@@ -36,6 +50,15 @@ type Forge struct {
 	// FailNext, when set, is returned by the next call through the interface
 	// and then cleared.
 	FailNext error
+}
+
+type pull struct {
+	headSHA  string
+	headRef  string
+	base     string
+	merged   bool
+	mergeSHA string
+	files    []string
 }
 
 type stored struct {
@@ -49,15 +72,22 @@ var _ forge.Client = (*Forge)(nil)
 // first; giving each forge a different start keeps a test from passing
 // because two numbers happened to agree.
 func New(self string, first int64) *Forge {
-	return &Forge{
-		self:     self,
+	return &Forge{self: self, shared: &shared{
 		first:    first,
 		clock:    time.Now().Add(-time.Hour).Truncate(time.Second),
 		issues:   map[string]map[int64]*forge.Issue{},
 		comments: map[int64]*stored{},
 		nextID:   1000,
-	}
+		pulls:    map[string]map[int64]*pull{},
+		reviews:  map[string]map[int64][]forge.Review{},
+		branches: map[string]string{},
+		contains: map[string]bool{},
+		behind:   map[string]int{},
+	}}
 }
+
+// As returns a client for another account of the same forge.
+func (f *Forge) As(self string) *Forge { return &Forge{shared: f.shared, self: self} }
 
 func (f *Forge) tick() time.Time {
 	f.clock = f.clock.Add(time.Second)

@@ -66,6 +66,11 @@ func TestRefusals(t *testing.T) {
 		{name: "path traversal", file: "repositories:\n  - github: a/..\n    forgejo: a/b\n", want: "owner/name"},
 		{name: "duplicate", file: minimal + "  - github: metapatrol/FOO\n    forgejo: platform/bar\n", want: "configured twice"},
 		{name: "contrib is canonical", file: minimal + "    contrib: platform/foo\n", want: "contrib"},
+		{name: "pull requests without target branches", file: minimal + "    contrib: contrib/foo\n",
+			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "targetBranches"},
+		{name: "pull requests without contrib token", file: minimal + "    contrib: contrib/foo\n    targetBranches: [develop]\n", want: "FORGEJO_CONTRIB_TOKEN"},
+		{name: "odd target branch", file: minimal + "    contrib: contrib/foo\n    targetBranches: [\"-x\"]\n",
+			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "not a branch name"},
 		{name: "bad import bound", file: minimal + "    importSince: yesterday\n", want: "importSince"},
 		{name: "missing token", file: minimal, env: map[string]string{"BRIDGE_FORGEJO_TOKEN": ""}, want: "FORGEJO_TOKEN"},
 		{name: "bad app id", file: minimal, env: map[string]string{"BRIDGE_GITHUB_APP_ID": "1.2e+07"}, want: "GITHUB_APP_ID"},
@@ -89,5 +94,20 @@ func TestExplicitlyEmptyInternalPrefix(t *testing.T) {
 	}
 	if cfg.Repositories[0].InternalPrefix != "" {
 		t.Errorf("an explicit empty prefix was replaced by %q", cfg.Repositories[0].InternalPrefix)
+	}
+}
+
+func TestPullRequestSettings(t *testing.T) {
+	cfg, err := load(env(t, minimal+"    contrib: github-contrib/foo\n    targetBranches: [develop]\n    rebaseRequests: true\n",
+		map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := cfg.Repositories[0]
+	if !r.ImportsPullRequests() || !r.RebaseRequests || r.TargetBranches[0] != "develop" {
+		t.Errorf("repository = %+v", r)
+	}
+	if len(r.CIPaths) != 2 || r.CIPaths[0] != ".forgejo/" {
+		t.Errorf("CI paths default = %v", r.CIPaths)
 	}
 }

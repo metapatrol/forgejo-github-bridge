@@ -22,6 +22,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 		"cursors":                   cursors,
 		"dirty queue":               dirtyQueue,
 		"marking keeps the backoff": markingKeepsBackoff,
+		"pull request state":        pullRequestState,
 	} {
 		t.Run(name, func(t *testing.T) { test(t, newStore(t)) })
 	}
@@ -35,6 +36,9 @@ func issueMappings(t *testing.T, s store.Store) {
 	}
 	if m.ID == 0 {
 		t.Error("no ID assigned")
+	}
+	if m.Kind != store.KindIssue {
+		t.Errorf("a pair without a kind must be stored as an issue, is %q", m.Kind)
 	}
 	for _, lookup := range []func() (store.IssueMapping, bool, error){
 		func() (store.IssueMapping, bool, error) { return s.IssueByGitHub(ctx, "a/b", 42) },
@@ -193,5 +197,37 @@ func markingKeepsBackoff(t *testing.T, s store.Store) {
 	}
 	if n, _, _ := s.DirtyStats(ctx); n != 1 {
 		t.Errorf("a deferred resource left the queue: %d", n)
+	}
+}
+
+func pullRequestState(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	m, err := s.InsertIssue(ctx, store.IssueMapping{Repository: "a/b", Kind: store.KindPull, GitHubNumber: 5, ForgejoNumber: 9, Origin: store.GitHub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := s.IssueByForgejo(ctx, "a/b", 9); got.Kind != store.KindPull {
+		t.Errorf("kind = %q", got.Kind)
+	}
+	if _, ok, err := s.PullRequest(ctx, m.ID); ok || err != nil {
+		t.Fatalf("state before any was saved: %v, %v", ok, err)
+	}
+	p := store.PullRequestState{IssueMappingID: m.ID, ContribBranch: "pr/5", ImportedHeadSHA: "abc", State: store.PullOpen}
+	if err := s.SavePullRequest(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	p.ImportedHeadSHA, p.State, p.HeadFrozen, p.TouchesCI, p.RebaseCommentID, p.OutcomeReported = "def", store.PullMerged, true, true, 77, true
+	if err := s.SavePullRequest(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := s.PullRequest(ctx, m.ID)
+	if err != nil || !ok || got != p {
+		t.Errorf("state = %+v, %v, %v; want %+v", got, ok, err, p)
+	}
+	if err := s.DeleteIssue(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.PullRequest(ctx, m.ID); ok {
+		t.Error("pull request state survived its pair")
 	}
 }

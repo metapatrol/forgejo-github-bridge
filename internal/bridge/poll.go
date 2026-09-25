@@ -15,9 +15,9 @@ import (
 // and marks it dirty. It changes nothing on either forge.
 func (b *Bridge) poll(ctx context.Context, r *repo, side store.Side) error {
 	key := r.cfg.Key()
-	client, self, ref := b.github, b.githubSelf, r.cfg.GitHub
+	client, ref := b.github, r.cfg.GitHub
 	if side == store.Forgejo {
-		client, self, ref = b.forgej, b.forgejoSelf, r.cfg.Forgejo
+		client, ref = b.forgej, r.cfg.Forgejo
 	}
 
 	issueCursor, seen, err := b.store.Cursor(ctx, key, side, store.Issues)
@@ -75,7 +75,7 @@ func (b *Bridge) poll(ctx context.Context, r *repo, side store.Side) error {
 		// The bridge's own comments are projections. Their issue changes
 		// only because the bridge changed it, and reconciling it again for
 		// that would find nothing to do.
-		if c.Author == self || c.IssueNumber == 0 {
+		if b.own(side, c.Author) || c.IssueNumber == 0 {
 			continue
 		}
 		if commentSeen.fresh(c.ID, c.UpdatedAt) {
@@ -155,13 +155,24 @@ func (b *Bridge) recover(ctx context.Context, r *repo, side store.Side) error {
 	if err != nil {
 		return err
 	}
+	if side == store.Forgejo && b.contribSelf != "" {
+		// Imported pull requests are opened by the contrib account.
+		pulls, err := client.ListIssuesByAuthor(ctx, ref, b.contribSelf, time.Time{})
+		if err != nil {
+			return err
+		}
+		own = append(own, pulls...)
+	}
 	recovered := 0
 	for _, is := range own {
-		if is.Author != self || is.IsPullRequest {
+		if !b.own(side, is.Author) {
 			continue
 		}
 		mk, ok := marker.Parse(is.Body)
-		if !ok || mk.Origin != want || mk.Kind != marker.KindIssue {
+		if !ok || mk.Origin != want || (mk.Kind != marker.KindIssue && mk.Kind != marker.KindPull) {
+			continue
+		}
+		if (mk.Kind == marker.KindPull) != is.IsPullRequest {
 			continue
 		}
 		if _, err := b.store.InsertIssue(ctx, recoveredMapping(key, side, is, mk)); err != nil {
@@ -180,7 +191,10 @@ func (b *Bridge) recover(ctx context.Context, r *repo, side store.Side) error {
 }
 
 func recoveredMapping(key string, side store.Side, projection forge.Issue, mk marker.Marker) store.IssueMapping {
-	m := store.IssueMapping{Repository: key, SyncedClosed: projection.Closed}
+	m := store.IssueMapping{Repository: key, SyncedClosed: projection.Closed, Kind: store.KindIssue}
+	if mk.Kind == marker.KindPull {
+		m.Kind = store.KindPull
+	}
 	if side == store.GitHub {
 		m.GitHubNumber, m.ForgejoNumber, m.Origin = projection.Number, mk.ID, store.Forgejo
 	} else {

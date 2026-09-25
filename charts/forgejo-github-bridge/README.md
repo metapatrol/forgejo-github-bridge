@@ -47,11 +47,14 @@ shortens a failover and nothing else.
 | env | list | `[]` | Extra environment variables for the container. |
 | forgejo.caSecret | string | `""` | The Secret holding the CA certificate Forgejo's own certificate is issued by, for an instance behind a private CA. Empty trusts the system roots only. |
 | forgejo.caSecretKey | string | `"ca.crt"` | The key inside that Secret. |
+| forgejo.contribExistingSecret | string | `""` | The Secret holding the github-contrib account's token. Required as soon as a repository sets `contrib`: imported pull requests are opened by this account, which must have no write access to the canonical repository. |
+| forgejo.contribExistingSecretKey | string | `"token"` | The key inside that Secret. |
 | forgejo.existingSecret | string | `""` | The Secret holding the github-bridge account's token. Required. |
 | forgejo.existingSecretKey | string | `"token"` | The key inside that Secret. |
 | forgejo.url | string | `""` | The Forgejo base URL the bridge talks to, e.g. the in-cluster Service. Required. |
 | forgejo.webURL | string | `""` | The address people's browsers use for Forgejo, when it is not `url`. Links starting with either are recognised as internal and never reach GitHub, so this must be set whenever `url` is an in-cluster address. |
 | fullnameOverride | string | `""` |  |
+| gitCacheSize | string | `"1Gi"` | The size limit of the cache pull request heads pass through: one bare repository per bridged pair. Lost on restart, which only costs a fuller fetch the next time. |
 | github.apiURL | string | `"https://api.github.com"` | The API base URL. Only a test would change it. |
 | github.appID | string | `""` | The GitHub App's ID. Required. The App's name is not configured: the bridge reads it from GitHub. |
 | github.existingSecret | string | `""` | The Secret holding the App's private key. Required. |
@@ -71,7 +74,7 @@ shortens a failover and nothing else.
 | poll.interval | string | `"60s"` | How often each repository is polled on each side. |
 | port | int | `8080` | The port probes and metrics are served on. Cluster-internal; the bridge has no public endpoint. |
 | replicaCount | int | `1` | One replica does the work. A second one waits on the leader lock and only shortens a failover; it never shares the work (CONCEPT.md §7). |
-| repositories | list | `[]` | The bridged repositories. Each entry pairs a public GitHub repository with the private Forgejo repository that is its source of truth.    - github: metapatrol/foo      # required     forgejo: platform/foo       # required     publishLabel: public        # makes a Forgejo issue public     importLabel: github         # marks issues imported from GitHub     internalPrefix: /internal   # keeps a Forgejo comment private     importSince: "2026-09-01T00:00:00Z" |
+| repositories | list | `[]` | The bridged repositories. Each entry pairs a public GitHub repository with the private Forgejo repository that is its source of truth.    - github: metapatrol/foo      # required     forgejo: platform/foo       # required     publishLabel: public        # makes a Forgejo issue public     importLabel: github         # marks issues imported from GitHub     internalPrefix: /internal   # keeps a Forgejo comment private     importSince: "2026-09-01T00:00:00Z"     # Pull requests (phase 2), only with a contrib repository:     contrib: github-contrib/foo # the fork imported heads are pushed to     targetBranches: [develop]   # the bases a pull request may target     rebaseRequests: false       # ask contributors to rebase outdated PRs     ciPaths: [.forgejo/, .github/] |
 | resources.limits.cpu | string | `"500m"` |  |
 | resources.limits.memory | string | `"128Mi"` |  |
 | resources.requests.cpu | string | `"10m"` |  |

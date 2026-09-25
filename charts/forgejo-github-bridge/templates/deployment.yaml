@@ -80,6 +80,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.forgejo.existingSecret }}
                   key: {{ .Values.forgejo.existingSecretKey }}
+            {{- if .Values.forgejo.contribExistingSecret }}
+            - name: BRIDGE_FORGEJO_CONTRIB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.forgejo.contribExistingSecret }}
+                  key: {{ .Values.forgejo.contribExistingSecretKey }}
+            {{- end }}
+            - name: BRIDGE_GIT_CACHE_DIR
+              value: /var/cache/forgejo-github-bridge
+            - name: HOME
+              value: /tmp
             {{- if .Values.forgejo.caSecret }}
             - name: BRIDGE_FORGEJO_CA_FILE
               value: /etc/forgejo-github-bridge/forgejo-ca/{{ .Values.forgejo.caSecretKey }}
@@ -88,6 +99,14 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
+            {{- /*
+              The root filesystem is read-only. git needs somewhere for the
+              repositories pull request heads pass through, and a home.
+            */}}
+            - name: git-cache
+              mountPath: /var/cache/forgejo-github-bridge
+            - name: tmp
+              mountPath: /tmp
             - name: config
               mountPath: /etc/forgejo-github-bridge/config
               readOnly: true
@@ -110,6 +129,8 @@ spec:
               port: http
             periodSeconds: 10
           securityContext:
+            runAsUser: 65532
+            runAsGroup: 65532
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
@@ -119,6 +140,12 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        - name: git-cache
+          emptyDir:
+            sizeLimit: {{ .Values.gitCacheSize | quote }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
         - name: config
           configMap:
             name: {{ include "bridge.fullname" . }}

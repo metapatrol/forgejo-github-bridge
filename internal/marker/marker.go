@@ -32,7 +32,13 @@ type Kind string
 // The kinds of projection.
 const (
 	KindIssue   Kind = "issue"
+	KindPull    Kind = "pull"
 	KindComment Kind = "comment"
+	KindReview  Kind = "review"
+	// KindNotice marks something the bridge says itself, such as a request
+	// to rebase. It projects nothing; ID is the issue or pull request it is
+	// about.
+	KindNotice Kind = "notice"
 )
 
 // Marker identifies the source of a projection. ID is the source's number for
@@ -48,7 +54,7 @@ func (m Marker) String() string {
 	return fmt.Sprintf("<!-- forgejo-github-bridge origin=%s kind=%s id=%d -->", m.Origin, m.Kind, m.ID)
 }
 
-var pattern = regexp.MustCompile(`<!-- forgejo-github-bridge origin=(github|forgejo) kind=(issue|comment) id=([0-9]+) -->`)
+var pattern = regexp.MustCompile(`<!-- forgejo-github-bridge origin=(github|forgejo) kind=(issue|pull|comment|review|notice) id=([0-9]+) -->`)
 
 // Append adds the marker to a body, separated by a blank line.
 func Append(body string, m Marker) string {

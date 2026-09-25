@@ -20,6 +20,7 @@ type Store struct {
 	nextID   int64
 	issues   map[int64]store.IssueMapping
 	comments map[int64]store.CommentMapping
+	pulls    map[int64]store.PullRequestState
 	cursors  map[string]time.Time
 	dirty    map[store.DirtyKey]*entry
 	now      func() time.Time
@@ -38,6 +39,7 @@ func New() *Store {
 	return &Store{
 		issues:   map[int64]store.IssueMapping{},
 		comments: map[int64]store.CommentMapping{},
+		pulls:    map[int64]store.PullRequestState{},
 		cursors:  map[string]time.Time{},
 		dirty:    map[store.DirtyKey]*entry{},
 		now:      time.Now,
@@ -97,6 +99,9 @@ func (s *Store) InsertIssue(_ context.Context, m store.IssueMapping) (store.Issu
 		}
 	}
 	m.ID = s.id()
+	if m.Kind == "" {
+		m.Kind = store.KindIssue
+	}
 	s.issues[m.ID] = m
 	return m, nil
 }
@@ -115,6 +120,7 @@ func (s *Store) DeleteIssue(_ context.Context, id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.issues, id)
+	delete(s.pulls, id)
 	for cid, c := range s.comments {
 		if c.IssueMappingID == id {
 			delete(s.comments, cid)
@@ -134,6 +140,23 @@ func (s *Store) OpenIssues(_ context.Context, repo string) ([]store.IssueMapping
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
+}
+
+func (s *Store) PullRequest(_ context.Context, id int64) (store.PullRequestState, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.pulls[id]
+	return p, ok, nil
+}
+
+func (s *Store) SavePullRequest(_ context.Context, p store.PullRequestState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.issues[p.IssueMappingID]; !ok {
+		return store.ErrConflict
+	}
+	s.pulls[p.IssueMappingID] = p
+	return nil
 }
 
 func (s *Store) Comments(_ context.Context, issueID int64) ([]store.CommentMapping, error) {

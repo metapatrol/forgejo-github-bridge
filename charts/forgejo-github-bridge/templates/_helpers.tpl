@@ -108,6 +108,24 @@ repositories:
     {{- with $r.importSince }}
     importSince: {{ . | quote }}
     {{- end }}
+    {{- with $r.contrib }}
+    contrib: {{ . | quote }}
+    {{- end }}
+    {{- with $r.targetBranches }}
+    targetBranches:
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
+    {{- if $r.rebaseRequests }}
+    rebaseRequests: true
+    {{- end }}
+    {{- with $r.ciPaths }}
+    ciPaths:
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 {{- with .Values.userMapping }}
 userMapping:
@@ -142,6 +160,14 @@ userMapping:
 {{- end -}}
 {{- if not .Values.repositories -}}
 {{- fail "repositories must name at least one bridged repository" -}}
+{{- end -}}
+{{- range .Values.repositories -}}
+{{- if and .contrib (not $.Values.forgejo.contribExistingSecret) -}}
+{{- fail (printf "forgejo.contribExistingSecret is required: %s imports pull requests" .github) -}}
+{{- end -}}
+{{- if and .contrib (not .targetBranches) -}}
+{{- fail (printf "repositories: %s sets contrib but no targetBranches" .github) -}}
+{{- end -}}
 {{- end -}}
 {{- $_ := include "bridge.appID" . -}}
 {{- end }}

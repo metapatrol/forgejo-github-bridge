@@ -143,7 +143,11 @@ helm-verify:
 		--set networkPolicy.enabled=true \
 		--set forgejo.caSecret=forgejo-ca \
 		--set forgejo.webURL=https://forgejo.example.com \
-		--set 'userMapping.ska=denisneuling' > /dev/null; \
+		--set 'userMapping.ska=denisneuling' \
+		--set forgejo.contribExistingSecret=bridge-contrib \
+		--set 'repositories[0].contrib=github-contrib/example' \
+		--set 'repositories[0].targetBranches={develop}' \
+		--set 'repositories[0].rebaseRequests=true' > /dev/null; \
 	echo "--- referenced Secret keys are honoured, not hardcoded"; \
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="the database key CloudNativePG writes" WANT="key: uri" ARGS="$(HELM_MINIMUM)"; \
@@ -157,7 +161,19 @@ helm-verify:
 	$(MAKE) --no-print-directory helm-rejects-pattern \
 		WHY="scientific notation in a rendered value" PATTERN="[0-9]e\+[0-9]" \
 		ARGS="$(HELM_MINIMUM) --set-json github.appID=12345678"; \
+	$(MAKE) --no-print-directory helm-contains \
+		WHY="the contrib token from its Secret" WANT="BRIDGE_FORGEJO_CONTRIB_TOKEN" \
+		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
+	$(MAKE) --no-print-directory helm-contains \
+		WHY="the target branches in the config file" WANT='- "develop"' \
+		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
 	echo "--- the chart must refuse what it says it refuses"; \
+	$(MAKE) --no-print-directory helm-refuses \
+		WHY="pull requests without the contrib token" \
+		ARGS="$(HELM_MINIMUM) --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
+	$(MAKE) --no-print-directory helm-refuses \
+		WHY="pull requests without target branches" \
+		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example'"; \
 	$(MAKE) --no-print-directory helm-refuses \
 		WHY="no database" ARGS="$(HELM_MINIMUM) --set database.existingSecret="; \
 	$(MAKE) --no-print-directory helm-refuses \
