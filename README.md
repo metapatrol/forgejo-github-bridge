@@ -157,6 +157,34 @@ userMapping:
   ska: denisneuling                 # Forgejo login: GitHub login
 ```
 
+### Messages
+
+What the bridge says in its own voice is configurable, globally under
+`messages` or per repository. Each is a Go template; only the ones to change
+need to be given.
+
+| name | said | default |
+|---|---|---|
+| `unsupportedBase` | on GitHub, to a pull request against a branch not in `targetBranches` | Thanks for the contribution! This project takes pull requests against {{.Targets}}, and this one targets `{{.Base}}`. Could you switch the base branch? … |
+| `rebaseRequest` | on GitHub, when a pull request falls behind (with `rebaseRequests`) | Thanks for your patience! `{{.Base}}` has moved on by {{.Behind}} commit(s) … could you rebase onto `{{.Base}}`? … |
+| `upToDate` | the same comment, once rebased | Thanks, this is up to date with `{{.Base}}` now. |
+| `merged` | on GitHub, after a fast-forward merge | Merged into `{{.Base}}` as {{.Commit}}. Thank you for contributing! |
+| `integrated` | on GitHub, after a rebase merge | Merged into `{{.Base}}` as {{.Commit}}. Your commits were rebased … |
+| `closedUpstream` | on GitHub, when maintainers close without merging | The maintainers have closed this pull request without merging it. Thank you … |
+| `headFrozen` | in Forgejo, when someone else pushed to the contrib branch | The branch `{{.Branch}}` was changed by someone other than the bridge … |
+| `touchesCI` | in Forgejo, when a pull request changes CI configuration | **This pull request changes CI configuration:** {{.Paths}} … |
+
+Fields: `{{.Base}}`, `{{.Targets}}`, `{{.Behind}}`, `{{.Commit}}`,
+`{{.ShortCommit}}`, `{{.Branch}}`, `{{.Paths}}`, `{{.Contributor}}`. The full
+defaults are in `internal/translate/messages.go`.
+
+```yaml
+messages:
+  rebaseRequest: >-
+    Hi @{{.Contributor}}, `{{.Base}}` has moved on by {{.Behind}} commit(s).
+    Would you mind rebasing onto it? Thank you!
+```
+
 `userMapping` is for mentions and attribution only. A maintainer who is not
 mapped appears on GitHub as "a maintainer"; their Forgejo login never does.
 

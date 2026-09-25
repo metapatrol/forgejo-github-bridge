@@ -199,7 +199,7 @@ func TestPullRequestOnPostgres(t *testing.T) {
 	}
 	var reported int
 	for _, c := range gh.CommentsOf(ghRepo, src.Number) {
-		if strings.Contains(c.Body, "Integrated into `develop` as rebased") {
+		if strings.Contains(c.Body, "as rebased") && strings.Contains(c.Body, "were rebased") {
 			reported++
 		}
 	}

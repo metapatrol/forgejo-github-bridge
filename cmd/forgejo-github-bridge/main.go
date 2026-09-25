@@ -67,6 +67,10 @@ func run() error {
 		"forgejo", cfg.ForgejoURL.String(), "repositories", repos,
 		"poll_interval", cfg.PollInterval, "full_resync", cfg.FullResync)
 
+	if err := bridge.CheckMessages(cfg.Messages, cfg.Repositories); err != nil {
+		return fmt.Errorf("messages: %w", err)
+	}
+
 	key, err := github.LoadPrivateKey(cfg.GitHubPrivateKeyFile)
 	if err != nil {
 		return err
@@ -113,6 +117,7 @@ func run() error {
 		FullResync:   cfg.FullResync,
 		ForgejoURLs:  cfg.ForgejoURLs(),
 		UserMapping:  cfg.UserMapping,
+		Messages:     cfg.Messages,
 	}, log)
 	if cfg.ForgejoContribToken != "" {
 		contrib := forgejo.New(cfg.ForgejoURL, cfg.ForgejoContribToken, forgejoHTTP)

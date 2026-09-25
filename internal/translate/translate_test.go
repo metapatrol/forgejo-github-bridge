@@ -157,3 +157,34 @@ func TestSplitKeepsEveryByte(t *testing.T) {
 		}
 	}
 }
+
+func TestMessages(t *testing.T) {
+	m, err := NewMessages(
+		map[string]string{"merged": "global {{.ShortCommit}}", "upToDate": "global up to date"},
+		map[string]string{"upToDate": "repository up to date"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Render("merged", MessageData{Commit: "0123456789"}); got != "global 0123456" {
+		t.Errorf("merged = %q", got)
+	}
+	if got := m.Render("upToDate", MessageData{}); got != "repository up to date" {
+		t.Errorf("a repository's message must win over the global one, got %q", got)
+	}
+	if got := m.Render("closedUpstream", MessageData{}); got != DefaultMessages["closedUpstream"] {
+		t.Errorf("an unset message must be the default, got %q", got)
+	}
+	for name, bad := range map[string]map[string]string{
+		"unknown name":  {"pleaseRebase": "x"},
+		"broken syntax": {"merged": "{{.Commit"},
+		"unknown field": {"merged": "{{.Sha}}"},
+	} {
+		if _, err := NewMessages(bad); err == nil {
+			t.Errorf("%s: loaded", name)
+		}
+	}
+	if got := TargetList([]string{"develop", "main", "next"}); got != "`develop`, `main` or `next`" {
+		t.Errorf("TargetList = %q", got)
+	}
+}

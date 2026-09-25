@@ -147,7 +147,9 @@ helm-verify:
 		--set forgejo.contribExistingSecret=bridge-contrib \
 		--set 'repositories[0].contrib=github-contrib/example' \
 		--set 'repositories[0].targetBranches={develop}' \
-		--set 'repositories[0].rebaseRequests=true' > /dev/null; \
+		--set 'repositories[0].rebaseRequests=true' \
+		--set 'messages.upToDate=All good. Thanks!' \
+		--set 'repositories[0].messages.merged=Merged as {{.ShortCommit}}.' > /dev/null; \
 	echo "--- referenced Secret keys are honoured, not hardcoded"; \
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="the database key CloudNativePG writes" WANT="key: uri" ARGS="$(HELM_MINIMUM)"; \
@@ -167,6 +169,9 @@ helm-verify:
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="the target branches in the config file" WANT='- "develop"' \
 		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
+	$(MAKE) --no-print-directory helm-contains \
+		WHY="a message template, passed through untouched" WANT='Merged as {{.ShortCommit}}.' \
+		ARGS="$(HELM_MINIMUM) --set 'repositories[0].messages.merged=Merged as {{.ShortCommit}}.'"; \
 	echo "--- the chart must refuse what it says it refuses"; \
 	$(MAKE) --no-print-directory helm-refuses \
 		WHY="pull requests without the contrib token" \

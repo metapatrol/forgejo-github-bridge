@@ -242,7 +242,7 @@ func TestARebasedMergeIsReportedAndClosed(t *testing.T) {
 		t.Fatalf("GitHub pull request = %+v; want closed, not merged", got)
 	}
 	notes := p.botComments(src.Number)
-	if len(notes) != 1 || !strings.Contains(notes[0].Body, "Integrated into `develop` as rebased1") {
+	if len(notes) != 1 || !strings.Contains(notes[0].Body, "as rebased1") || !strings.Contains(notes[0].Body, "were rebased") {
 		t.Fatalf("notes = %+v", notes)
 	}
 }
@@ -417,5 +417,86 @@ func TestARebaseRequestIsNotRepeatedWhileTheBaseKeepsMoving(t *testing.T) {
 	}
 	if !strings.Contains(notes[0].Body, "moved on by 5 commit(s)") {
 		t.Errorf("the request was not kept up to date:\n%s", notes[0].Body)
+	}
+}
+
+func TestFallingBehindAgainAfterARebaseNotifiesAgain(t *testing.T) {
+	p := newPullHarness(t, func(r *config.Repository) { r.RebaseRequests = true })
+	nudge := func() { // something that makes the bridge look again
+		p.gh.Comment(ghRepo, 41, "bob", "ping")
+		p.settle()
+	}
+
+	p.gh.SetBehind("sha1", 1)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1")
+	p.settle()
+	first := p.botComments(src.Number)
+	if len(first) != 1 || !strings.Contains(first[0].Body, "moved on by 1 commit(s)") {
+		t.Fatalf("behind: %+v", first)
+	}
+
+	p.gh.PushPull(ghRepo, src.Number, "sha2") // rebased, up to date
+	p.settle()
+	if notes := p.botComments(src.Number); len(notes) != 1 || notes[0].ID != first[0].ID || !strings.Contains(notes[0].Body, "up to date") {
+		t.Fatalf("up to date: %+v", notes)
+	}
+
+	p.gh.SetBehind("sha2", 2) // behind again
+	nudge()
+	second := p.botComments(src.Number)
+	if len(second) != 1 || second[0].ID == first[0].ID || !strings.Contains(second[0].Body, "moved on by 2 commit(s)") {
+		t.Fatalf("behind again: want one new request replacing the old comment, have %+v", second)
+	}
+
+	p.gh.SetBehind("sha2", 3) // still behind, the base moved further
+	nudge()
+	third := p.botComments(src.Number)
+	if len(third) != 1 || third[0].ID != second[0].ID || !strings.Contains(third[0].Body, "moved on by 3 commit(s)") {
+		t.Fatalf("still behind: want the same request edited, have %+v", third)
+	}
+}
+
+func TestClosingWithACommentShowsTheCommentFirst(t *testing.T) {
+	t.Run("pull request", func(t *testing.T) {
+		p := newPullHarness(t, nil)
+		src := p.gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1")
+		p.settle()
+		fj := p.forgejoPull()
+		p.fj.Comment(fjRepo, fj.Number, "ska", "Thanks, but this is out of scope for us.")
+		p.fj.SetClosed(fjRepo, fj.Number, true)
+		p.gh.Log = nil
+		p.settle()
+		want := []string{"comment #" + itoa(src.Number), "comment #" + itoa(src.Number), "close #" + itoa(src.Number)}
+		if strings.Join(p.gh.Log, ", ") != strings.Join(want, ", ") {
+			t.Errorf("GitHub saw %v, want the maintainer's comment, the notice, then the close", p.gh.Log)
+		}
+	})
+	t.Run("issue", func(t *testing.T) {
+		h := newHarness(t)
+		src := h.gh.Open(ghRepo, "alice", "Bug", "Broken.")
+		h.settle()
+		proj := h.only(h.fj, fjRepo)
+		h.fj.Comment(fjRepo, proj.Number, "ska", "Fixed on develop.")
+		h.fj.SetClosed(fjRepo, proj.Number, true)
+		h.gh.Log = nil
+		h.settle()
+		want := "comment #" + itoa(src.Number) + ", close #" + itoa(src.Number)
+		if strings.Join(h.gh.Log, ", ") != want {
+			t.Errorf("GitHub saw %v, want %s", h.gh.Log, want)
+		}
+	})
+}
+
+func TestConfiguredMessagesAreUsed(t *testing.T) {
+	p := newPullHarness(t, func(r *config.Repository) {
+		r.RebaseRequests = true
+		r.Messages = map[string]string{"rebaseRequest": "Hi @{{.Contributor}}, `{{.Base}}` is {{.Behind}} ahead. A rebase would be lovely."}
+	})
+	p.gh.SetBehind("sha1", 4)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1")
+	p.settle()
+	notes := p.botComments(src.Number)
+	if len(notes) != 1 || !strings.Contains(notes[0].Body, "Hi @alice, `develop` is 4 ahead. A rebase would be lovely.") {
+		t.Fatalf("notes = %+v", notes)
 	}
 }

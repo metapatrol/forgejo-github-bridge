@@ -47,6 +47,9 @@ type shared struct {
 	// Writes counts every change made through the forge.Client interface,
 	// which is to say by the bridge.
 	Writes int
+	// Log records the bridge's comments and closes in order, as
+	// "comment #n" and "close #n".
+	Log []string
 	// FailNext, when set, is returned by the next call through the interface
 	// and then cleared.
 	FailNext error
@@ -376,6 +379,9 @@ func (f *Forge) EditIssue(_ context.Context, r config.RepoRef, n int64, edit for
 	}
 	if edit.Closed != nil {
 		is.Closed = *edit.Closed
+		if is.Closed {
+			f.Log = append(f.Log, fmt.Sprintf("close #%d", n))
+		}
 	}
 	is.UpdatedAt = f.tick()
 	return *is, nil
@@ -402,6 +408,7 @@ func (f *Forge) CreateComment(_ context.Context, r config.RepoRef, n int64, body
 		return forge.Comment{}, err
 	}
 	f.Writes++
+	f.Log = append(f.Log, fmt.Sprintf("comment #%d", n))
 	return f.addComment(r, n, f.self, body)
 }
 

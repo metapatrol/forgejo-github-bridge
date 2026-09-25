@@ -81,7 +81,23 @@ forgejo:
 #     targetBranches: [develop]   # the bases a pull request may target
 #     rebaseRequests: false       # ask contributors to rebase outdated PRs
 #     ciPaths: [.forgejo/, .github/]
+#     messages: {}                # per-repository overrides of `messages`
 repositories: []
+
+# -- What the bridge says on GitHub and in Forgejo, as Go templates. Only the
+# messages to change need to be given; the rest keep their defaults. A name
+# that does not exist, or a template that does not render, stops the bridge
+# at startup rather than on a contributor's pull request.
+#
+# Names: unsupportedBase, rebaseRequest, upToDate, merged, integrated,
+# closedUpstream (said on GitHub); headFrozen, touchesCI (said in Forgejo).
+# Fields: {{.Base}} {{.Targets}} {{.Behind}} {{.Commit}} {{.ShortCommit}}
+# {{.Branch}} {{.Paths}} {{.Contributor}}. See the README for the defaults.
+#
+#   rebaseRequest: >-
+#     Hi @{{.Contributor}}, `{{.Base}}` has moved on by {{.Behind}} commit(s).
+#     Would you mind rebasing onto it? Thank you!
+messages: {}
 
 # -- Forgejo logins mapped to GitHub logins, for mentions and attribution
 # only. A maintainer who is not mapped appears on GitHub as "a maintainer".

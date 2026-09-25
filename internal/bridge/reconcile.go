@@ -252,10 +252,12 @@ func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error 
 	if err := b.syncContent(ctx, r, m, gh, fj, participants); err != nil {
 		return err
 	}
-	if err := b.syncState(ctx, r, m, gh, fj); err != nil {
+	// Comments before state: an issue closed with a comment is read on the
+	// other side with the comment first, the way it was written.
+	if err := b.syncComments(ctx, r, m, ghComments, fjComments, nil, participants); err != nil {
 		return err
 	}
-	return b.syncComments(ctx, r, m, ghComments, fjComments, nil, participants)
+	return b.syncState(ctx, r, m, gh, fj)
 }
 
 // participantsOf are the GitHub accounts taking part in an issue. A Forgejo

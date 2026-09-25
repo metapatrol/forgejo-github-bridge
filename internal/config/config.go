@@ -93,6 +93,9 @@ type Repository struct {
 	InternalPrefix string
 	// ImportSince bounds the first import. Zero imports every open issue.
 	ImportSince time.Time
+	// Messages overrides what the bridge says for this repository, by
+	// message name. See translate.DefaultMessages.
+	Messages map[string]string
 }
 
 // ImportsPullRequests reports whether pull requests are imported for this
@@ -153,23 +156,28 @@ type Config struct {
 	// UserMapping maps Forgejo logins to GitHub logins. It is used for mentions
 	// and attribution only; it grants nothing.
 	UserMapping map[string]string
+	// Messages overrides what the bridge says, for every repository. A
+	// repository's own Messages win over these.
+	Messages map[string]string
 }
 
 // file is the shape of the YAML configuration file.
 type file struct {
 	Repositories []struct {
-		GitHub         string   `yaml:"github"`
-		Forgejo        string   `yaml:"forgejo"`
-		Contrib        string   `yaml:"contrib"`
-		TargetBranches []string `yaml:"targetBranches"`
-		RebaseRequests bool     `yaml:"rebaseRequests"`
-		CIPaths        []string `yaml:"ciPaths"`
-		ImportLabel    string   `yaml:"importLabel"`
-		PublishLabel   string   `yaml:"publishLabel"`
-		InternalPrefix *string  `yaml:"internalPrefix"`
-		ImportSince    string   `yaml:"importSince"`
+		GitHub         string            `yaml:"github"`
+		Forgejo        string            `yaml:"forgejo"`
+		Contrib        string            `yaml:"contrib"`
+		TargetBranches []string          `yaml:"targetBranches"`
+		RebaseRequests bool              `yaml:"rebaseRequests"`
+		CIPaths        []string          `yaml:"ciPaths"`
+		Messages       map[string]string `yaml:"messages"`
+		ImportLabel    string            `yaml:"importLabel"`
+		PublishLabel   string            `yaml:"publishLabel"`
+		InternalPrefix *string           `yaml:"internalPrefix"`
+		ImportSince    string            `yaml:"importSince"`
 	} `yaml:"repositories"`
 	UserMapping map[string]string `yaml:"userMapping"`
+	Messages    map[string]string `yaml:"messages"`
 }
 
 // Load reads the environment and the configuration file it names.
@@ -313,6 +321,7 @@ func (c *Config) apply(f file) error {
 			TargetBranches: r.TargetBranches,
 			RebaseRequests: r.RebaseRequests,
 			CIPaths:        r.CIPaths,
+			Messages:       r.Messages,
 			ImportLabel:    orDefault(r.ImportLabel, DefaultImportLabel),
 			PublishLabel:   orDefault(r.PublishLabel, DefaultPublishLabel),
 			InternalPrefix: DefaultInternalPrefix,
@@ -372,6 +381,7 @@ func (c *Config) apply(f file) error {
 		c.Repositories = append(c.Repositories, repo)
 	}
 
+	c.Messages = f.Messages
 	c.UserMapping = map[string]string{}
 	for fj, gh := range f.UserMapping {
 		if fj == "" || gh == "" {

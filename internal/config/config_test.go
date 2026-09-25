@@ -111,3 +111,16 @@ func TestPullRequestSettings(t *testing.T) {
 		t.Errorf("CI paths default = %v", r.CIPaths)
 	}
 }
+
+func TestMessages(t *testing.T) {
+	cfg, err := load(env(t, minimal+"    messages:\n      merged: repo\nmessages:\n  merged: global\n  upToDate: yes\n", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Messages["merged"] != "global" || cfg.Messages["upToDate"] != "yes" {
+		t.Errorf("global messages = %v", cfg.Messages)
+	}
+	if cfg.Repositories[0].Messages["merged"] != "repo" {
+		t.Errorf("repository messages = %v", cfg.Repositories[0].Messages)
+	}
+}

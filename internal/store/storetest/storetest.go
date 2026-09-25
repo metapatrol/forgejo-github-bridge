@@ -217,6 +217,7 @@ func pullRequestState(t *testing.T, s store.Store) {
 		t.Fatal(err)
 	}
 	p.ImportedHeadSHA, p.State, p.HeadFrozen, p.TouchesCI, p.RebaseCommentID, p.OutcomeReported = "def", store.PullMerged, true, true, 77, true
+	p.RebaseRequested = true
 	if err := s.SavePullRequest(ctx, p); err != nil {
 		t.Fatal(err)
 	}

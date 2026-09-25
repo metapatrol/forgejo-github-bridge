@@ -68,7 +68,7 @@ func (b *Bridge) importPull(ctx context.Context, r *repo, n int64) error {
 		return nil
 	}
 	if !slices.Contains(r.cfg.TargetBranches, pr.BaseRef) {
-		return b.noticeOnce(ctx, r, n, translate.UnsupportedBase(pr.BaseRef, r.cfg.TargetBranches))
+		return b.noticeOnce(ctx, r, n, r.msg.Render("unsupportedBase", b.data(r, pr)))
 	}
 
 	m, found, err := b.findProjectionAs(ctx, r, store.Forgejo, b.contribSelf, marker.KindPull, n)
@@ -171,6 +171,11 @@ func (b *Bridge) pairPull(ctx context.Context, r *repo, m store.IssueMapping) er
 	if err := b.syncPullContent(ctx, r, m, gh, fj); err != nil {
 		return err
 	}
+	// The conversation first: a pull request closed with a comment is read
+	// on GitHub with the comment before the close, the way it was written.
+	if err := b.syncComments(ctx, r, m, ghComments, fjComments, reviews, participants); err != nil {
+		return err
+	}
 
 	lifecycleErr := b.lifecycle(ctx, r, m, &st, gh, fj, ghComments)
 	if err := b.store.SavePullRequest(ctx, st); err != nil {
@@ -179,10 +184,15 @@ func (b *Bridge) pairPull(ctx context.Context, r *repo, m store.IssueMapping) er
 	if err := b.store.SetIssueSyncedClosed(ctx, m.ID, st.State != store.PullOpen); err != nil {
 		return err
 	}
-	if lifecycleErr != nil {
-		return lifecycleErr
+	return lifecycleErr
+}
+
+// data is what message templates get for a pull request.
+func (b *Bridge) data(r *repo, pr forge.PullRequest) translate.MessageData {
+	return translate.MessageData{
+		Base: pr.BaseRef, Targets: translate.TargetList(r.cfg.TargetBranches),
+		Contributor: pr.Author, Branch: branchFor(pr.Number),
 	}
-	return b.syncComments(ctx, r, m, ghComments, fjComments, reviews, participants)
 }
 
 // syncPullContent writes the GitHub pull request's title and description to
@@ -229,7 +239,7 @@ func (b *Bridge) lifecycle(ctx context.Context, r *repo, m store.IssueMapping, s
 				return err
 			}
 			if gh.Open {
-				if err := b.notice(ctx, r, m.GitHubNumber, translate.ClosedUpstream()); err != nil {
+				if err := b.notice(ctx, r, m.GitHubNumber, r.msg.Render("closedUpstream", b.data(r, gh))); err != nil {
 					return err
 				}
 				if err := b.closeGitHub(ctx, r, m); err != nil {
@@ -298,12 +308,14 @@ func (b *Bridge) reportMerge(ctx context.Context, r *repo, m store.IssueMapping,
 	if err != nil {
 		return err
 	}
+	d := b.data(r, gh)
+	d.Base, d.Commit = fj.BaseRef, sha
 	if gh.Merged {
-		if err := b.notice(ctx, r, m.GitHubNumber, translate.Merged(fj.BaseRef, sha)); err != nil {
+		if err := b.notice(ctx, r, m.GitHubNumber, r.msg.Render("merged", d)); err != nil {
 			return err
 		}
 	} else {
-		if err := b.notice(ctx, r, m.GitHubNumber, translate.Integrated(fj.BaseRef, sha)); err != nil {
+		if err := b.notice(ctx, r, m.GitHubNumber, r.msg.Render("integrated", d)); err != nil {
 			return err
 		}
 		if gh.Open {
@@ -323,7 +335,7 @@ func (b *Bridge) syncBase(ctx context.Context, r *repo, m store.IssueMapping, gh
 		return nil
 	}
 	if !slices.Contains(r.cfg.TargetBranches, gh.BaseRef) {
-		return b.noticeOnce(ctx, r, m.GitHubNumber, translate.UnsupportedBase(gh.BaseRef, r.cfg.TargetBranches))
+		return b.noticeOnce(ctx, r, m.GitHubNumber, r.msg.Render("unsupportedBase", b.data(r, gh)))
 	}
 	if err := b.pulls.Forgejo.SetBase(ctx, r.cfg.Forgejo, m.ForgejoNumber, gh.BaseRef); err != nil {
 		return err
@@ -348,7 +360,7 @@ func (b *Bridge) syncHead(ctx context.Context, r *repo, m store.IssueMapping, st
 		b.log.Warn("the contrib branch was moved by someone else; no longer importing into it",
 			"repository", r.cfg.Key(), "branch", st.ContribBranch)
 		_, err := b.forgej.CreateComment(ctx, r.cfg.Forgejo, m.ForgejoNumber,
-			translate.Notice(marker.OriginGitHub, m.GitHubNumber, translate.HeadFrozen(st.ContribBranch)))
+			translate.Notice(marker.OriginGitHub, m.GitHubNumber, r.msg.Render("headFrozen", translate.MessageData{Branch: st.ContribBranch})))
 		return err
 	}
 	if err != nil {
@@ -386,7 +398,7 @@ func (b *Bridge) checkCI(ctx context.Context, r *repo, m store.IssueMapping, st 
 		return err
 	}
 	if _, err := b.forgej.CreateComment(ctx, r.cfg.Forgejo, m.ForgejoNumber,
-		translate.Notice(marker.OriginGitHub, m.GitHubNumber, translate.TouchesCI(hits))); err != nil {
+		translate.Notice(marker.OriginGitHub, m.GitHubNumber, r.msg.Render("touchesCI", translate.MessageData{Paths: translate.PathList(hits)}))); err != nil {
 		return err
 	}
 	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "touches-ci")
@@ -394,8 +406,13 @@ func (b *Bridge) checkCI(ctx context.Context, r *repo, m store.IssueMapping, st 
 	return nil
 }
 
-// rebaseRequest keeps the one comment that asks the contributor to rebase
-// in step with whether the pull request is behind its base.
+// rebaseRequest keeps the one comment about rebasing in step with whether
+// the pull request is behind its base.
+//
+// Each time the pull request falls behind, the contributor is told once: a
+// new comment, which notifies them. While it stays behind and the base only
+// moves further, that comment is edited, which notifies nobody. Once it is
+// up to date, the comment says so. There is never more than one.
 func (b *Bridge) rebaseRequest(ctx context.Context, r *repo, m store.IssueMapping, st *store.PullRequestState, gh forge.PullRequest, ghComments []forge.Comment) error {
 	if !r.cfg.RebaseRequests || st.HeadFrozen {
 		return nil
@@ -404,41 +421,59 @@ func (b *Bridge) rebaseRequest(ctx context.Context, r *repo, m store.IssueMappin
 	if err != nil {
 		return err
 	}
-	var text string
-	switch {
-	case behind > 0:
-		text = translate.RebaseRequest(gh.BaseRef, behind)
-	case st.RebaseCommentID != 0:
-		text = translate.UpToDate(gh.BaseRef)
-	default:
-		return nil
+	var existing *forge.Comment
+	for i := range ghComments {
+		if st.RebaseCommentID != 0 && ghComments[i].ID == st.RebaseCommentID {
+			existing = &ghComments[i]
+		}
 	}
-	body := translate.Notice(marker.OriginGitHub, m.GitHubNumber, text)
+	d := b.data(r, gh)
+	d.Behind = behind
 
-	for _, c := range ghComments {
-		if c.ID != st.RebaseCommentID {
-			continue
+	switch {
+	case behind > 0 && existing != nil && st.RebaseRequested:
+		// Still behind: keep the request current, quietly.
+		return b.editNotice(ctx, r, m, existing, r.msg.Render("rebaseRequest", d))
+
+	case behind > 0:
+		// Newly behind, or the request went missing: a new comment, so the
+		// contributor hears about it. The old one, saying it was up to date,
+		// would only contradict it.
+		if existing != nil {
+			if err := b.github.DeleteComment(ctx, r.cfg.GitHub, existing.ID); err != nil && !isNotFound(err) {
+				return err
+			}
 		}
-		if translate.Equal(c.Body, body) {
-			return nil
-		}
-		if _, err := b.github.EditComment(ctx, r.cfg.GitHub, c.ID, body); err != nil {
+		created, err := b.github.CreateComment(ctx, r.cfg.GitHub, m.GitHubNumber,
+			translate.Notice(marker.OriginGitHub, m.GitHubNumber, r.msg.Render("rebaseRequest", d)))
+		if err != nil {
 			return err
 		}
-		telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "edit")
+		telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "create")
+		st.RebaseCommentID, st.RebaseRequested = created.ID, true
+		return nil
+
+	case existing != nil:
+		st.RebaseRequested = false
+		return b.editNotice(ctx, r, m, existing, r.msg.Render("upToDate", d))
+
+	default:
+		// Up to date, and the comment is gone or there never was one.
+		st.RebaseCommentID, st.RebaseRequested = 0, false
 		return nil
 	}
-	if behind == 0 {
-		// The request was deleted, and there is nothing to ask for anyway.
-		st.RebaseCommentID = 0
+}
+
+// editNotice brings one of the bridge's own comments to the given text.
+func (b *Bridge) editNotice(ctx context.Context, r *repo, m store.IssueMapping, c *forge.Comment, text string) error {
+	body := translate.Notice(marker.OriginGitHub, m.GitHubNumber, text)
+	if translate.Equal(c.Body, body) {
 		return nil
 	}
-	created, err := b.github.CreateComment(ctx, r.cfg.GitHub, m.GitHubNumber, body)
-	if err != nil {
+	if _, err := b.github.EditComment(ctx, r.cfg.GitHub, c.ID, body); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "create")
-	st.RebaseCommentID = created.ID
+	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "edit")
 	return nil
 }
 

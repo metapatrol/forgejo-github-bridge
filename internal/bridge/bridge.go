@@ -58,6 +58,8 @@ type Options struct {
 	// any of them is a link into the private instance.
 	ForgejoURLs []*url.URL
 	UserMapping map[string]string
+	// Messages overrides what the bridge says, for every repository.
+	Messages map[string]string
 }
 
 // Bridge keeps the configured repositories in step.
@@ -89,10 +91,23 @@ type Bridge struct {
 	wake chan struct{}
 }
 
-// repo is one configured pair with its translator.
+// repo is one configured pair with its translator and messages.
 type repo struct {
 	cfg config.Repository
 	tr  *translate.Translator
+	msg *translate.Messages
+}
+
+// CheckMessages reports whether every repository's messages load. The
+// bridge falls back to the defaults for a repository whose do not, so this
+// is what startup calls to refuse a broken configuration instead.
+func CheckMessages(global map[string]string, repos []config.Repository) error {
+	for _, r := range repos {
+		if _, err := translate.NewMessages(global, r.Messages); err != nil {
+			return fmt.Errorf("%s: %w", r.GitHub, err)
+		}
+	}
+	return nil
 }
 
 // New creates a bridge for the configured repositories.
@@ -108,7 +123,12 @@ func New(st store.Store, github, forgejo forge.Client, repos []config.Repository
 		wake:   make(chan struct{}, 1),
 	}
 	for _, r := range repos {
-		b.repos[r.Key()] = &repo{cfg: r, tr: translate.New(r, opts.ForgejoURLs, opts.UserMapping)}
+		msg, err := translate.NewMessages(opts.Messages, r.Messages)
+		if err != nil {
+			log.Error("the configured messages do not load; using the defaults", "repository", r.Key(), "error", err)
+			msg = translate.MustDefaultMessages()
+		}
+		b.repos[r.Key()] = &repo{cfg: r, tr: translate.New(r, opts.ForgejoURLs, opts.UserMapping), msg: msg}
 		b.order = append(b.order, r.Key())
 	}
 	return b

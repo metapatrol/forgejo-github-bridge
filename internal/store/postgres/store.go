@@ -167,10 +167,10 @@ func (s *Store) PullRequest(ctx context.Context, id int64) (store.PullRequestSta
 	var rebase *int64
 	err := s.pool.QueryRow(ctx, `
 		SELECT issue_mapping_id, contrib_branch, imported_head_sha, state, head_frozen, touches_ci,
-		       rebase_comment_id, outcome_reported
+		       rebase_comment_id, rebase_requested, outcome_reported
 		FROM pull_request_state WHERE issue_mapping_id = $1`, id).Scan(
 		&p.IssueMappingID, &p.ContribBranch, &p.ImportedHeadSHA, &state, &p.HeadFrozen, &p.TouchesCI,
-		&rebase, &p.OutcomeReported)
+		&rebase, &p.RebaseRequested, &p.OutcomeReported)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return store.PullRequestState{}, false, nil
 	}
@@ -192,15 +192,16 @@ func (s *Store) SavePullRequest(ctx context.Context, p store.PullRequestState) e
 	}
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO pull_request_state (issue_mapping_id, contrib_branch, imported_head_sha, state,
-		                                head_frozen, touches_ci, rebase_comment_id, outcome_reported)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		                                head_frozen, touches_ci, rebase_comment_id, rebase_requested, outcome_reported)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (issue_mapping_id) DO UPDATE SET
 			contrib_branch = excluded.contrib_branch, imported_head_sha = excluded.imported_head_sha,
 			state = excluded.state, head_frozen = excluded.head_frozen, touches_ci = excluded.touches_ci,
-			rebase_comment_id = excluded.rebase_comment_id, outcome_reported = excluded.outcome_reported,
+			rebase_comment_id = excluded.rebase_comment_id, rebase_requested = excluded.rebase_requested,
+			outcome_reported = excluded.outcome_reported,
 			updated_at = now()`,
 		p.IssueMappingID, p.ContribBranch, p.ImportedHeadSHA, string(p.State),
-		p.HeadFrozen, p.TouchesCI, rebase, p.OutcomeReported)
+		p.HeadFrozen, p.TouchesCI, rebase, p.RebaseRequested, p.OutcomeReported)
 	return conflict(err)
 }
 

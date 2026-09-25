@@ -361,7 +361,7 @@ The merge strategy is the repository's, configured in Forgejo. The platform's re
 
 A rebase keeps each commit's **author**; only the committer becomes the maintainer, with the e-mail address of their Forgejo account (§17). The contributor stays in the history and GitHub attributes the commits to them either way. What the second case loses is only the pull request's merged state.
 
-The bridge handles both:
+The bridge handles both. The conversation is carried across before the pull request is closed or reported, so a maintainer who closes with a comment is read on GitHub in that order:
 
 ```text
 Forgejo PR #88 merged, merge_commit_sha = abc123
@@ -399,7 +399,19 @@ bridge imports the new head, the comment is updated to say it is
 up to date
 ```
 
-It is one comment per pull request, edited in place as the state changes, never a new comment per movement of the base. With the setting off, the bridge asks nothing and a maintainer merges with a rebase as usual.
+There is never more than one such comment on a pull request, and the contributor is notified exactly once each time they have something to do. GitHub notifies about new comments, not about edits, so:
+
+| Transition | What the bridge does |
+|---|---|
+| up to date → behind (the first time, or again after a rebase) | a **new** comment asking for a rebase; the previous one, saying it was up to date, is deleted |
+| behind → still behind (the base moved further) | the existing request is **edited** with the new count; no notification |
+| behind → up to date | the request is edited to say thanks, it is up to date |
+
+With the setting off, the bridge asks nothing and a maintainer merges with a rebase as usual.
+
+### What the bridge says
+
+Everything the bridge says in its own voice — the rebase request, the merge report, the explanation for a pull request against the wrong branch, the warnings in Forgejo — is a Go template with a friendly default, and can be replaced globally or per repository (`messages`). A template that names an unknown field, or a message that does not exist, stops the bridge at startup, not on a contributor's pull request.
 
 Base branches must correspond: the Forgejo pull request always targets the same branch as the GitHub pull request. The GitHub repository's default branch should be the branch contributors are expected to target (`develop` for repositories following the develop/main flow).
 

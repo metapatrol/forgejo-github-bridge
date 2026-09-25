@@ -317,6 +317,11 @@ func addNumber(set map[int64]bool, s string) {
 	}
 }
 
+func sortedStrings(s []string) []string {
+	sort.Strings(s)
+	return s
+}
+
 func sorted(set map[int64]bool) []int64 {
 	out := make([]int64, 0, len(set))
 	for n := range set {

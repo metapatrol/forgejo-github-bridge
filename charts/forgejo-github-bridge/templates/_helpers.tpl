@@ -126,6 +126,14 @@ repositories:
       - {{ . | quote }}
       {{- end }}
     {{- end }}
+    {{- with $r.messages }}
+    messages:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}
+{{- with .Values.messages }}
+messages:
+  {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- with .Values.userMapping }}
 userMapping:

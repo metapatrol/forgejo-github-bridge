@@ -94,6 +94,9 @@ type PullRequestState struct {
 	// RebaseCommentID is the GitHub comment asking for a rebase; zero if
 	// there is none.
 	RebaseCommentID int64
+	// RebaseRequested is whether that comment currently asks for a rebase,
+	// rather than saying the pull request is up to date.
+	RebaseRequested bool
 	// OutcomeReported is set once the merge or close has been reported on
 	// GitHub.
 	OutcomeReported bool
