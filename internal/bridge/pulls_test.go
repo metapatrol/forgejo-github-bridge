@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -498,5 +499,30 @@ func TestConfiguredMessagesAreUsed(t *testing.T) {
 	notes := p.botComments(src.Number)
 	if len(notes) != 1 || !strings.Contains(notes[0].Body, "Hi @alice, `develop` is 4 ahead. A rebase would be lovely.") {
 		t.Fatalf("notes = %+v", notes)
+	}
+}
+
+func TestAnImportBlockedBySomebodyElsesBranchIsVisible(t *testing.T) {
+	p := newPullHarness(t, nil)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix", "", "develop", "sha1")
+	p.fj.PushBranch(branchFor(src.Number), "someone-elses-work")
+
+	var logged strings.Builder
+	p.b.log = slog.New(slog.NewTextHandler(&logged, nil))
+	p.stepAll()
+
+	if sha, _ := p.fj.Branch(branchFor(src.Number)); sha != "someone-elses-work" {
+		t.Fatalf("the existing branch was overwritten with %q", sha)
+	}
+	for _, is := range p.fj.Issues(fjRepo) {
+		if is.IsPullRequest {
+			t.Fatal("a pull request was opened on somebody else's branch")
+		}
+	}
+	if q, _ := p.st.DirtyStats(context.Background()); q.Failing != 1 {
+		t.Errorf("the blocked import must count as failing: %+v", q)
+	}
+	if !strings.Contains(logged.String(), "already exists in github-contrib/foo and was not made by the bridge") {
+		t.Errorf("the log does not say what is wrong:\n%s", logged.String())
 	}
 }

@@ -441,8 +441,8 @@ func TestAFailedReconcileIsRetried(t *testing.T) {
 	if !processed || err != nil {
 		t.Fatalf("step: processed=%v err=%v", processed, err)
 	}
-	if n, _, _ := h.st.DirtyStats(context.Background()); n != 1 {
-		t.Fatalf("a failed resource must stay queued, queue has %d", n)
+	if q, _ := h.st.DirtyStats(context.Background()); q.Depth != 1 || q.Failing != 1 {
+		t.Fatalf("a failed resource must stay queued and count as failing: %+v", q)
 	}
 	if len(h.fj.Issues(fjRepo)) != 0 {
 		t.Fatal("the failure was not injected")

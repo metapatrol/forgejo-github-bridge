@@ -151,8 +151,8 @@ func dirtyQueue(t *testing.T, s store.Store) {
 	if err := s.MarkDirty(ctx, k, k); err != nil {
 		t.Fatal(err)
 	}
-	if n, oldest, _ := s.DirtyStats(ctx); n != 1 || oldest.IsZero() {
-		t.Fatalf("marking twice must coalesce: n=%d oldest=%v", n, oldest)
+	if st, _ := s.DirtyStats(ctx); st.Depth != 1 || st.Oldest.IsZero() || st.Failing != 0 {
+		t.Fatalf("marking twice must coalesce: %+v", st)
 	}
 
 	d, ok, err := s.NextDirty(ctx)
@@ -174,8 +174,8 @@ func dirtyQueue(t *testing.T, s store.Store) {
 	if _, ok, _ := s.NextDirty(ctx); ok {
 		t.Error("the queue is not empty")
 	}
-	if n, oldest, _ := s.DirtyStats(ctx); n != 0 || !oldest.IsZero() {
-		t.Errorf("stats of an empty queue: %d, %v", n, oldest)
+	if st, _ := s.DirtyStats(ctx); st.Depth != 0 || !st.Oldest.IsZero() {
+		t.Errorf("stats of an empty queue: %+v", st)
 	}
 }
 
@@ -195,8 +195,8 @@ func markingKeepsBackoff(t *testing.T, s store.Store) {
 	if _, ok, _ := s.NextDirty(ctx); ok {
 		t.Error("marking a failing resource again cancelled its backoff")
 	}
-	if n, _, _ := s.DirtyStats(ctx); n != 1 {
-		t.Errorf("a deferred resource left the queue: %d", n)
+	if st, _ := s.DirtyStats(ctx); st.Depth != 1 || st.Failing != 1 {
+		t.Errorf("a deferred resource must stay queued and count as failing: %+v", st)
 	}
 }
 

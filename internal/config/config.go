@@ -315,6 +315,7 @@ func (c *Config) apply(f file) error {
 
 	seenGitHub := map[string]bool{}
 	seenForgejo := map[string]bool{}
+	seenContrib := map[string]bool{}
 	for i, r := range f.Repositories {
 		where := fmt.Sprintf("repositories[%d]", i)
 		repo := Repository{
@@ -376,7 +377,20 @@ func (c *Config) apply(f file) error {
 		if seenForgejo[fj] {
 			errs = append(errs, fmt.Errorf("%s: Forgejo repository %s is configured twice", where, repo.Forgejo))
 		}
+		if seenContrib[fj] {
+			errs = append(errs, fmt.Errorf("%s: Forgejo repository %s is another pair's contrib repository", where, repo.Forgejo))
+		}
 		seenGitHub[gh], seenForgejo[fj] = true, true
+		if !repo.Contrib.Empty() {
+			// Branches in a contrib repository are named after GitHub pull
+			// request numbers, which are only unique per repository. Two pairs
+			// sharing one would both claim pr/1.
+			c := strings.ToLower(repo.Contrib.String())
+			if seenContrib[c] || seenForgejo[c] {
+				errs = append(errs, fmt.Errorf("%s: contrib repository %s is used by another pair", where, repo.Contrib))
+			}
+			seenContrib[c] = true
+		}
 
 		c.Repositories = append(c.Repositories, repo)
 	}

@@ -338,12 +338,13 @@ func (s *Store) DeferDirty(ctx context.Context, d store.Dirty, until time.Time, 
 }
 
 // DirtyStats implements store.Store.
-func (s *Store) DirtyStats(ctx context.Context) (int, time.Time, error) {
-	var n int
+func (s *Store) DirtyStats(ctx context.Context) (store.QueueStats, error) {
+	var st store.QueueStats
 	var oldest *time.Time
-	err := s.pool.QueryRow(ctx, `SELECT count(*), min(marked_at) FROM dirty`).Scan(&n, &oldest)
-	if err != nil || oldest == nil {
-		return n, time.Time{}, err
+	err := s.pool.QueryRow(ctx,
+		`SELECT count(*), count(*) FILTER (WHERE attempts > 0), min(marked_at) FROM dirty`).Scan(&st.Depth, &st.Failing, &oldest)
+	if err == nil && oldest != nil {
+		st.Oldest = *oldest
 	}
-	return n, *oldest, nil
+	return st, err
 }

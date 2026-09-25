@@ -136,8 +136,8 @@ func TestBridgeOnPostgres(t *testing.T) {
 	if n := len(fj.CommentsOf(fjRepo, proj[0].Number)); n != 2 {
 		t.Errorf("want two comments in Forgejo, have %d", n)
 	}
-	if n, _, _ := st.DirtyStats(ctx); n != 0 {
-		t.Errorf("the queue is not empty: %d", n)
+	if q, _ := st.DirtyStats(ctx); q.Depth != 0 {
+		t.Errorf("the queue is not empty: %+v", q)
 	}
 }
 

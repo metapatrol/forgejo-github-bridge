@@ -71,6 +71,12 @@ func TestRefusals(t *testing.T) {
 		{name: "pull requests without contrib token", file: minimal + "    contrib: contrib/foo\n    targetBranches: [develop]\n", want: "FORGEJO_CONTRIB_TOKEN"},
 		{name: "odd target branch", file: minimal + "    contrib: contrib/foo\n    targetBranches: [\"-x\"]\n",
 			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "not a branch name"},
+		{name: "shared contrib repository", file: minimal + "    contrib: c/foo\n    targetBranches: [develop]\n" +
+			"  - github: metapatrol/bar\n    forgejo: platform/bar\n    contrib: c/foo\n    targetBranches: [develop]\n",
+			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "used by another pair"},
+		{name: "contrib is another pair's canonical", file: minimal + "    contrib: platform/bar\n    targetBranches: [develop]\n" +
+			"  - github: metapatrol/bar\n    forgejo: platform/bar\n",
+			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "another pair's contrib"},
 		{name: "bad import bound", file: minimal + "    importSince: yesterday\n", want: "importSince"},
 		{name: "missing token", file: minimal, env: map[string]string{"BRIDGE_FORGEJO_TOKEN": ""}, want: "FORGEJO_TOKEN"},
 		{name: "bad app id", file: minimal, env: map[string]string{"BRIDGE_GITHUB_APP_ID": "1.2e+07"}, want: "GITHUB_APP_ID"},

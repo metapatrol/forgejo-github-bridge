@@ -67,6 +67,12 @@ var (
 		Help:      "Resources waiting to be reconciled.",
 	})
 
+	queueFailing = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "dirty_failing",
+		Help:      "Queued resources whose last reconcile failed and that wait for a retry. Above zero for long means something is stuck.",
+	})
+
 	queueOldest = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "dirty_oldest_age_seconds",
@@ -121,8 +127,9 @@ func RecordChange(repo, side, kind, action string) {
 }
 
 // SetQueue records the queue's state.
-func SetQueue(depth int, oldest time.Time) {
+func SetQueue(depth, failing int, oldest time.Time) {
 	queueDepth.Set(float64(depth))
+	queueFailing.Set(float64(failing))
 	if oldest.IsZero() {
 		queueOldest.Set(0)
 		return

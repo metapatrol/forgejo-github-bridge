@@ -336,7 +336,9 @@ The **contrib repository** is a Forgejo fork of the canonical repository, owned 
 - the canonical repository's push mirror never sees bridge branches, so they are neither published to GitHub nor pruned by it;
 - Forgejo treats the pull request as coming from a fork, which is what CI isolation relies on (§12).
 
-The contrib repository has no push mirror, no Actions secrets and no variables.
+The contrib repository has no push mirror, no Actions secrets and no variables. Each pair has its own: branches are named after GitHub pull request numbers, which are unique only per repository, and the configuration refuses two pairs sharing one.
+
+The bridge never overwrites a branch it did not push. If `pr/<n>` already exists when a pull request is imported and holds anything but that pull request's head, the import stops, stays queued, counts as failing (§18) and says in the log which branch is in the way.
 
 The GitHub pull request **stays open**. It remains the contributor's view of the contribution for its entire lifetime.
 
@@ -592,7 +594,7 @@ Prometheus                      metrics
 
 No SDK for either forge. The bridge uses about a dozen endpoints on each side; an SDK would bring a major version a month and still not do the two things the shared client is for: follow pagination without ever sending a credential to a host other than the configured one, and answer an unchanged GitHub list from its ETag, which GitHub does not count against the rate limit.
 
-Key metrics: poll duration and errors per repository and side, dirty queue depth, reconcile outcomes per kind, GitHub rate-limit remaining, age of the oldest dirty resource.
+Key metrics: poll duration and errors per repository and side, dirty queue depth, resources whose last reconcile failed, reconcile outcomes per kind, GitHub rate-limit remaining, age of the oldest dirty resource.
 
 ---
 

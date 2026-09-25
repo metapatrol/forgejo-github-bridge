@@ -120,6 +120,17 @@ type Dirty struct {
 	Attempts int
 }
 
+// QueueStats describes the dirty queue.
+type QueueStats struct {
+	// Depth is how many resources are queued.
+	Depth int
+	// Failing is how many of them failed their last reconcile and wait for
+	// a retry. Anything above zero for long is something stuck.
+	Failing int
+	// Oldest is when the longest-waiting entry was marked; zero when empty.
+	Oldest time.Time
+}
+
 // Store is everything the bridge persists.
 type Store interface {
 	IssueByGitHub(ctx context.Context, repository string, number int64) (IssueMapping, bool, error)
@@ -163,7 +174,6 @@ type Store interface {
 	// DeferDirty counts a failed attempt and holds the entry back until the
 	// given time.
 	DeferDirty(ctx context.Context, d Dirty, until time.Time, reason string) error
-	// DirtyStats returns the queue length and the time the oldest entry was
-	// marked (zero when empty).
-	DirtyStats(ctx context.Context) (int, time.Time, error)
+	// DirtyStats describes the queue.
+	DirtyStats(ctx context.Context) (QueueStats, error)
 }

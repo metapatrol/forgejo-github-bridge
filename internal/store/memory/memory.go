@@ -293,14 +293,17 @@ func (s *Store) DeferDirty(_ context.Context, d store.Dirty, until time.Time, _ 
 	return nil
 }
 
-func (s *Store) DirtyStats(_ context.Context) (int, time.Time, error) {
+func (s *Store) DirtyStats(_ context.Context) (store.QueueStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var oldest time.Time
+	st := store.QueueStats{Depth: len(s.dirty)}
 	for _, e := range s.dirty {
-		if oldest.IsZero() || e.markedAt.Before(oldest) {
-			oldest = e.markedAt
+		if st.Oldest.IsZero() || e.markedAt.Before(st.Oldest) {
+			st.Oldest = e.markedAt
+		}
+		if e.attempts > 0 {
+			st.Failing++
 		}
 	}
-	return len(s.dirty), oldest, nil
+	return st, nil
 }

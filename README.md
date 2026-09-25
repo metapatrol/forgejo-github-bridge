@@ -196,6 +196,7 @@ mapped appears on GitHub as "a maintainer"; their Forgejo login never does.
 | `forgejo_github_bridge_poll_errors_total` | |
 | `forgejo_github_bridge_dirty_queue_depth` | |
 | `forgejo_github_bridge_dirty_oldest_age_seconds` | alert when it grows: something keeps failing |
+| `forgejo_github_bridge_dirty_failing` | resources whose last reconcile failed; alert when above zero for, say, 30 minutes — the log says why |
 | `forgejo_github_bridge_reconciles_total` | by outcome |
 | `forgejo_github_bridge_changes_total` | writes, by side, kind and action |
 | `forgejo_github_bridge_github_rate_limit_remaining` | |

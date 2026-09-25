@@ -258,8 +258,8 @@ func (b *Bridge) work(ctx context.Context) {
 	for ctx.Err() == nil {
 		select {
 		case <-stats.C:
-			if n, oldest, err := b.store.DirtyStats(ctx); err == nil {
-				telemetry.SetQueue(n, oldest)
+			if q, err := b.store.DirtyStats(ctx); err == nil {
+				telemetry.SetQueue(q.Depth, q.Failing, q.Oldest)
 			}
 		default:
 		}

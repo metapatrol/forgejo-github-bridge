@@ -86,6 +86,10 @@ func (b *Bridge) importPull(ctx context.Context, r *repo, n int64) error {
 		// bridge's own from an attempt that died before opening the pull
 		// request; anything else belongs to somebody, and is left alone.
 		sha, err = b.pulls.Git.Import(ctx, r.cfg, n, pr.BaseRef, branch, pr.HeadSHA)
+		if errors.Is(err, gitops.ErrLeaseRejected) {
+			return fmt.Errorf("branch %s already exists in %s and was not made by the bridge; "+
+				"GitHub pull request #%d cannot be imported until it is removed: %w", branch, r.cfg.Contrib, n, err)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("importing the head of GitHub pull request #%d: %w", n, err)
