@@ -352,22 +352,56 @@ Conversation comments on the pull request flow in both directions, with the same
 
 ### Merge
 
-Imported pull requests are merged in Forgejo with a **merge commit** or **fast-forward**. Both keep the contributor's commit SHAs.
+The merge strategy is the repository's, configured in Forgejo. The platform's repositories use **rebase, then fast-forward**, and the bridge does not ask for anything else. What GitHub shows afterwards depends on whether the rebase had anything to do:
+
+| At merge time | In Forgejo | On GitHub |
+|---|---|---|
+| the pull request is up to date with its base | a plain fast-forward; the contributor's SHAs are kept | GitHub sees the head commit on the base branch and marks the pull request **merged** by itself |
+| the base has moved on | the commits are rebased and get new SHAs | GitHub cannot recognise the merge; the pull request stays open |
+
+A rebase keeps each commit's **author**; only the committer becomes the maintainer. The contributor stays in the history and GitHub attributes the commits to them either way. What the second case loses is only the pull request's merged state.
+
+The bridge handles both:
 
 ```text
-Forgejo PR #88 merged into develop
+Forgejo PR #88 merged, merge_commit_sha = abc123
         │
         ▼
-push mirror updates GitHub develop
+wait until the push mirror has put abc123 on GitHub's base branch
+(the pull request stays queued, retried with backoff)
         │
-        ▼
-GitHub sees the PR's head commit on its base branch
-and marks PR #123 as merged
+        ├── GitHub already marks PR #123 merged  → short note with the commit
+        │
+        └── PR #123 still open (rebased)         → comment "Integrated into develop
+                                                    as abc123 (rebased)", close
 ```
 
-GitHub marks the pull request as merged by itself. The contributor gets the regular merged state and the commits keep their authorship. After the mirror has run, the bridge verifies the GitHub state and posts a short note with the merge commit.
+A squash merge is handled like the rebased case, and additionally loses per-commit authorship; repositories that care about contributor credit should not offer it.
 
-A squash or rebase merge changes the SHAs, and GitHub will not recognise the merge. The bridge handles this case by commenting and closing the GitHub pull request, but it is the degraded path. Repositories using the bridge should restrict imported pull requests to merge-preserving strategies.
+### Rebase requests
+
+Where the merged state matters, Forgejo's branch protection on the base branch can block merging an outdated pull request. Every merge is then a plain fast-forward, and GitHub always shows the pull request as merged.
+
+The bridge follows that setting rather than having one of its own. When the base branch's protection blocks outdated merges and an imported pull request is behind its base, the bridge asks the contributor on GitHub to rebase:
+
+```text
+develop moved on, PR #123 is behind
+        │
+        ▼
+bridge comment on GitHub PR #123:
+  "develop has moved on since this was opened. Please rebase onto
+   develop so it can be merged as it is."
+        │
+contributor rebases and pushes
+        │
+        ▼
+bridge imports the new head, the comment is updated to say it is
+up to date
+```
+
+It is one comment per pull request, edited in place as the state changes, never a new comment per movement of the base. Without the protection, the bridge asks nothing and a maintainer merges with a rebase as usual.
+
+Whether the protection's setting is readable with the `github-bridge` account's permissions is checked at the start of phase 2; if it is not, a per-repository `rebaseRequests` setting takes its place.
 
 Base branches must correspond: the Forgejo pull request always targets the same branch as the GitHub pull request. The GitHub repository's default branch should be the branch contributors are expected to target (`develop` for repositories following the develop/main flow).
 
@@ -520,7 +554,7 @@ Per bridged repository, the one-time setup is:
 2. Forgejo: create the contrib fork owned by `github-contrib`, with no push mirror and no secrets.
 3. Forgejo: enable "sync on commit" for the canonical push mirror, so merges reach GitHub promptly.
 4. Forgejo: require approval for fork pull request workflow runs and verify it with a test pull request.
-5. Forgejo: restrict merge styles for the canonical repository to merge commit / fast-forward.
+5. Forgejo: keep the repository's merge style (rebase, then fast-forward). To have the bridge ask contributors to rebase, and GitHub always show imported pull requests as merged, block merging outdated pull requests on the base branch (§11).
 6. Add the repository to the bridge configuration.
 
 ---
@@ -572,6 +606,7 @@ Forgejo PR creation, head updates, foreign-push detection
 conversation comments and review summaries
 merge detection and verification on GitHub
 close handling in both directions
+rebase requests when the base branch blocks outdated merges
 touches-ci labelling
 ```
 
