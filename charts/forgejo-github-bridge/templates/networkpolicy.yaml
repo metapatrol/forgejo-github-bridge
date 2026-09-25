@@ -1,0 +1,26 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /*
+  Ingress only. The bridge's egress goes to GitHub, whose addresses a
+  NetworkPolicy cannot name, so restricting it here would either break the
+  bridge or allow everything anyway.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "bridge.fullname" . }}
+  labels:
+    {{- include "bridge.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "bridge.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.metricsNamespaceSelector | nindent 14 }}
+      ports:
+        - port: http
+          protocol: TCP
+{{- end }}

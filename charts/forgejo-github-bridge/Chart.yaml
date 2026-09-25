@@ -1,0 +1,16 @@
+apiVersion: v2
+name: forgejo-github-bridge
+description: Keeps issues and comments in step between a private Forgejo and the public GitHub repositories it mirrors to.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - platform
+  - forgejo
+  - github
+home: https://forgejo.metapatrol.local/platform/forgejo-github-bridge
+sources:
+  - https://forgejo.metapatrol.local/platform/forgejo-github-bridge
+maintainers:
+  - name: Denis Neuling
+    email: denisneuling@gmail.com

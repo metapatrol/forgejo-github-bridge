@@ -1,0 +1,11 @@
+# Build output. `go build ./cmd/<binary>` from the root leaves the binary
+# here rather than in bin/.
+bin/
+/forgejo-github-bridge
+
+# semantic-release installs into the workspace during a release run.
+node_modules/
+package-lock.json
+
+# Local development
+*.local.yaml

@@ -1,0 +1,50 @@
+# golangci-lint configuration.
+#
+# The version is pinned in the Makefile, which is also where CI reads it from,
+# so `make lint` and the lint job cannot drift apart.
+version: "2"
+
+linters:
+  # The standard set — errcheck, govet, ineffassign, staticcheck, unused — plus
+  # a handful chosen for what this code actually does rather than for coverage.
+  default: standard
+  enable:
+    # Every HTTP response body has to be closed, or a daemon that polls two
+    # APIs every minute leaks a connection per request.
+    - bodyclose
+    # errors.Is/As rather than == and type assertions: ErrNotFound and
+    # ErrNotModified are matched by sentinel, and a == that works today breaks
+    # the first time one of them is wrapped.
+    - errorlint
+    - misspell
+    # A nil error returned after an error was handled is the shape of "the
+    # comment was not written and the dirty entry was cleared anyway".
+    - nilerr
+    - unconvert
+    - usestdlibvars
+    # Contexts must reach the I/O boundaries; a lost one is a request that
+    # cannot be cancelled at shutdown.
+    - noctx
+
+  settings:
+    errcheck:
+      # Failing to write a response body is not actionable — the status line is
+      # already sent and the connection breaking is the message.
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (io.Writer).Write
+
+  exclusions:
+    generated: lax
+    rules:
+      # Tests deliberately ignore errors from setup helpers and make
+      # unbounded-looking requests against a local server.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+          - noctx
+
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,40 @@
+{{ template "chart.header" . }}
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+## Installing
+
+The bridge needs three Secrets that this chart does not create, because each
+belongs to something else:
+
+| Secret | key | what it is |
+|---|---|---|
+| `database.existingSecret` | `uri` | the app Secret CloudNativePG writes for the bridge's database |
+| `github.existingSecret` | `private-key.pem` | the GitHub App's private key |
+| `forgejo.existingSecret` | `token` | an access token of the `github-bridge` Forgejo account |
+
+```bash
+helm install forgejo-github-bridge oci://zot.metapatrol.local/charts/platform/forgejo-github-bridge \
+  --namespace forgejo-github-bridge --create-namespace \
+  --set database.existingSecret=forgejo-github-bridge-db-app \
+  --set github.appID=123456 \
+  --set github.existingSecret=forgejo-github-bridge-github \
+  --set forgejo.url=http://forgejo-http.forgejo:3000 \
+  --set forgejo.existingSecret=forgejo-github-bridge-forgejo \
+  --set 'repositories[0].github=metapatrol/foo' \
+  --set 'repositories[0].forgejo=platform/foo'
+```
+
+The chart refuses to render without any of these, rather than installing a
+bridge that starts and then does nothing.
+
+### One active instance
+
+`replicaCount: 2` does not share the work. The second replica waits on a
+PostgreSQL advisory lock and takes over when the first one's session ends. It
+shortens a failover and nothing else.
+
+{{ template "chart.valuesSection" . }}

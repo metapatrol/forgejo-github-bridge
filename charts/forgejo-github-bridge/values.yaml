@@ -1,0 +1,132 @@
+# Default values for forgejo-github-bridge.
+
+# -- One replica does the work. A second one waits on the leader lock and only
+# shortens a failover; it never shares the work (CONCEPT.md §7).
+replicaCount: 1
+
+image:
+  repository: zot.metapatrol.local/images/platform/forgejo-github-bridge
+  pullPolicy: IfNotPresent
+  # -- Defaults to the chart's appVersion, or to the commit when the chart is
+  # read from Git by Flux.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+database:
+  # -- The Secret holding the PostgreSQL connection string. Required.
+  existingSecret: ""
+  # -- The key inside that Secret. Configurable because the Secret is usually
+  # somebody else's: CloudNativePG writes the connection string of its app
+  # user under "uri".
+  existingSecretKey: uri
+  # -- The size of the connection pool. At least 2: the leader lock holds one
+  # connection for as long as the instance is active.
+  maxConnections: 5
+
+github:
+  # -- The GitHub App's ID. Required. The App's name is not configured: the
+  # bridge reads it from GitHub.
+  appID: ""
+  # -- The Secret holding the App's private key. Required.
+  existingSecret: ""
+  # -- The key inside that Secret.
+  existingSecretKey: private-key.pem
+  # -- The API base URL. Only a test would change it.
+  apiURL: https://api.github.com
+
+forgejo:
+  # -- The Forgejo base URL the bridge talks to, e.g. the in-cluster Service.
+  # Required.
+  url: ""
+  # -- The address people's browsers use for Forgejo, when it is not `url`.
+  # Links starting with either are recognised as internal and never reach
+  # GitHub, so this must be set whenever `url` is an in-cluster address.
+  webURL: ""
+  # -- The Secret holding the github-bridge account's token. Required.
+  existingSecret: ""
+  # -- The key inside that Secret.
+  existingSecretKey: token
+  # -- The Secret holding the CA certificate Forgejo's own certificate is
+  # issued by, for an instance behind a private CA. Empty trusts the system
+  # roots only.
+  caSecret: ""
+  # -- The key inside that Secret.
+  caSecretKey: ca.crt
+
+# -- The bridged repositories. Each entry pairs a public GitHub repository
+# with the private Forgejo repository that is its source of truth.
+#
+#   - github: metapatrol/foo      # required
+#     forgejo: platform/foo       # required
+#     publishLabel: public        # makes a Forgejo issue public
+#     importLabel: github         # marks issues imported from GitHub
+#     internalPrefix: /internal   # keeps a Forgejo comment private
+#     importSince: "2026-09-01T00:00:00Z"
+repositories: []
+
+# -- Forgejo logins mapped to GitHub logins, for mentions and attribution
+# only. A maintainer who is not mapped appears on GitHub as "a maintainer".
+userMapping: {}
+
+poll:
+  # -- How often each repository is polled on each side.
+  interval: 60s
+  # -- How often every open bridged issue is reconciled regardless of polls,
+  # which is what notices deleted comments.
+  fullResync: 6h
+
+logging:
+  # -- json or text.
+  format: json
+  # -- debug, info, warn or error.
+  level: info
+
+# -- The port probes and metrics are served on. Cluster-internal; the bridge
+# has no public endpoint.
+port: 8080
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+# Prometheus scraping of the metrics the bridge serves.
+serviceMonitor:
+  # -- Render a ServiceMonitor. Requires the Prometheus operator's CRDs.
+  enabled: false
+  namespace: ""
+  # -- Labels the Prometheus instance selects ServiceMonitors by.
+  additionalLabels: {}
+  interval: 30s
+  scrapeTimeout: ""
+
+networkPolicy:
+  # -- Restrict ingress to the probe and metrics port, from the namespaces
+  # below. The bridge accepts no other connection.
+  enabled: false
+  # -- Namespace labels allowed to scrape metrics. The kubelet's probes are
+  # not subject to NetworkPolicy.
+  metricsNamespaceSelector:
+    kubernetes.io/metadata.name: monitoring
+
+# -- Extra environment variables for the container.
+env: []
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

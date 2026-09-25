@@ -1,0 +1,24 @@
+# The bridge's database: a single-instance CloudNativePG cluster, like the
+# other platform services on k3s-dev. CNPG writes the connection string into
+# the Secret forgejo-github-bridge-db-app, under "uri", which is what the
+# chart reads by default.
+#
+# The state is small — mappings, cursors, a queue — and can be rebuilt from
+# the markers in the projections if it is lost (CONCEPT.md §7). Backups are
+# still worth having: a rebuild recovers issue pairs, but it replays every
+# comment's projection check once.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: forgejo-github-bridge-db
+  namespace: forgejo-github-bridge
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-system-trixie
+  enableSuperuserAccess: false
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+  storage:
+    size: 1Gi

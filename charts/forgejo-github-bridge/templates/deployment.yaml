@@ -1,0 +1,150 @@
+{{- include "bridge.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bridge.fullname" . }}
+  labels:
+    {{- include "bridge.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount | int }}
+  selector:
+    matchLabels:
+      {{- include "bridge.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- /*
+          The pods have to notice a changed repository list: the bridge reads
+          its configuration once, at startup.
+        */}}
+        forgejo-github-bridge.metapatrol.com/config-checksum: {{ include "bridge.configFile" . | sha256sum | trunc 16 }}
+        forgejo-github-bridge.metapatrol.com/chart-version: {{ .Chart.Version | quote }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "bridge.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "bridge.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bridge
+          image: {{ include "bridge.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port | int }}
+              protocol: TCP
+          env:
+            - name: BRIDGE_LISTEN_ADDR
+              value: ":{{ .Values.port | int }}"
+            - name: BRIDGE_CONFIG
+              value: /etc/forgejo-github-bridge/config/config.yaml
+            - name: BRIDGE_LOG_FORMAT
+              value: {{ .Values.logging.format | quote }}
+            - name: BRIDGE_LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+            - name: BRIDGE_POLL_INTERVAL
+              value: {{ .Values.poll.interval | quote }}
+            - name: BRIDGE_FULL_RESYNC
+              value: {{ .Values.poll.fullResync | quote }}
+            - name: BRIDGE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+            - name: BRIDGE_DATABASE_MAX_CONNS
+              value: {{ .Values.database.maxConnections | int | quote }}
+            - name: BRIDGE_GITHUB_APP_ID
+              value: {{ include "bridge.appID" . | quote }}
+            - name: BRIDGE_GITHUB_PRIVATE_KEY_FILE
+              value: /etc/forgejo-github-bridge/github/{{ .Values.github.existingSecretKey }}
+            - name: BRIDGE_GITHUB_API_URL
+              value: {{ .Values.github.apiURL | quote }}
+            - name: BRIDGE_FORGEJO_URL
+              value: {{ .Values.forgejo.url | quote }}
+            {{- with .Values.forgejo.webURL }}
+            - name: BRIDGE_FORGEJO_WEB_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BRIDGE_FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.forgejo.existingSecret }}
+                  key: {{ .Values.forgejo.existingSecretKey }}
+            {{- if .Values.forgejo.caSecret }}
+            - name: BRIDGE_FORGEJO_CA_FILE
+              value: /etc/forgejo-github-bridge/forgejo-ca/{{ .Values.forgejo.caSecretKey }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/forgejo-github-bridge/config
+              readOnly: true
+            - name: github
+              mountPath: /etc/forgejo-github-bridge/github
+              readOnly: true
+            {{- if .Values.forgejo.caSecret }}
+            - name: forgejo-ca
+              mountPath: /etc/forgejo-github-bridge/forgejo-ca
+              readOnly: true
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "bridge.fullname" . }}
+        - name: github
+          secret:
+            secretName: {{ .Values.github.existingSecret }}
+            items:
+              - key: {{ .Values.github.existingSecretKey }}
+                path: {{ .Values.github.existingSecretKey }}
+        {{- if .Values.forgejo.caSecret }}
+        - name: forgejo-ca
+          secret:
+            secretName: {{ .Values.forgejo.caSecret }}
+            items:
+              - key: {{ .Values.forgejo.caSecretKey }}
+                path: {{ .Values.forgejo.caSecretKey }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

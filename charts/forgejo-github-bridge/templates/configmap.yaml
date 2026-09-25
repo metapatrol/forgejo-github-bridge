@@ -1,0 +1,10 @@
+{{- include "bridge.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "bridge.fullname" . }}
+  labels:
+    {{- include "bridge.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    {{- include "bridge.configFile" . | nindent 4 }}
