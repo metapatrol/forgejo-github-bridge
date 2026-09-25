@@ -382,7 +382,7 @@ A squash merge is handled like the rebased case, and additionally loses per-comm
 
 Where the merged state matters, Forgejo's branch protection on the base branch can block merging an outdated pull request. Every merge is then a plain fast-forward, and GitHub always shows the pull request as merged.
 
-The bridge follows that setting rather than having one of its own. When the base branch's protection blocks outdated merges and an imported pull request is behind its base, the bridge asks the contributor on GitHub to rebase:
+The bridge cannot read that setting: Forgejo serves branch protections to repository admins only, and the `github-bridge` account is deliberately not one (verified on Forgejo 16). A per-repository `rebaseRequests` setting therefore mirrors it, and is meant to be switched on together with the protection. When it is on and an imported pull request is behind its base, the bridge asks the contributor on GitHub to rebase:
 
 ```text
 develop moved on, PR #123 is behind
@@ -399,9 +399,7 @@ bridge imports the new head, the comment is updated to say it is
 up to date
 ```
 
-It is one comment per pull request, edited in place as the state changes, never a new comment per movement of the base. Without the protection, the bridge asks nothing and a maintainer merges with a rebase as usual.
-
-Whether the protection's setting is readable with the `github-bridge` account's permissions is checked at the start of phase 2; if it is not, a per-repository `rebaseRequests` setting takes its place.
+It is one comment per pull request, edited in place as the state changes, never a new comment per movement of the base. With the setting off, the bridge asks nothing and a maintainer merges with a rebase as usual.
 
 Base branches must correspond: the Forgejo pull request always targets the same branch as the GitHub pull request. The GitHub repository's default branch should be the branch contributors are expected to target (`develop` for repositories following the develop/main flow).
 
@@ -554,7 +552,7 @@ Per bridged repository, the one-time setup is:
 2. Forgejo: create the contrib fork owned by `github-contrib`, with no push mirror and no secrets.
 3. Forgejo: enable "sync on commit" for the canonical push mirror, so merges reach GitHub promptly.
 4. Forgejo: require approval for fork pull request workflow runs and verify it with a test pull request.
-5. Forgejo: keep the repository's merge style (rebase, then fast-forward). To have the bridge ask contributors to rebase, and GitHub always show imported pull requests as merged, block merging outdated pull requests on the base branch (§11).
+5. Forgejo: keep the repository's merge style (rebase, then fast-forward). To have GitHub always show imported pull requests as merged, block merging outdated pull requests on the base branch and set `rebaseRequests: true` for the repository, so the bridge asks contributors to rebase (§11).
 6. Add the repository to the bridge configuration.
 
 ---
@@ -606,7 +604,7 @@ Forgejo PR creation, head updates, foreign-push detection
 conversation comments and review summaries
 merge detection and verification on GitHub
 close handling in both directions
-rebase requests when the base branch blocks outdated merges
+rebase requests (per-repository rebaseRequests)
 touches-ci labelling
 ```
 
