@@ -1,3 +1,16 @@
+# [0.3.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.2.0...v0.3.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **gitops:** wrap both errors when no token can be had ([60fa007](https://github.com/metapatrol/forgejo-github-bridge/commit/60fa007c6d5e53b43f2060f445b82b4ad1f58f5e))
+
+
+### Features
+
+* create and check the contrib fork from the bridge ([8f4ba93](https://github.com/metapatrol/forgejo-github-bridge/commit/8f4ba9329b53ed434027e02d6464aac43b702e1b))
+* import pull requests from private GitHub repositories ([12796b5](https://github.com/metapatrol/forgejo-github-bridge/commit/12796b5e1059f9c7264ece76f88ca746ecaeb657))
+
 # [0.2.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.1.0...v0.2.0) (2026-09-26)
 
 
