@@ -1,9 +1,14 @@
 # Installation
 
-From nothing to a bridged repository. The examples use Forgejo at
-`forgejo.example.com`, the GitHub organisation `example-org`, a namespace
-`forgejo-github-bridge` in a Kubernetes cluster with CloudNativePG, and one
-repository pair:
+From nothing to a bridged repository.
+
+The bridge is one process with three needs: a PostgreSQL database, outbound
+HTTPS to GitHub and to your Forgejo, and a few secrets. Where it runs is up to
+you. This guide covers two ways — a Helm chart on Kubernetes, and a container
+with Docker Compose — and the binary runs just as well under systemd.
+
+The examples use Forgejo at `forgejo.example.com`, the GitHub organisation
+`example-org`, and one repository pair:
 
 | | |
 |---|---|
@@ -16,28 +21,43 @@ part 5 once per repository.
 
 **Contents**
 
-- [1. Namespace and database](#1-namespace-and-database)
+- [1. A PostgreSQL database](#1-a-postgresql-database)
 - [2. The GitHub App](#2-the-github-app)
 - [3. The Forgejo accounts](#3-the-forgejo-accounts)
 - [4. Per maintainer](#4-per-maintainer)
 - [5. Per repository](#5-per-repository)
 - [6. Deploy](#6-deploy)
+  - [With Helm on Kubernetes](#with-helm-on-kubernetes)
+  - [With Docker Compose](#with-docker-compose)
+  - [Anywhere else](#anywhere-else)
 - [7. Verify before the first real contribution](#7-verify-before-the-first-real-contribution)
 
-## 1. Namespace and database
+## 1. A PostgreSQL database
 
-```bash
-kubectl create namespace forgejo-github-bridge
-kubectl apply -f samples/cnpg-cluster.yaml
-kubectl -n forgejo-github-bridge wait \
-  cluster.postgresql.cnpg.io/forgejo-github-bridge-db --for=condition=Ready --timeout=5m
+Any PostgreSQL from version 14 on will do: a managed service, a database in an
+existing server, an operator on Kubernetes, or the container in the Compose
+file below. The bridge needs one database and a user that owns it; it creates
+and migrates its own schema at startup.
+
+```sql
+CREATE USER bridge WITH PASSWORD '…';
+CREATE DATABASE bridge OWNER bridge;
 ```
 
-CloudNativePG writes the connection string into the Secret
-`forgejo-github-bridge-db-app` under the key `uri`, which is what the chart
-reads by default. Configure backups the way the platform's other CNPG clusters
-do; the bridge can rebuild most of its state without them
-([Operations](./operations.md#losing-the-database)), but not all of it.
+The bridge takes a connection string:
+
+```text
+postgres://bridge:…@db.example.com:5432/bridge?sslmode=require
+```
+
+The state is small — mappings, cursors, a queue — and back it up the way you
+back up your other databases. The bridge can rebuild most of it without a
+backup ([operations](operations.md#losing-the-database)), but not all of it.
+
+On Kubernetes with [CloudNativePG](https://cloudnative-pg.io/),
+[samples/cloudnative-pg.yaml](../samples/cloudnative-pg.yaml) is a minimal
+cluster; CloudNativePG writes the connection string into a Secret under the
+key `uri`, which is what the Helm chart reads by default.
 
 ## 2. The GitHub App
 
@@ -58,13 +78,7 @@ Then, on the App's page:
 
 1. Note the **App ID**.
 2. *Private keys → Generate a private key*. Keep the downloaded `.pem` out of
-   chats and tickets.
-3. Store it in the cluster and delete the local copy:
-
-   ```bash
-   kubectl -n forgejo-github-bridge create secret generic \
-     forgejo-github-bridge-github --from-file=private-key.pem=./<app>.private-key.pem
-   ```
+   chats and tickets; it goes straight into your deployment's secrets (part 6).
 
 The App does not need an OAuth client secret; if GitHub generated one, delete
 it.
@@ -78,13 +92,8 @@ The account that writes issues and comments.
 1. Create a user, e.g. `github-bridge`.
 2. Give it **write** access to each canonical repository that will be bridged
    (collaborator, or a team with write on issues and pull requests).
-3. Create a token for it with the scopes `write:issue`, `read:repository`,
-   `read:user`, and store it:
-
-   ```bash
-   kubectl -n forgejo-github-bridge create secret generic \
-     forgejo-github-bridge-forgejo --from-literal=token=<token>
-   ```
+3. Create a token for it with the scopes `write:issue`, `read:repository` and
+   `read:user`.
 
 A token can be created without logging in as the account:
 
@@ -103,13 +112,8 @@ by.
 2. Give it **read access only** to the canonical repositories — no write, not
    in any team with write on Actions, never an owner or admin. This is what
    makes Forgejo hold its pull requests' workflow runs for approval
-   ([Security](./security.md#ci)).
-3. Create a token with `write:repository` and `read:user`, and store it:
-
-   ```bash
-   kubectl -n forgejo-github-bridge create secret generic \
-     forgejo-github-bridge-contrib --from-literal=token=<token>
-   ```
+   ([security](security.md#ci)).
+3. Create a token with `write:repository` and `read:user`.
 
 The bridge refuses to start if both tokens belong to the same account.
 
@@ -129,7 +133,8 @@ nobody.
 
 ### On GitHub
 
-1. Create the public repository, e.g. `example-org/foo`, public.
+1. Create the repository, e.g. `example-org/foo`. For pull requests it has to
+   be public: the bridge fetches their commits anonymously.
 2. Set its default branch to the branch contributions go to, e.g. `develop`
    (it exists once the mirror has pushed it).
 3. Install the App on it: App page → *Install App* → the organisation →
@@ -157,7 +162,7 @@ For pull requests, additionally:
    The fork must have **no push mirror, no Actions secrets and no
    variables**. A fresh fork has none.
 
-### In the bridge's values
+### In the bridge's configuration
 
 ```yaml
 repositories:
@@ -171,20 +176,51 @@ userMapping:
   jdoe: janedoe    # Forgejo login: GitHub login
 ```
 
+With Helm, this goes into the values; everywhere else, into the
+configuration file (`BRIDGE_CONFIG`). Every field is described in
+[configuration](configuration.md#the-repository-file).
+
 ## 6. Deploy
+
+Whichever way, the bridge needs the same things:
+
+| | |
+|---|---|
+| database | the connection string from part 1 |
+| GitHub | the App ID and its private key, as a file |
+| Forgejo | its URL, and the two tokens from part 3 |
+| repositories | the configuration from part 5 |
+
+Only one instance does the work at a time; a second one waits and takes over
+if the first stops. One is enough.
+
+### With Helm on Kubernetes
+
+Store the credentials as Secrets:
+
+```bash
+kubectl create namespace forgejo-github-bridge
+kubectl -n forgejo-github-bridge create secret generic forgejo-github-bridge-db \
+  --from-literal=uri='postgres://bridge:…@db.example.com:5432/bridge?sslmode=require'
+kubectl -n forgejo-github-bridge create secret generic forgejo-github-bridge-github \
+  --from-file=private-key.pem=./<app>.private-key.pem
+kubectl -n forgejo-github-bridge create secret generic forgejo-github-bridge-forgejo \
+  --from-literal=token=<github-bridge token>
+kubectl -n forgejo-github-bridge create secret generic forgejo-github-bridge-contrib \
+  --from-literal=token=<github-contrib token>
+```
 
 A values file, starting from
 [samples/values-example.yaml](../samples/values-example.yaml):
 
 ```yaml
 database:
-  existingSecret: forgejo-github-bridge-db-app
+  existingSecret: forgejo-github-bridge-db
 github:
   appID: 123456
   existingSecret: forgejo-github-bridge-github
 forgejo:
-  url: http://forgejo-http.forgejo:3000
-  webURL: https://forgejo.example.com
+  url: https://forgejo.example.com
   existingSecret: forgejo-github-bridge-forgejo
   contribExistingSecret: forgejo-github-bridge-contrib
 repositories:
@@ -197,15 +233,47 @@ userMapping:
   jdoe: janedoe
 ```
 
-`forgejo.webURL` matters whenever `forgejo.url` is an in-cluster address:
-links starting with either are recognised as internal and kept off GitHub.
+If the bridge reaches Forgejo on an in-cluster address, set `forgejo.url` to
+that and `forgejo.webURL` to the address people's browsers use: links starting
+with either are recognised as internal and kept off GitHub.
 
 ```bash
-helm upgrade --install forgejo-github-bridge oci://ghcr.io/metapatrol/charts/forgejo-github-bridge \
+helm upgrade --install forgejo-github-bridge \
+  oci://ghcr.io/metapatrol/charts/forgejo-github-bridge \
   -n forgejo-github-bridge -f values.yaml
 ```
 
-The logs of a healthy start:
+Every value is listed in the [chart's README](../charts/forgejo-github-bridge/README.md).
+
+### With Docker Compose
+
+[samples/compose/](../samples/compose/) has a complete setup: the bridge and a
+PostgreSQL container, with the configuration and the secrets as files next to
+it.
+
+```bash
+cp -r samples/compose forgejo-github-bridge && cd forgejo-github-bridge
+cp .env.example .env              # fill in the App ID, Forgejo URL and database password
+cp ~/Downloads/<app>.private-key.pem secrets/github-app.pem
+echo -n '<github-bridge token>'  > secrets/forgejo-token
+echo -n '<github-contrib token>' > secrets/forgejo-contrib-token
+$EDITOR config.yaml               # the repositories from part 5
+docker compose up -d
+docker compose logs -f bridge
+```
+
+To use a database you already have, remove the `postgres` service and point
+`BRIDGE_DATABASE_URL` at it.
+
+### Anywhere else
+
+The bridge is one static binary, also available from the
+[releases page](https://github.com/metapatrol/forgejo-github-bridge/releases),
+configured entirely through environment variables and one YAML file. It needs
+`git` on its `PATH` for pull requests, and a writable directory for its git
+cache. [Configuration](configuration.md#environment) lists every variable.
+
+### A healthy start
 
 ```text
 msg="starting forgejo-github-bridge" version=… repositories="[example-org/foo=platform/foo]"
@@ -228,7 +296,7 @@ Run these once per repository, in this order. The second one is not optional.
    it runs without approval, stop: `github-contrib` has more than read access,
    or is trusted. Fix that before anything else goes through the bridge.
 3. **Approve once.** Approve that run with *Approve once* and see it run.
-   Never *Approve always* ([Maintainers](./maintainers.md#approving-ci)).
+   Never *Approve always* ([maintainers](maintainers.md#approving-ci)).
 4. **Merge.** Merge the pull request in Forgejo. Within a minute of the push
    mirror running, the GitHub pull request shows the bridge's note, and is
    either marked merged (fast-forward) or closed with the commit (rebase).

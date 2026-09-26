@@ -1,4 +1,4 @@
-// Package postgres is the PostgreSQL store, run on CloudNativePG.
+// Package postgres is the PostgreSQL store.
 //
 // It is the only package that knows the schema. Everything above it works in
 // the types of package store.

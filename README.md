@@ -94,7 +94,8 @@ flowchart LR
 
 **Operations**
 
-- One small binary, a Helm chart and a PostgreSQL database.
+- One small binary and a PostgreSQL database. Runs anywhere a container
+  runs; a Helm chart and a Docker Compose setup are included.
 - Idempotent reconciliation: every failure is retried, nothing is lost across
   restarts or outages, and a lost database can be rebuilt.
 - Prometheus metrics and a ready-made Grafana dashboard.
@@ -102,8 +103,8 @@ flowchart LR
 
 ## Quick start
 
-You need a Kubernetes cluster with [CloudNativePG](https://cloudnative-pg.io/),
-a Forgejo instance with a push mirror to your GitHub repository, and a GitHub
+You need a PostgreSQL database, somewhere to run a container, a Forgejo
+instance with a push mirror to your GitHub repository, and a GitHub
 organisation.
 
 1. **Create a GitHub App** with *Issues* and *Pull requests* set to read and
@@ -112,16 +113,19 @@ organisation.
 2. **Create a Forgejo account** for the bridge with write access to the
    repository, and store its token in a Secret. For pull requests, a second,
    read-only account and a fork owned by it.
-3. **Install the chart:**
+3. **Run it**, with Docker Compose from [samples/compose](samples/compose/):
+
+   ```bash
+   docker compose up -d
+   ```
+
+   or on Kubernetes with the Helm chart:
 
    ```bash
    helm upgrade --install forgejo-github-bridge \
      oci://ghcr.io/metapatrol/charts/forgejo-github-bridge \
-     --namespace forgejo-github-bridge --create-namespace \
-     -f values.yaml
+     --namespace forgejo-github-bridge --create-namespace -f values.yaml
    ```
-
-   with a `values.yaml` like [samples/values-example.yaml](samples/values-example.yaml).
 
 The [installation guide](docs/installation.md) walks through every step,
 including the checks to run before the first real contribution.

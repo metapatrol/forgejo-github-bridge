@@ -37,8 +37,14 @@ repository file changes.
 | `BRIDGE_LOG_FORMAT` | `json` | `logging.format` | or `text` |
 | `BRIDGE_LOG_LEVEL` | `info` | `logging.level` | `debug`, `info`, `warn`, `error` |
 
-`HOME` is set to `/tmp` by the chart; git needs a home, and the root
-filesystem is read-only.
+`BRIDGE_DATABASE_URL`, `BRIDGE_FORGEJO_TOKEN` and
+`BRIDGE_FORGEJO_CONTRIB_TOKEN` can instead be read from a file: set
+`BRIDGE_DATABASE_URL_FILE` and so on to its path, as Docker secrets and systemd
+credentials provide them. The variable itself wins if both are set; a named
+file that does not exist stops the bridge.
+
+`HOME` is set to `/tmp` by the chart and the image; git needs a home, and the
+root filesystem is read-only.
 
 ## The repository file
 

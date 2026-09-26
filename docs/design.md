@@ -64,7 +64,7 @@ The bridge runs entirely inside the private network and only makes outbound conn
 - No public exposure of Forgejo and no public component at all.
 - Reliable operation across restarts and outages of either side.
 - Idempotent reconciliation instead of event forwarding.
-- Minimal infrastructure: one process and a PostgreSQL database from the existing CloudNativePG setup.
+- Minimal infrastructure: one process and a PostgreSQL database, and no assumptions about where either runs.
 
 The project intentionally does not become a generic GitHub/Forgejo replication system.
 
@@ -110,7 +110,7 @@ flowchart TB
   canon -- "push mirror" --> gh
 ```
 
-A single binary, `forgejo-github-bridge`, runs inside the private network. Its state lives in a PostgreSQL database provided by CloudNativePG.
+A single binary, `forgejo-github-bridge`, runs inside the private network. Its state lives in a PostgreSQL database.
 
 Forgejo's existing push mirror stays responsible for moving code to GitHub. The bridge never pushes to GitHub and never pushes to the canonical Forgejo repository.
 
@@ -176,7 +176,7 @@ Polls that fail are retried at the next interval; the rate-limit budget is expor
 
 ## 7. State
 
-The bridge keeps its state in PostgreSQL. The database is a CloudNativePG `Cluster` (or a database in an existing one); the bridge only needs a connection string and owns its schema.
+The bridge keeps its state in PostgreSQL. Which PostgreSQL is not its concern: it needs a connection string and a database whose schema it owns.
 
 | Table | Holds |
 |---|---|
@@ -206,7 +206,7 @@ Only one bridge instance may poll and reconcile at a time. It holds a PostgreSQL
 
 Schema migrations are embedded in the binary and applied at startup under the same lock.
 
-Backups, point-in-time recovery and failover of the database are CloudNativePG's responsibility. If the database is nevertheless lost, the markers allow the mappings to be rebuilt:
+Backups, point-in-time recovery and failover of the database belong to whoever runs it. If the database is nevertheless lost, the markers allow the mappings to be rebuilt:
 
 - The first poll of each side, which is the first poll after a loss, reads every issue the bridge's own account opened and records the pairs their markers name.
 - Before creating any projection, the bridge looks for one it opened within the last day with the same marker. This covers a process that died between creating an issue and recording it.
@@ -231,7 +231,7 @@ The App's name is not configured anywhere. The bridge is configured with the App
 | Pull requests | read and write |
 | Commit statuses | read and write — phase 3, for CI results |
 
-The App's private key lives in a Kubernetes Secret next to the bridge.
+The App's private key lives with the bridge's other secrets, as a file.
 
 Git fetches of `refs/pull/N/head` from public repositories need no credentials.
 
@@ -254,7 +254,7 @@ Tokens use the narrowest scopes Forgejo offers for each account. For `github-bri
 
 The bridge only operates on repositories it is configured for. Nothing is discovered automatically.
 
-Scalars and credentials come from environment variables (`BRIDGE_*`, see [configuration](configuration.md)); in Kubernetes the credentials arrive from Secrets. The repository list and the user mapping come from a YAML file, because they are structured and because they are the part an operator edits. Unknown keys in the file are refused: a misspelt `publishlabel` silently falling back to the default is how an issue ends up public under a label nobody meant.
+Scalars and credentials come from environment variables (`BRIDGE_*`, see [configuration](configuration.md)); a credential can also be read from a file named by the same variable with `_FILE`, as Docker secrets and systemd credentials provide them. The repository list and the user mapping come from a YAML file, because they are structured and because they are the part an operator edits. Unknown keys in the file are refused: a misspelt `publishlabel` silently falling back to the default is how an issue ends up public under a label nobody meant.
 
 Forgejo is usually reached on an in-cluster address while people's links use its public hostname. Both are configured (`BRIDGE_FORGEJO_URL`, `BRIDGE_FORGEJO_WEB_URL`), and a link starting with either is internal (§13).
 
@@ -531,26 +531,21 @@ A compromised bridge process gives the attacker its credentials: issue and pull 
 
 ## 17. Deployment
 
-| Resource | |
+The bridge is one process, configured by environment variables and one YAML
+file, with a PostgreSQL database. It makes no assumption about where either
+runs. Two ways are provided:
+
+| | |
 |---|---|
-| Deployment | `forgejo-github-bridge`, one replica (two for faster failover, §7) |
-| CloudNativePG cluster | PostgreSQL, or a database in an existing cluster |
-| Secrets | the GitHub App's private key, the two Forgejo tokens, the database DSN (CNPG's app Secret) |
-| ConfigMap | the repository configuration |
-| Service | `/healthz`, `/readyz`, `/metrics`, cluster-internal |
+| Helm chart | a Deployment of one replica (two for faster failover, §7), credentials from existing Secrets, the configuration as a ConfigMap, a cluster-internal Service for `/healthz`, `/readyz` and `/metrics`, an optional ServiceMonitor and a Grafana dashboard chart |
+| Docker Compose | the bridge and a PostgreSQL container, credentials as files, for a single host |
 
-One replica is sufficient; a second one only adds faster failover, since the advisory lock keeps it passive. Resources are delivered as a Helm chart.
+The binary runs as well under systemd or anything else that can start a
+process. The chart does not create a database, and takes the connection
+string from an existing Secret with a configurable key, since the Secret
+usually belongs to whatever provides the database.
 
-The chart does not create the database. It takes the DSN from an existing Secret with a configurable key, because the Secret usually belongs to someone else: CloudNativePG writes the connection string under `uri`.
-
-```yaml
-database:
-  existingSecret: forgejo-github-bridge-app   # written by CNPG
-  existingSecretKey: uri
-  maxConnections: 5
-```
-
-Once per installation, a CloudNativePG database and the GitHub App are created.
+Once per installation, a database and the GitHub App are created.
 
 Per maintainer who merges in Forgejo:
 

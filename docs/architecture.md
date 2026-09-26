@@ -25,7 +25,7 @@ flowchart TB
   end
   subgraph private["Private network"]
     bridge["forgejo-github-bridge"]
-    db[("PostgreSQL<br/>CloudNativePG")]
+    db[("PostgreSQL")]
     subgraph forgejo["Forgejo"]
       canon["platform/foo<br/>canonical repository"]
       contrib["github-contrib/foo<br/>contrib fork, no mirror"]

@@ -1,7 +1,7 @@
 # An example installation next to Forgejo in the same cluster.
 #
 # Secrets this expects in the namespace:
-#   forgejo-github-bridge-db-app   written by CNPG (samples/cnpg-cluster.yaml)
+#   forgejo-github-bridge-db       key uri: the PostgreSQL connection string
 #   forgejo-github-bridge-github   key private-key.pem: the GitHub App's key
 #   forgejo-github-bridge-forgejo  key token: the github-bridge account's token
 #
@@ -11,7 +11,7 @@
 #     forgejo-github-bridge-forgejo --from-literal=token=...
 
 database:
-  existingSecret: forgejo-github-bridge-db-app
+  existingSecret: forgejo-github-bridge-db
 
 github:
   appID: ""   # from the App's settings page

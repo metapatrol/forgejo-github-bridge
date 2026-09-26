@@ -12,7 +12,7 @@ belongs to something else:
 
 | Secret | key | what it is |
 |---|---|---|
-| `database.existingSecret` | `uri` | the app Secret CloudNativePG writes for the bridge's database |
+| `database.existingSecret` | `uri` | the PostgreSQL connection string; any Secret, e.g. the one CloudNativePG writes for its app user |
 | `github.existingSecret` | `private-key.pem` | the GitHub App's private key |
 | `forgejo.existingSecret` | `token` | an access token of the `github-bridge` Forgejo account |
 

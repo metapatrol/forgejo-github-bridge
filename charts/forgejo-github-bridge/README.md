@@ -11,7 +11,7 @@ belongs to something else:
 
 | Secret | key | what it is |
 |---|---|---|
-| `database.existingSecret` | `uri` | the app Secret CloudNativePG writes for the bridge's database |
+| `database.existingSecret` | `uri` | the PostgreSQL connection string; any Secret, e.g. the one CloudNativePG writes for its app user |
 | `github.existingSecret` | `private-key.pem` | the GitHub App's private key |
 | `forgejo.existingSecret` | `token` | an access token of the `github-bridge` Forgejo account |
 
@@ -42,7 +42,7 @@ shortens a failover and nothing else.
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
 | database.existingSecret | string | `""` | The Secret holding the PostgreSQL connection string. Required. |
-| database.existingSecretKey | string | `"uri"` | The key inside that Secret. Configurable because the Secret is usually somebody else's: CloudNativePG writes the connection string of its app user under "uri". |
+| database.existingSecretKey | string | `"uri"` | The key inside that Secret. Configurable because the Secret is usually somebody else's. CloudNativePG, for example, writes the connection string of its app user under "uri". |
 | database.maxConnections | int | `5` | The size of the connection pool. At least 2: the leader lock holds one connection for as long as the instance is active. |
 | env | list | `[]` | Extra environment variables for the container. |
 | forgejo.caSecret | string | `""` | The Secret holding the CA certificate Forgejo's own certificate is issued by, for an instance behind a private CA. Empty trusts the system roots only. |

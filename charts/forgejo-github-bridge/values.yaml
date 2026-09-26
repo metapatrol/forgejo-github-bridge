@@ -24,8 +24,8 @@ database:
   # -- The Secret holding the PostgreSQL connection string. Required.
   existingSecret: ""
   # -- The key inside that Secret. Configurable because the Secret is usually
-  # somebody else's: CloudNativePG writes the connection string of its app
-  # user under "uri".
+  # somebody else's. CloudNativePG, for example, writes the connection string
+  # of its app user under "uri".
   existingSecretKey: uri
   # -- The size of the connection pool. At least 2: the leader lock holds one
   # connection for as long as the instance is active.

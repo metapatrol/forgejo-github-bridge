@@ -33,7 +33,7 @@ const migrationLockID int64 = 0x464742524d494752 // "FGBRMIGR"
 // This is deliberately not a migration framework. What a framework buys is
 // down-migrations and out-of-order application; what it costs is a dependency
 // and a second tool in the release path. Neither purchase pays here: the schema
-// is small, and a rollback of it is a restore from CloudNativePG's backups, not
+// is small, and a rollback of it is a restore from a backup, not
 // a down-migration.
 func Migrate(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) error {
 	files, err := migrationNames()

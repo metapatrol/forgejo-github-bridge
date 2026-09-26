@@ -95,11 +95,13 @@ something did not cross.
 1. Find the error. The log line `reconcile failed; retrying later` carries it,
    and the queue keeps the last one:
 
-   ```bash
-   kubectl -n forgejo-github-bridge exec forgejo-github-bridge-db-1 -- \
-     psql -U postgres -d app -c \
-     "SELECT repository, side, number, attempts, not_before, last_error FROM dirty WHERE attempts > 0"
+   ```sql
+   SELECT repository, side, number, attempts, not_before, last_error
+   FROM dirty WHERE attempts > 0;
    ```
+
+   Run it with `psql` against the bridge's database, with the same connection
+   string the bridge uses.
 
 2. Common causes:
 
@@ -139,14 +141,19 @@ A migration is never edited once released; a changed one stops the start with
 |---|---|
 | GitHub App key | generate a new key on the App's page, replace the Secret, restart the bridge, delete the old key on the App's page |
 | `github-bridge` / `github-contrib` token | create a new token, replace the Secret, restart the bridge, delete the old token |
-| database password | CloudNativePG rotates it in its app Secret; restart the bridge |
+| database password | change it where the database is run, update the bridge's connection string, restart the bridge |
 
-The bridge reads credentials at startup, so every rotation needs a restart
-(`kubectl -n forgejo-github-bridge rollout restart deploy/forgejo-github-bridge`).
+The bridge reads credentials at startup, so every rotation needs a restart:
+
+| | |
+|---|---|
+| Helm | `kubectl -n forgejo-github-bridge rollout restart deploy/forgejo-github-bridge` |
+| Docker Compose | `docker compose restart bridge` |
+| systemd | `systemctl restart forgejo-github-bridge` |
 
 ## Losing the database
 
-Restore from CloudNativePG's backup if there is one. If there is not, start
+Restore the database from a backup if there is one. If there is not, start
 the bridge against an empty database. It rebuilds what it can from the
 markers in its own projections:
 
@@ -171,9 +178,11 @@ remove the accounts' access in Forgejo as needed.
 
 ## Pausing
 
-Scale to zero. Nothing is lost; on scale-up the bridge polls from its cursors
-and catches up.
+Stop the bridge. Nothing is lost; when it starts again it polls from its
+cursors and catches up.
 
-```bash
-kubectl -n forgejo-github-bridge scale deploy/forgejo-github-bridge --replicas=0
-```
+| | |
+|---|---|
+| Helm | `kubectl -n forgejo-github-bridge scale deploy/forgejo-github-bridge --replicas=0` |
+| Docker Compose | `docker compose stop bridge` |
+| systemd | `systemctl stop forgejo-github-bridge` |

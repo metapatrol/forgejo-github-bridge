@@ -98,7 +98,7 @@ jobs:
     runs-on: docker
     services:
       postgres:
-        # The major version CloudNativePG runs here (18).
+        # The newest major version the bridge is tested against.
         image: postgres:18
         env:
           POSTGRES_PASSWORD: test

@@ -1,0 +1,11 @@
+# The bridged repositories. Every field: docs/configuration.md.
+repositories:
+  - github: example-org/foo
+    forgejo: platform/foo
+    # For pull requests; remove these three lines to bridge issues only.
+    contrib: github-contrib/foo
+    targetBranches: [develop]
+    rebaseRequests: true
+
+# Forgejo login: GitHub login, so maintainers are named on GitHub.
+userMapping: {}

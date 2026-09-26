@@ -13,7 +13,7 @@ HELM_DOCS_VERSION ?= v1.14.2
 
 # The database the integration tests run against. Overridable, so a developer
 # with a PostgreSQL already running can point at it instead of a container. The
-# major version is the one CloudNativePG runs here.
+# major version is the newest one the bridge is tested against.
 TEST_POSTGRES_IMAGE ?= postgres:18
 TEST_POSTGRES_PORT ?= 55433
 TEST_DATABASE_URL ?= postgres://postgres:test@localhost:$(TEST_POSTGRES_PORT)/bridge?sslmode=disable
@@ -153,7 +153,7 @@ helm-verify:
 		--set 'repositories[0].messages.merged=Merged as {{.ShortCommit}}.' > /dev/null; \
 	echo "--- referenced Secret keys are honoured, not hardcoded"; \
 	$(MAKE) --no-print-directory helm-contains \
-		WHY="the database key CloudNativePG writes" WANT="key: uri" ARGS="$(HELM_MINIMUM)"; \
+		WHY="the default database key" WANT="key: uri" ARGS="$(HELM_MINIMUM)"; \
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="a different database key" WANT="key: dsn" \
 		ARGS="$(HELM_MINIMUM) --set database.existingSecretKey=dsn"; \

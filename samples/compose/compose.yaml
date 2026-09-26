@@ -1,0 +1,59 @@
+# forgejo-github-bridge with Docker Compose: the bridge and a PostgreSQL for
+# its state. To use a database you already have, remove the postgres service
+# and set BRIDGE_DATABASE_URL to it.
+#
+#   cp .env.example .env        and fill it in
+#   secrets/                    the App's key and the two Forgejo tokens
+#   config.yaml                 the bridged repositories
+#   docker compose up -d
+name: forgejo-github-bridge
+
+services:
+  bridge:
+    image: ghcr.io/metapatrol/forgejo-github-bridge:${BRIDGE_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Your own user, so that the bridge can read the files in secrets/
+    # without them being readable by anyone else on the host.
+    user: "${BRIDGE_UID:-1000}:${BRIDGE_GID:-1000}"
+    read_only: true
+    tmpfs:
+      - /tmp
+      # The git cache: losing it on restart only costs a fuller fetch.
+      - /var/cache/forgejo-github-bridge
+    environment:
+      BRIDGE_CONFIG: /etc/forgejo-github-bridge/config.yaml
+      BRIDGE_DATABASE_URL: postgres://bridge:${DB_PASSWORD:?set DB_PASSWORD in .env}@postgres:5432/bridge?sslmode=disable
+      BRIDGE_GITHUB_APP_ID: ${GITHUB_APP_ID:?set GITHUB_APP_ID in .env}
+      BRIDGE_GITHUB_PRIVATE_KEY_FILE: /run/secrets/github-app.pem
+      BRIDGE_FORGEJO_URL: ${FORGEJO_URL:?set FORGEJO_URL in .env}
+      BRIDGE_FORGEJO_TOKEN_FILE: /run/secrets/forgejo-token
+      # Only with pull requests; remove the line otherwise.
+      BRIDGE_FORGEJO_CONTRIB_TOKEN_FILE: /run/secrets/forgejo-contrib-token
+      BRIDGE_LOG_FORMAT: text
+    volumes:
+      - ./config.yaml:/etc/forgejo-github-bridge/config.yaml:ro
+      - ./secrets:/run/secrets:ro
+    ports:
+      # Health and metrics; nothing the internet needs to reach.
+      - "127.0.0.1:${BRIDGE_PORT:-8080}:8080"
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bridge
+      POSTGRES_DB: bridge
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "bridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db:
