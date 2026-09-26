@@ -25,9 +25,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
 # (docs/design.md §18). Nothing else is added, and the process runs as the same
 # unprivileged user distroless would use.
 FROM ${RUNTIME_IMAGE}
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates \
+ && mkdir -p /var/cache/forgejo-github-bridge \
+ && chown 65532:65532 /var/cache/forgejo-github-bridge
 COPY --from=builder /forgejo-github-bridge /forgejo-github-bridge
 USER 65532:65532
+# The git cache belongs to the process, so that a volume mounted over it
+# starts out writable; git needs a home.
 ENV HOME=/tmp
+VOLUME /var/cache/forgejo-github-bridge
 EXPOSE 8080
 ENTRYPOINT ["/forgejo-github-bridge"]

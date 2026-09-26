@@ -194,14 +194,33 @@ func load(getenv func(string) string) (*Config, error) {
 	}
 
 	var errs []error
+	// secret reads a credential from NAME, or from the file NAME_FILE names —
+	// the convention Docker secrets and systemd credentials follow, so that a
+	// token need not sit in an environment every process of the host can read.
+	secret := func(name string) string {
+		if v := env(name, ""); v != "" {
+			return v
+		}
+		path := env(name+"_FILE", "")
+		if path == "" {
+			return ""
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s%s_FILE: %w", EnvPrefix, name, err))
+			return ""
+		}
+		return strings.TrimSpace(string(raw))
+	}
+
 	cfg := &Config{
 		ListenAddr:           env("LISTEN_ADDR", ":8080"),
 		LogFormat:            env("LOG_FORMAT", "json"),
 		LogLevel:             env("LOG_LEVEL", "info"),
-		DatabaseURL:          env("DATABASE_URL", ""),
+		DatabaseURL:          secret("DATABASE_URL"),
 		GitHubPrivateKeyFile: env("GITHUB_PRIVATE_KEY_FILE", ""),
-		ForgejoToken:         env("FORGEJO_TOKEN", ""),
-		ForgejoContribToken:  env("FORGEJO_CONTRIB_TOKEN", ""),
+		ForgejoToken:         secret("FORGEJO_TOKEN"),
+		ForgejoContribToken:  secret("FORGEJO_CONTRIB_TOKEN"),
 		ForgejoCAFile:        env("FORGEJO_CA_FILE", ""),
 	}
 

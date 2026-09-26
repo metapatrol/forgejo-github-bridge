@@ -130,3 +130,38 @@ func TestMessages(t *testing.T) {
 		t.Errorf("repository messages = %v", cfg.Repositories[0].Messages)
 	}
 }
+
+func TestSecretsFromFiles(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cfg, err := load(env(t, minimal, map[string]string{
+		"BRIDGE_DATABASE_URL":       "",
+		"BRIDGE_DATABASE_URL_FILE":  write("dsn", "postgres://from-file\n"),
+		"BRIDGE_FORGEJO_TOKEN":      "",
+		"BRIDGE_FORGEJO_TOKEN_FILE": write("token", "  t0ken\n"),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DatabaseURL != "postgres://from-file" || cfg.ForgejoToken != "t0ken" {
+		t.Errorf("read %q and %q; want the files' contents without surrounding whitespace", cfg.DatabaseURL, cfg.ForgejoToken)
+	}
+
+	// The variable itself wins over its file.
+	cfg, err = load(env(t, minimal, map[string]string{"BRIDGE_FORGEJO_TOKEN_FILE": write("other", "ignored")}))
+	if err != nil || cfg.ForgejoToken != "t" {
+		t.Errorf("token = %q, %v", cfg.ForgejoToken, err)
+	}
+
+	// A file that is named and missing is an error, not an empty secret.
+	_, err = load(env(t, minimal, map[string]string{"BRIDGE_FORGEJO_TOKEN": "", "BRIDGE_FORGEJO_TOKEN_FILE": filepath.Join(dir, "missing")}))
+	if err == nil || !strings.Contains(err.Error(), "FORGEJO_TOKEN_FILE") {
+		t.Errorf("want an error naming FORGEJO_TOKEN_FILE, have %v", err)
+	}
+}
