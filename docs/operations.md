@@ -80,7 +80,7 @@ Structured, one event per line (`json` by default). The ones that matter:
 | `imported a GitHub issue` / `published a Forgejo issue` / `imported a GitHub pull request` | info | a new pair |
 | `imported new commits` | info | a contributor pushed |
 | `created the contrib fork` | info | first start with pull requests on for a repository |
-| `not importing a pull request` | error | `github-contrib` can write to the canonical repository. Take the write access away; the import follows |
+| `not pushing into the contrib fork` | error | `github-contrib` can write to the canonical repository, or the fork is no longer a fork or has a push mirror. Fix it; the held push follows |
 | `an imported pull request was merged` | info | |
 | `merged; waiting for the push mirror` | info | retried until GitHub has the merge |
 | `poll failed` | error | a forge was unreachable or refused; retried next interval |
@@ -113,7 +113,8 @@ something did not cross.
    | `HTTP 401` / `HTTP 403` from Forgejo | token revoked, or the account lacks access | new token, or grant access |
    | `HTTP 403` on labels or closing | `github-bridge` has read, not write | grant write |
    | `branch pr/<n> already exists in … and was not made by the bridge` | someone created that branch in the contrib fork | delete the branch there; the import follows |
-   | `the contrib account has write access to the canonical repository` | `github-contrib` was given write, admin or a team with write | take it away; imports are held until then |
+   | `the contrib account has write access to the canonical repository` | `github-contrib` was given write, admin or a team with write | take it away; pushes into the fork are held until then |
+   | `has a push mirror` / `is not a fork of` | the contrib fork was changed | remove the mirror, or delete the repository so the bridge forks it again |
    | `waiting for the push mirror` for long | the push mirror is failing or has no sync-on-commit | check the mirror in the repository's settings |
    | `fetching GitHub pull request #<n>, anonymously and with the App's token` | the repository is private and the App lacks *Contents: read* | grant it in the App's permissions, and accept the change on the installation |
    | `fetching GitHub pull request #<n>` | GitHub unreachable | wait; it is retried |

@@ -247,7 +247,7 @@ The bridge uses two Forgejo accounts with different privileges:
 
 The split exists for CI: pull requests are authored by an account that is neither a collaborator nor trusted, so Forgejo treats them as untrusted fork pull requests (see §12).
 
-Tokens use the narrowest scopes Forgejo offers for each account. For `github-bridge` in phase 1 that is `write:issue`, `read:repository` and `read:user`; write access to the repository is needed because the bridge closes and reopens issues other people opened, and creates the import label. For `github-contrib` it is `write:repository` and `read:user`: it forks, pushes `pr/<n>` branches and opens pull requests, and reads its own rights on the canonical repository, which the bridge checks before every import.
+Tokens use the narrowest scopes Forgejo offers for each account. For `github-bridge` in phase 1 that is `write:issue`, `read:repository` and `read:user`; write access to the repository is needed because the bridge closes and reopens issues other people opened, and creates the import label. For `github-contrib` it is `write:repository` and `read:user`: it forks, pushes `pr/<n>` branches and opens pull requests, and reads its own rights on the canonical repository, which the bridge checks before every push.
 
 ---
 
@@ -339,7 +339,7 @@ The **contrib repository** is a Forgejo fork of the canonical repository, owned 
 - the canonical repository's push mirror never sees bridge branches, so they are neither published to GitHub nor pruned by it;
 - Forgejo treats the pull request as coming from a fork, which is what CI isolation relies on (§12).
 
-The contrib repository has no push mirror, no Actions secrets and no variables. The bridge creates it as `github-contrib/<name>` unless one is configured, and refuses to start when it is not a fork of the canonical repository, has a push mirror, or when `github-contrib` can write to the canonical repository; the last is checked again before every import, because rights change and it is what keeps imported pull requests waiting for approval (§12). Each pair has its own: branches are named after GitHub pull request numbers, which are unique only per repository, and the configuration refuses two pairs sharing one.
+The contrib repository has no push mirror, no Actions secrets and no variables. The bridge creates it as `github-contrib/<name>` unless one is configured, and refuses to start when it is not a fork of the canonical repository, has a push mirror, or when `github-contrib` can write to the canonical repository; all of it is checked again before every push into the fork — a new pull request or new commits on one — and a deleted fork is recreated, because rights and repositories change while the bridge runs, and write access is what would let an imported pull request's workflows run without approval (§12). A failed check holds that push only, and it is retried with backoff. Each pair has its own: branches are named after GitHub pull request numbers, which are unique only per repository, and the configuration refuses two pairs sharing one.
 
 The bridge never overwrites a branch it did not push. If `pr/<n>` already exists when a pull request is imported and holds anything but that pull request's head, the import stops, stays queued, counts as failing (§18) and says in the log which branch is in the way.
 

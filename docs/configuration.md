@@ -97,7 +97,8 @@ branch has an odd name.
 With pull requests on, the bridge also refuses to start when `github-contrib`
 can write to a canonical repository, when the contrib repository is not a
 fork of it or has a push mirror, or when two pairs would default to the same
-fork. It checks the write access again before every import.
+fork. It checks all of this again, and recreates a deleted fork, before
+every push into the fork: for a new pull request and for new commits on one.
 
 ### userMapping
 

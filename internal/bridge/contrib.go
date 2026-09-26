@@ -12,7 +12,8 @@ import (
 // provisionContrib gives every repository that imports pull requests its
 // contrib fork (docs/design.md §11): the configured one, or the contrib
 // account's fork under the canonical repository's name, created when it is
-// missing. Every fork is checked before the bridge pushes anything into it.
+// missing. Checking at startup makes a misconfiguration stop the bridge where
+// it is seen; importHead checks again before every push.
 func (b *Bridge) provisionContrib(ctx context.Context) error {
 	claimed := map[string]string{}
 	for _, key := range b.order {
@@ -39,6 +40,22 @@ func (b *Bridge) provisionContrib(ctx context.Context) error {
 	return nil
 }
 
+// importHead pushes a GitHub pull request's head into the contrib fork, after
+// checking the fork and the contrib account's rights again. Rights and
+// repositories change while the bridge runs, and this is the moment a
+// stranger's code enters Forgejo: with write access, its workflows would run
+// without anyone approving them. A failed check holds this push, and only
+// this one, until the cause is fixed; the entry is retried with backoff.
+func (b *Bridge) importHead(ctx context.Context, r *repo, n int64, base, branch, expected string) (string, error) {
+	if err := b.ensureContrib(ctx, r); err != nil {
+		b.log.Error("not pushing into the contrib fork", "repository", r.cfg.Key(), "github", n, "error", err)
+		return "", err
+	}
+	return b.pulls.Git.Import(ctx, r.cfg, n, base, branch, expected)
+}
+
+// ensureContrib checks the contrib account's rights on the canonical
+// repository and the contrib fork, creating the fork when it is missing.
 func (b *Bridge) ensureContrib(ctx context.Context, r *repo) error {
 	if err := b.checkContribRights(ctx, r); err != nil {
 		return err

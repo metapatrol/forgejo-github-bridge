@@ -48,7 +48,7 @@ flowchart TB
 - **The contrib fork** is a Forgejo fork of the canonical repository, owned
   by the `github-contrib` account. Imported pull request heads are pushed
   there, and the imported pull requests are opened from it. The bridge
-  creates it at startup when it is missing, and checks it before use.
+  creates it at startup when it is missing, and checks it before every push.
 
 ## Processing model
 
@@ -158,7 +158,7 @@ than risk working next to another.
 | GitHub | the GitHub App (`<slug>[bot]`) | reading issues and pull requests, writing issues, comments and state. Installation tokens are requested per repository and restricted to it |
 | GitHub | none, or the App's installation token | `git fetch` of pull request heads: anonymous for a public repository, with the token for a private one (the App then needs *Contents: read*) |
 | Forgejo | `github-bridge` | issues, comments, labels, closing and reopening, editing pull request descriptions. Write access to the canonical repository |
-| Forgejo | `github-contrib` | creating and pushing to the contrib fork, opening imported pull requests. **Read-only** on the canonical repository; the bridge refuses to import otherwise |
+| Forgejo | `github-contrib` | creating and pushing to the contrib fork, opening imported pull requests. **Read-only** on the canonical repository; the bridge pushes nothing otherwise |
 
 Everything any of these accounts wrote is a projection, never a source. That
 is the whole loop prevention: the bridge ignores its own writes, and for a

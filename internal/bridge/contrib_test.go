@@ -141,3 +141,45 @@ func TestNothingIsImportedOnceTheContribAccountCanWrite(t *testing.T) {
 		t.Errorf("checkContribRights = %v", err)
 	}
 }
+
+func TestNewCommitsAreNotPushedOnceTheContribAccountCanWrite(t *testing.T) {
+	p := newPullHarness(t, nil)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix the parser", "", "develop", "sha1", "parser.go")
+	p.settle()
+	p.fj.Grant(fjRepo, contribUser, true, false)
+	p.gh.PushPull(ghRepo, src.Number, "sha2", "parser.go")
+	p.stepAll()
+	if sha, _ := p.fj.Branch(branchFor(src.Number)); sha != "sha1" {
+		t.Fatalf("contrib branch at %q; new commits must wait while %s can write to %s", sha, contribUser, fjRepo)
+	}
+
+	p.fj.Grant(fjRepo, contribUser, false, false)
+	p.later()
+	p.stepAll()
+	if sha, _ := p.fj.Branch(branchFor(src.Number)); sha != "sha2" {
+		t.Errorf("contrib branch at %q after the write access was taken away", sha)
+	}
+}
+
+func TestAPushMirrorAddedLaterHoldsImports(t *testing.T) {
+	p := newPullHarness(t, nil)
+	p.fj.AddPushMirror(defaultFork)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix the parser", "", "develop", "sha1", "parser.go")
+	p.stepAll()
+	if _, ok := p.fj.Branch(branchFor(src.Number)); ok {
+		t.Error("pushed into a contrib fork with a push mirror")
+	}
+}
+
+func TestADeletedContribForkIsCreatedAgain(t *testing.T) {
+	p := newPullHarness(t, nil)
+	p.fj.DeleteRepository(defaultFork)
+	src := p.gh.OpenPull(ghRepo, "alice", "Fix the parser", "", "develop", "sha1", "parser.go")
+	p.settle()
+	if n := p.fj.Forks(); n != 1 {
+		t.Errorf("%d forks", n)
+	}
+	if sha, _ := p.fj.Branch(branchFor(src.Number)); sha != "sha1" {
+		t.Errorf("contrib branch at %q", sha)
+	}
+}

@@ -244,6 +244,13 @@ func (f *Forge) AddRepository(r config.RepoRef, info forge.RepoInfo) {
 	f.repos[r.String()] = &info
 }
 
+// DeleteRepository deletes a repository created through the fake.
+func (f *Forge) DeleteRepository(r config.RepoRef) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.repos, r.String())
+}
+
 // AddPushMirror adds a push mirror to repo.
 func (f *Forge) AddPushMirror(r config.RepoRef) {
 	f.mu.Lock()

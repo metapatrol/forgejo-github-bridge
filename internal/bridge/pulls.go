@@ -79,18 +79,13 @@ func (b *Bridge) importPull(ctx context.Context, r *repo, n int64) error {
 		return err
 	}
 
-	// Rights change; this is checked where it matters, not only at start.
-	if err := b.checkContribRights(ctx, r); err != nil {
-		b.log.Error("not importing a pull request", "repository", r.cfg.Key(), "github", n, "error", err)
-		return err
-	}
-
 	branch := branchFor(n)
-	sha, err := b.pulls.Git.Import(ctx, r.cfg, n, pr.BaseRef, branch, "")
+	sha, err := b.importHead(ctx, r, n, pr.BaseRef, branch, "")
 	if errors.Is(err, gitops.ErrLeaseRejected) {
 		// The branch exists. If it holds exactly this head, it is the
 		// bridge's own from an attempt that died before opening the pull
 		// request; anything else belongs to somebody, and is left alone.
+		// The contrib fork was checked a moment ago.
 		sha, err = b.pulls.Git.Import(ctx, r.cfg, n, pr.BaseRef, branch, pr.HeadSHA)
 		if errors.Is(err, gitops.ErrLeaseRejected) {
 			return fmt.Errorf("branch %s already exists in %s and was not made by the bridge; "+
@@ -284,7 +279,7 @@ func (b *Bridge) lifecycle(ctx context.Context, r *repo, m store.IssueMapping, s
 		if gh.Open && !gh.Merged {
 			// Reopened on GitHub: imported again, into the branch the close
 			// removed.
-			sha, err := b.pulls.Git.Import(ctx, r.cfg, m.GitHubNumber, gh.BaseRef, st.ContribBranch, "")
+			sha, err := b.importHead(ctx, r, m.GitHubNumber, gh.BaseRef, st.ContribBranch, "")
 			if err != nil {
 				return err
 			}
@@ -364,7 +359,7 @@ func (b *Bridge) syncHead(ctx context.Context, r *repo, m store.IssueMapping, st
 	if st.HeadFrozen || gh.HeadSHA == st.ImportedHeadSHA {
 		return nil
 	}
-	sha, err := b.pulls.Git.Import(ctx, r.cfg, m.GitHubNumber, gh.BaseRef, st.ContribBranch, st.ImportedHeadSHA)
+	sha, err := b.importHead(ctx, r, m.GitHubNumber, gh.BaseRef, st.ContribBranch, st.ImportedHeadSHA)
 	if errors.Is(err, gitops.ErrLeaseRejected) {
 		st.HeadFrozen = true
 		b.log.Warn("the contrib branch was moved by someone else; no longer importing into it",
