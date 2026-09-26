@@ -8,6 +8,13 @@ the value that sets each.
 Everything is read once, at startup. The chart rolls the pod when the
 repository file changes.
 
+**Contents**
+
+- [Environment](#environment)
+- [The repository file](#the-repository-file)
+- [Messages](#messages)
+- [Chart-only values](#chart-only-values)
+
 ## Environment
 
 | Variable | Default | Chart value | |

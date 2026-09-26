@@ -1,40 +1,36 @@
 # Documentation
 
 forgejo-github-bridge lets a project live in a private Forgejo and still take
-issues and pull requests from the public on GitHub. The pages below are
-ordered by who reads them.
+issues and pull requests from the public on GitHub.
 
-**Understanding it**
+## Getting started
 
-- **[Concept](../CONCEPT.md)** — what the bridge is for, what crosses it and
-  what never does, and why; the design record
-- **[Architecture](./architecture.md)** — components, the processing model,
-  state, identities, and what happens to an issue and a pull request on their
-  way across
-- **[Security](./security.md)** — trust boundaries, what a contributor can and
-  cannot make the bridge do, and the few rules operators must keep
+| | |
+|---|---|
+| [Installation](installation.md) | from nothing to a bridged repository, step by step, with the checks to run before the first real contribution |
+| [Configuration](configuration.md) | every environment variable, the repository file, the message templates, the chart values |
+| [FAQ](faq.md) | short answers to the questions that come up first |
 
-**Setting it up and running it**
+## Using it
 
-- **[Installation](./installation.md)** — from nothing to a bridged
-  repository, step by step, including the checks to run before the first real
-  contribution
-- **[Configuration](./configuration.md)** — every environment variable, the
-  repository file, the message templates, and the chart values that set them
-- **[Operations](./operations.md)** — metrics and alerts, reading the logs,
-  what to do when something is stuck, upgrades, credential rotation, losing
-  the database, removing a repository
+| | |
+|---|---|
+| [Maintainers](maintainers.md) | day to day in Forgejo: imported issues, publishing, internal comments, approving CI, reviewing, merging and closing |
+| [Operations](operations.md) | health, metrics and alerts, logs, what to do when something is stuck, upgrades, credential rotation, recovery |
+| [Grafana dashboard](../charts/forgejo-github-bridge-grafana-dashboard/README.md) | the dashboard chart, and what each row shows |
 
-**Working with it**
+## Understanding it
 
-- **[Maintainers](./maintainers.md)** — day to day in Forgejo: imported issues,
-  publishing, internal comments, approving CI, reviewing, merging and closing
-  imported pull requests, and what the contributor sees on GitHub
+| | |
+|---|---|
+| [Architecture](architecture.md) | the pieces, the processing model, state, identities, the way of an issue and a pull request |
+| [Security](security.md) | the trust boundary, what a contributor cannot make the bridge do, and the rules operators keep |
+| [Design](design.md) | the design record: every decision and the reasons for it |
 
-**Changing it**
+## Changing it
 
-- **[Development](./development.md)** — layout, the test suites and their
-  fakes, running it locally, releases
-- **[Chart values](../charts/forgejo-github-bridge/README.md)** — the Helm chart
-- **[Grafana dashboard](../charts/forgejo-github-bridge-grafana-dashboard/README.md)** — the dashboard chart, and what each row shows
-- **[CI](../.forgejo/README.md)** — what the workflows do and what they need
+| | |
+|---|---|
+| [Development](development.md) | layout, tests and fakes, running it locally, releases |
+| [Chart values](../charts/forgejo-github-bridge/README.md) | the Helm chart's values, generated |
+| [CI](../.forgejo/README.md) | what the workflows do and what they need |

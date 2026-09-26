@@ -114,7 +114,7 @@ func (b *Bridge) publishIssue(ctx context.Context, r *repo, n int64) error {
 	case is.Closed:
 		return nil
 	case !hasLabel(is.Labels, r.cfg.PublishLabel):
-		// Private by default (CONCEPT.md §10). This is the rule the whole
+		// Private by default (docs/design.md §10). This is the rule the whole
 		// issue flow hangs on: nothing leaves Forgejo without the label.
 		return nil
 	}
@@ -233,7 +233,7 @@ func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error 
 
 	if m.Origin == store.Forgejo && !hasLabel(fj.Labels, r.cfg.PublishLabel) {
 		// The label was removed after publishing. The GitHub issue stays, and
-		// stops receiving anything (CONCEPT.md §10) — in both directions,
+		// stops receiving anything (docs/design.md §10) — in both directions,
 		// since replies to it would carry the conversation on in public.
 		b.log.Debug("publish label removed; pair frozen", "repository", r.cfg.Key(), "forgejo", m.ForgejoNumber)
 		return nil

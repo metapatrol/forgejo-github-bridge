@@ -1,33 +1,42 @@
 # Architecture
 
 This page describes how the bridge works as built. The reasoning behind the
-design is in [CONCEPT.md](../CONCEPT.md); where the two differ, the concept
+design is in the [design record](design.md); where the two differ, the design
 records the decision and this page the result.
+
+**Contents**
+
+- [The pieces](#the-pieces)
+- [Processing model](#processing-model)
+- [State](#state)
+- [One active instance](#one-active-instance)
+- [Identities](#identities)
+- [An issue's way across](#an-issues-way-across)
+- [A pull request's way across](#a-pull-requests-way-across)
+- [Content translation](#content-translation)
+- [Failure behaviour](#failure-behaviour)
 
 ## The pieces
 
-```text
-                       Internet
-                ┌─────────────────────┐
-                │ GitHub              │
-                │  example-org/foo     │◀──────── push mirror ─────────┐
-                │  (public)           │                               │
-                └───▲─────────▲───────┘                               │
-          REST API  │         │ git fetch refs/pull/<n>/head          │
-          (App)     │         │ (anonymous)                           │
-────────────────────┼─────────┼───────────────────────────────────────┼──── private network
-                ┌───┴─────────┴───────┐                               │
-                │ forgejo-github-     │                               │
-                │ bridge              │── PostgreSQL (CloudNativePG)  │
-                └───┬─────────┬───────┘                               │
-          REST API  │         │ git push pr/<n>                       │
-     (github-bridge,│         │ (github-contrib)                      │
-    github-contrib) ▼         ▼                                       │
-                ┌─────────────────────┐                               │
-                │ Forgejo             │                               │
-                │  platform/foo ──────┼───────────────────────────────┘
-                │  github-contrib/foo │  (contrib fork, no mirror)
-                └─────────────────────┘
+```mermaid
+flowchart TB
+  subgraph internet["Internet"]
+    gh["GitHub<br/>example-org/foo (public)"]
+  end
+  subgraph private["Private network"]
+    bridge["forgejo-github-bridge"]
+    db[("PostgreSQL<br/>CloudNativePG")]
+    subgraph forgejo["Forgejo"]
+      canon["platform/foo<br/>canonical repository"]
+      contrib["github-contrib/foo<br/>contrib fork, no mirror"]
+    end
+  end
+  bridge -- "REST API, as the GitHub App" --> gh
+  bridge -- "git fetch refs/pull/N/head, anonymous" --> gh
+  bridge -- "REST API, as github-bridge and github-contrib" --> canon
+  bridge -- "git push pr/N, as github-contrib" --> contrib
+  bridge --- db
+  canon -- "push mirror" --> gh
 ```
 
 - **One process.** The binary `forgejo-github-bridge` polls, queues and
@@ -42,10 +51,15 @@ records the decision and this page the result.
 
 ## Processing model
 
-```text
-poll GitHub ─┐                                  ┌─▶ GitHub API
-             ├─▶ dirty queue ─▶ reconcile one ──┤
-poll Forgejo ┘   (PostgreSQL)   pair at a time  └─▶ Forgejo API, git
+```mermaid
+flowchart LR
+  pg["poll GitHub"] --> q
+  pf["poll Forgejo"] --> q
+  rs["full resync"] --> q
+  q[("dirty queue<br/>PostgreSQL")] --> w["one worker:<br/>reconcile one pair at a time"]
+  w --> gh["GitHub API"]
+  w --> fj["Forgejo API, git"]
+  w -- "failed: backoff 30 s … 30 min" --> q
 ```
 
 ### Polls
@@ -152,6 +166,22 @@ source and writes only if that differs.
 
 ## An issue's way across
 
+```mermaid
+sequenceDiagram
+  actor A as alice
+  participant GH as GitHub
+  participant B as bridge
+  participant F as Forgejo
+  actor M as maintainer
+  A->>GH: opens issue #42
+  B->>GH: poll: #42 changed
+  B->>F: create #71, label github, "Reported by alice via GitHub"
+  M->>F: comments on #71
+  B->>GH: comment on #42, attributed to the maintainer
+  M->>F: closes #71 with a comment
+  B->>GH: the comment, then close #42
+```
+
 **From GitHub.** A contributor opens GitHub #42.
 
 1. The GitHub poll sees it and queues `github #42`.
@@ -174,6 +204,25 @@ Closed issues are never imported or published. A GitHub issue opened before a
 repository's `importSince` is never imported.
 
 ## A pull request's way across
+
+```mermaid
+sequenceDiagram
+  actor A as contributor
+  participant GH as GitHub
+  participant B as bridge
+  participant F as Forgejo
+  actor M as maintainer
+  A->>GH: opens PR #7 against develop
+  B->>GH: fetch refs/pull/7/head
+  B->>F: push pr/7 to the contrib fork, open PR #90 as github-contrib
+  Note over F: CI waits for approval
+  M->>F: reads the changes, approves the run once
+  A->>GH: pushes more commits
+  B->>F: update pr/7 (lease on the last head)
+  M->>F: reviews, merges #90
+  F->>GH: push mirror brings the merge
+  B->>GH: note on PR #7 (merged, or closed with the commit)
+```
 
 1. A contributor opens GitHub PR #7 from their fork against `develop`.
 2. If `develop` is not in `targetBranches`, the bridge explains once on
@@ -206,7 +255,7 @@ again. In all cases the conversation is carried across before the close.
 ## Content translation
 
 Text is rewritten as it crosses; the full table is in
-[CONCEPT.md §13](../CONCEPT.md#13-content-translation). In short:
+[design §13](design.md#13-content-translation). In short:
 
 | | GitHub → Forgejo | Forgejo → GitHub |
 |---|---|---|

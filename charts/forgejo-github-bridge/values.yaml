@@ -1,7 +1,7 @@
 # Default values for forgejo-github-bridge.
 
 # -- One replica does the work. A second one waits on the leader lock and only
-# shortens a failover; it never shares the work (CONCEPT.md §7).
+# shortens a failover; it never shares the work (docs/design.md §7).
 replicaCount: 1
 
 image:

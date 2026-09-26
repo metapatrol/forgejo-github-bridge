@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -o /forgejo-github-bridge ./cmd/forgejo-github-bridge
 
 # Alpine rather than distroless: importing pull requests runs the git CLI
-# (CONCEPT.md §18). Nothing else is added, and the process runs as the same
+# (docs/design.md §18). Nothing else is added, and the process runs as the same
 # unprivileged user distroless would use.
 FROM ${RUNTIME_IMAGE}
 RUN apk add --no-cache git ca-certificates

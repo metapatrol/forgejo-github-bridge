@@ -1,4 +1,37 @@
-# forgejo-github-bridge
+# Design
+
+The design record of forgejo-github-bridge: what it is for, the decisions
+that shaped it and the reasons for them, including the ones that were
+rejected. The other documents describe how the bridge works and how to run
+it; this one explains why it works that way.
+
+**Contents**
+
+1. [Purpose](#1-purpose)
+2. [Goals](#2-goals)
+3. [Why polling](#3-why-polling)
+4. [Architecture](#4-architecture)
+5. [Processing model](#5-processing-model)
+6. [Polling](#6-polling)
+7. [State](#7-state)
+8. [Identities and credentials](#8-identities-and-credentials)
+9. [Repository configuration](#9-repository-configuration)
+10. [Issues](#10-issues)
+11. [Pull requests](#11-pull-requests)
+12. [CI isolation](#12-ci-isolation)
+13. [Content translation](#13-content-translation)
+14. [Loop prevention](#14-loop-prevention)
+15. [Security properties](#15-security-properties)
+16. [Threat model](#16-threat-model)
+17. [Deployment](#17-deployment)
+18. [Implementation stack](#18-implementation-stack)
+19. [Phases](#19-phases)
+20. [Non-goals](#20-non-goals)
+21. [Prior art](#21-prior-art)
+22. [Architectural principle](#22-architectural-principle)
+23. [Inspection API and console (proposal)](#23-inspection-api-and-console-proposal)
+
+---
 
 ## 1. Purpose
 
@@ -55,37 +88,26 @@ Polling also removes a class of failure: there are no missed deliveries to recov
 
 ## 4. Architecture
 
-```text
-                        Internet
-                 ┌─────────────────────┐
-                 │       GitHub        │
-                 │ repositories        │
-                 │ issues, PRs         │
-                 └──────▲───────▲──────┘
-                        │       │
-              REST API  │       │  git fetch refs/pull/N/head
-              (poll)    │       │  (public, read-only)
-                        │       │
-────────────────────────┼───────┼──────────────── private network
-                        │       │         outbound only
-                 ┌──────┴───────┴──────┐
-                 │ forgejo-github-     │
-                 │ bridge              │
-                 │                     │
-                 │ GitHub poller       │
-                 │ Forgejo poller      │
-                 │ Reconciler          │
-                 │ state (PostgreSQL)  │
-                 └──────┬───────┬──────┘
-                        │       │
-               REST API │       │ git push (contrib repo only)
-                        ▼       ▼
-                 ┌─────────────────────┐
-                 │       Forgejo       │
-                 │ canonical repo ─────┼──── push mirror ───▶ GitHub
-                 │ contrib repo        │
-                 │ issues, PRs, CI     │
-                 └─────────────────────┘
+```mermaid
+flowchart TB
+  subgraph internet["Internet"]
+    gh["GitHub<br/>repositories · issues · pull requests"]
+  end
+  subgraph private["Private network — outbound connections only"]
+    bridge["forgejo-github-bridge<br/>pollers · reconciler"]
+    db[("PostgreSQL")]
+    subgraph fj["Forgejo"]
+      canon["canonical repository<br/>issues · PRs · CI"]
+      contrib["contrib fork"]
+    end
+  end
+  bridge -- "REST API (poll and write)" --> gh
+  bridge -- "git fetch refs/pull/N/head (anonymous)" --> gh
+  bridge -- "REST API" --> canon
+  bridge -- "git push pr/N" --> contrib
+  bridge --- db
+  contrib -. "pull request" .-> canon
+  canon -- "push mirror" --> gh
 ```
 
 A single binary, `forgejo-github-bridge`, runs inside the private network. Its state lives in a PostgreSQL database provided by CloudNativePG.
@@ -98,20 +120,20 @@ Forgejo's existing push mirror stays responsible for moving code to GitHub. The 
 
 The bridge follows the controller pattern:
 
-```text
-Poll            Mark dirty            Reconcile
-─────           ──────────            ─────────
-GitHub  ─┐
-         ├──▶  (repo, kind, number) ──▶ observe both sides
-Forgejo ─┘      coalesced                compare with mapping
-                                         apply the difference
+```mermaid
+flowchart LR
+  pg["poll GitHub"] --> dirty
+  pf["poll Forgejo"] --> dirty
+  rs["full resync"] --> dirty
+  dirty[("dirty queue<br/>one entry per resource")] --> rec["reconcile<br/>observe both sides<br/>compare with the mapping<br/>apply the difference"]
+  rec -- "failed: backoff" --> dirty
 ```
 
 Pollers do not act on what they see. They only mark resources dirty:
 
 ```text
 repository = metapatrol/foo
-kind       = pull_request
+side       = github
 number     = 123
 ```
 
@@ -128,7 +150,7 @@ Two additional triggers mark resources dirty:
 
 Per configured repository, each GitHub poll issues:
 
-```text
+```http
 GET /repos/{owner}/{repo}/issues?state=all&sort=updated&since=<cursor>
 GET /repos/{owner}/{repo}/issues/comments?sort=updated&since=<cursor>
 ```
@@ -137,7 +159,7 @@ The issues endpoint includes pull requests, and the comments endpoint covers pul
 
 The Forgejo side uses the equivalent endpoints:
 
-```text
+```http
 GET /api/v1/repos/{owner}/{repo}/issues?state=all&since=<cursor>
 GET /api/v1/repos/{owner}/{repo}/issues/comments?since=<cursor>
 ```
@@ -156,21 +178,13 @@ Polls that fail are retried at the next interval; the rate-limit budget is expor
 
 The bridge keeps its state in PostgreSQL. The database is a CloudNativePG `Cluster` (or a database in an existing one); the bridge only needs a connection string and owns its schema.
 
-```text
-poll_cursor           repository, side, stream, cursor
-
-issue_mapping         repository, github_number, forgejo_number,
-                      origin (github | forgejo), synced_closed
-
-comment_mapping       issue_mapping_id,
-                      github_comment_id, forgejo_comment_id, origin
-
-dirty                 repository, side, number,
-                      marked_at, not_before, attempts, last_error
-
-pull_request_mapping  (phase 2) github_number, forgejo_number,
-                      contrib_branch, imported_head_sha, state
-```
+| Table | Holds |
+|---|---|
+| `issue_mapping` | repository, kind (`issue` or `pull`), GitHub number, Forgejo number, origin (`github` or `forgejo`), the state both sides had after the last reconcile |
+| `comment_mapping` | a comment pair: the mapping it belongs to, both IDs, origin |
+| `pull_request_state` | per pull request pair: contrib branch, imported head, open/merged/closed, frozen, touches CI, the rebase comment and whether it asks for a rebase, whether the outcome was reported |
+| `poll_cursor` | repository, side, stream, cursor |
+| `dirty` | repository, side, number, `marked_at`, `not_before`, attempts, last error |
 
 The mapping tables are the authority on what corresponds to what. Every projection additionally carries a hidden marker:
 
@@ -210,14 +224,12 @@ The bridge authenticates as a **GitHub App** installed on the public repositorie
 
 The App's name is not configured anywhere. The bridge is configured with the App ID and private key only, and reads the slug from `GET /app` at startup to derive its own bot login. Any App name works, and renaming the App needs no configuration change.
 
-Permissions:
-
-```text
-Metadata          read
-Issues            read/write
-Pull requests     read/write
-Commit statuses   read/write   (phase 3: CI projection)
-```
+| Permission | Access |
+|---|---|
+| Metadata | read |
+| Issues | read and write |
+| Pull requests | read and write |
+| Commit statuses | read and write — phase 3, for CI results |
 
 The App's private key lives in a Kubernetes Secret next to the bridge.
 
@@ -227,15 +239,10 @@ Git fetches of `refs/pull/N/head` from public repositories need no credentials.
 
 The bridge uses two Forgejo accounts with different privileges:
 
-```text
-github-bridge     comments, issues, labels, PR state
-                  write on the canonical repository
-                  excluded from branch protection push lists
-
-github-contrib    owns the contrib repositories (see §11)
-                  opens pull requests from them
-                  read-only on the canonical repository
-```
+| Account | Does | Access to the canonical repository |
+|---|---|---|
+| `github-bridge` | issues, comments, labels, pull request state | write, but excluded from branch protection push lists |
+| `github-contrib` | owns the contrib repositories (§11), opens pull requests from them | read only |
 
 The split exists for CI: pull requests are authored by an account that is neither a collaborator nor trusted, so Forgejo treats them as untrusted fork pull requests (see §12).
 
@@ -247,7 +254,7 @@ Tokens use the narrowest scopes Forgejo offers for each account. For `github-bri
 
 The bridge only operates on repositories it is configured for. Nothing is discovered automatically.
 
-Scalars and credentials come from environment variables (`BRIDGE_*`, see the README); in Kubernetes the credentials arrive from Secrets. The repository list and the user mapping come from a YAML file, because they are structured and because they are the part an operator edits. Unknown keys in the file are refused: a misspelt `publishlabel` silently falling back to the default is how an issue ends up public under a label nobody meant.
+Scalars and credentials come from environment variables (`BRIDGE_*`, see [configuration](configuration.md)); in Kubernetes the credentials arrive from Secrets. The repository list and the user mapping come from a YAML file, because they are structured and because they are the part an operator edits. Unknown keys in the file are refused: a misspelt `publishlabel` silently falling back to the default is how an issue ends up public under a label nobody meant.
 
 Forgejo is usually reached on an in-cluster address while people's links use its public hostname. Both are configured (`BRIDGE_FORGEJO_URL`, `BRIDGE_FORGEJO_WEB_URL`), and a link starting with either is internal (§13).
 
@@ -273,15 +280,14 @@ Every Git URL, every repository name and every branch the bridge touches is deri
 
 Every GitHub issue in a configured repository is imported:
 
-```text
-GitHub #42  ──▶  Forgejo #71   label: github
+```mermaid
+flowchart LR
+  a["GitHub #42"] --> b["Forgejo #71<br/>label: github"]
 ```
 
 The Forgejo issue body starts with attribution and keeps the original link:
 
-```text
-Reported by @alice via GitHub: https://github.com/metapatrol/foo/issues/42
-```
+> Reported by [alice](https://github.com/alice) via GitHub: https://github.com/metapatrol/foo/issues/42
 
 Title and body follow the GitHub issue; an edit to them in Forgejo is overwritten. Labels, milestones and assignees set in Forgejo belong to the maintainers and are never touched.
 
@@ -313,22 +319,18 @@ Editing a comment updates its projection. Editing a Forgejo comment to start wit
 
 A GitHub pull request is imported when it targets one of the configured `targetBranches`. A pull request against any other branch gets a single explanatory comment and is not imported.
 
-```text
-GitHub                         Forgejo
-
-PR #123 ──▶ refs/pull/123/head
-                 │
-                 │ git fetch (public)
-                 ▼
-            bridge
-                 │
-                 │ git push --force
-                 ▼
-            github-contrib/foo : pr/123
-                 │
-                 │ pull request by github-contrib
-                 ▼
-            metapatrol/foo : develop     Forgejo PR #88
+```mermaid
+sequenceDiagram
+  participant GH as GitHub
+  participant B as bridge
+  participant C as contrib fork<br/>github-contrib/foo
+  participant F as Forgejo<br/>platform/foo
+  GH->>B: PR #123 opened (seen by a poll)
+  B->>GH: git fetch refs/pull/123/head (anonymous)
+  B->>C: git push pr/123 (lease: must not exist)
+  B->>F: open PR #88 from github-contrib:pr/123 into develop (as github-contrib)
+  B->>F: label github (as github-bridge)
+  Note over F: workflow runs wait for a maintainer's approval
 ```
 
 The **contrib repository** is a Forgejo fork of the canonical repository, owned by `github-contrib`. Importing into a separate fork instead of a branch of the canonical repository solves two problems at once:
@@ -344,7 +346,7 @@ The GitHub pull request **stays open**. It remains the contributor's view of the
 
 ### Updates
 
-During reconcile the bridge compares GitHub's `head.sha` with `imported_head_sha`. When the contributor has pushed, the bridge force-updates `pr/123` in the contrib repository, and the Forgejo pull request picks up the new commits.
+During reconcile the bridge compares GitHub's `head.sha` with `imported_head_sha`. When the contributor has pushed, the bridge updates `pr/123` in the contrib repository with a lease on the head it pushed last, and the Forgejo pull request picks up the new commits.
 
 The `pr/*` branches belong to the bridge. If a branch's current head differs from `imported_head_sha`, something other than the bridge pushed to it. The bridge then stops updating that pull request and comments on it in Forgejo instead of overwriting the change. Maintainer changes to a contribution belong in follow-up commits after the merge.
 
@@ -354,7 +356,7 @@ Conversation comments on the pull request flow in both directions, with the same
 
 ### Merge
 
-The merge strategy is the repository's, configured in Forgejo. The platform's repositories use **rebase, then fast-forward**, and the bridge does not ask for anything else. What GitHub shows afterwards depends on whether the rebase had anything to do:
+The merge strategy is the repository's, configured in Forgejo. The bridge was built for repositories that merge by **rebase, then fast-forward**, and does not ask for anything else. What GitHub shows afterwards depends on whether the rebase had anything to do:
 
 | At merge time | In Forgejo | On GitHub |
 |---|---|---|
@@ -365,17 +367,13 @@ A rebase keeps each commit's **author**; only the committer becomes the maintain
 
 The bridge handles both. The conversation is carried across before the pull request is closed or reported, so a maintainer who closes with a comment is read on GitHub in that order:
 
-```text
-Forgejo PR #88 merged, merge_commit_sha = abc123
-        │
-        ▼
-wait until the push mirror has put abc123 on GitHub's base branch
-(the pull request stays queued, retried with backoff)
-        │
-        ├── GitHub already marks PR #123 merged  → short note with the commit
-        │
-        └── PR #123 still open (rebased)         → comment "Integrated into develop
-                                                    as abc123 (rebased)", close
+```mermaid
+flowchart TD
+  m["Forgejo PR #88 merged<br/>merge_commit_sha = abc123"] --> w{"abc123 on GitHub's<br/>base branch yet?"}
+  w -- "no: the push mirror has not run" --> q["stay queued,<br/>retry with backoff"] --> w
+  w -- yes --> g{"GitHub marks<br/>PR #123 merged?"}
+  g -- "yes: fast-forward" --> n1["note: merged as abc123"]
+  g -- "no: rebased" --> n2["note: merged as abc123, rebased<br/>close PR #123"]
 ```
 
 A squash merge is handled like the rebased case, and additionally loses per-commit authorship; repositories that care about contributor credit should not offer it.
@@ -386,19 +384,19 @@ Where the merged state matters, Forgejo's branch protection on the base branch c
 
 The bridge cannot read that setting: Forgejo serves branch protections to repository admins only, and the `github-bridge` account is deliberately not one (verified on Forgejo 16). A per-repository `rebaseRequests` setting therefore mirrors it, and is meant to be switched on together with the protection. When it is on and an imported pull request is behind its base, the bridge asks the contributor on GitHub to rebase:
 
-```text
-develop moved on, PR #123 is behind
-        │
-        ▼
-bridge comment on GitHub PR #123:
-  "develop has moved on since this was opened. Please rebase onto
-   develop so it can be merged as it is."
-        │
-contributor rebases and pushes
-        │
-        ▼
-bridge imports the new head, the comment is updated to say it is
-up to date
+```mermaid
+sequenceDiagram
+  participant C as contributor
+  participant GH as GitHub PR #123
+  participant B as bridge
+  Note over GH: develop moves on
+  B->>GH: new comment: please rebase onto develop (notifies)
+  Note over GH: develop moves further
+  B->>GH: edit the same comment: now 2 commits behind (no notification)
+  C->>GH: rebase and push
+  B->>GH: edit: thanks, up to date
+  Note over GH: develop moves on again
+  B->>GH: delete it, new comment: please rebase (notifies)
 ```
 
 There is never more than one such comment on a pull request, and the contributor is notified exactly once each time they have something to do. GitHub notifies about new comments, not about edits, so:
@@ -419,13 +417,11 @@ Base branches must correspond: the Forgejo pull request always targets the same 
 
 ### Close
 
-```text
-Forgejo PR closed without merge  →  last maintainer comment projected,
-                                    GitHub PR closed
-GitHub PR closed by contributor  →  Forgejo PR closed,
-                                    contrib branch deleted
-GitHub PR reopened               →  reconciled like a new import
-```
+| When | The bridge |
+|---|---|
+| the Forgejo PR is closed without merging | carries the conversation across, adds a note, closes the GitHub PR |
+| the contributor closes the GitHub PR | closes the Forgejo PR, deletes the contrib branch |
+| the GitHub PR is reopened | imports it again, into a fresh contrib branch, and reopens the Forgejo PR |
 
 After a merge or close, the contrib branch is deleted.
 
@@ -446,7 +442,7 @@ This is the most important security property of the bridge, and it depends on Fo
 ### What the deployment must guarantee
 
 - Workflows triggered by pull requests from forks **require maintainer approval** before they run. Forgejo (since v11, in use: v16) holds such runs until someone with elevated permissions approves them, unless the author is trusted. Trusted are collaborators with write access, team members with write permission on the Actions unit, repository owners and instance admins. `github-contrib` must be none of these.
-- **Never use "Approve always" on a bridged pull request.** It trusts the pull request author permanently, and the author is `github-contrib`, the account behind every imported contribution. One click would let every future contributor run CI unreviewed. Only "Approve once" is acceptable; it covers the pending runs, and every new push needs a new approval. If "Approve always" is clicked by mistake, the trust must be revoked immediately in the repository settings. The bridge checks for this during reconcile and refuses to import while `github-contrib` is trusted (phase 2, if Forgejo's API exposes the trust state).
+- **Never use "Approve always" on a bridged pull request.** It trusts the pull request author permanently, and the author is `github-contrib`, the account behind every imported contribution. One click would let every future contributor run CI unreviewed. Only "Approve once" is acceptable; it covers the pending runs, and every new push needs a new approval. If "Approve always" is clicked by mistake, the trust must be revoked immediately in the repository settings. The bridge cannot detect it: Forgejo's API does not expose who is trusted. The `touches-ci` warning repeats the rule on every pull request that changes CI configuration.
 - The approval gate must be verified with a test pull request before the first real import. Forgejo's documentation describes it for public repositories on instances with open registration; whether it applies unconditionally on this instance is part of that test.
 - Fork pull request runs receive no secrets. This is Forgejo's default for `pull_request` events from forks.
 - No workflow uses `pull_request_target` together with a checkout of the pull request head.
@@ -491,18 +487,14 @@ Markers play no role in loop prevention (see §7).
 
 ### No inbound connectivity
 
-```text
-Internet ─X─▶ private network
-```
-
 The bridge has no public endpoint. It connects out to GitHub's API and to github.com for Git fetches.
 
 ### Bounded Git operations
 
-```text
-fetch   refs/pull/<n>/head   from configured GitHub repositories only
-push    refs/heads/pr/<n>    to configured contrib repositories only
-```
+| Operation | Ref | Where |
+|---|---|---|
+| fetch | `refs/pull/<n>/head` | configured GitHub repositories only |
+| push | `refs/heads/pr/<n>`, with a lease | configured contrib repositories only |
 
 The bridge never pushes to a canonical repository and never pushes to GitHub. Code reaches GitHub only through the push mirror, i.e. only after a maintainer has merged it in Forgejo.
 
@@ -531,7 +523,7 @@ They may attempt to:
 | Spoof bridge state with forged markers | markers are not trusted; mapping tables are authoritative (§7) |
 | Ping or impersonate maintainers | mention rewriting; attribution lines (§13) |
 | Learn about private issues | issues are private by default; references to unmapped issues are neutralised (§10, §13) |
-| Exhaust resources with volume | coalescing per resource; rate-limit aware polling; import limits per poll |
+| Exhaust resources with volume | coalescing per resource; one worker; backoff on failure; the GitHub rate limit bounds what a poll can cost |
 
 A compromised bridge process gives the attacker its credentials: issue and pull request write access on configured GitHub repositories, and comment/issue access plus contrib-repository push access in Forgejo. It does not give push access to canonical repositories or CI secrets.
 
@@ -539,17 +531,15 @@ A compromised bridge process gives the attacker its credentials: issue and pull 
 
 ## 17. Deployment
 
-```text
-Deployment        forgejo-github-bridge   replicas: 1 (2 for failover, §7)
-CNPG Cluster      PostgreSQL, or a database in an existing cluster
-Secret            GitHub App private key, Forgejo tokens
-Secret            database DSN (the CNPG app secret)
-ConfigMap         repository configuration
-Service           /healthz, /readyz, /metrics (cluster-internal)
-                  optional /webhooks/forgejo (cluster-internal)
-```
+| Resource | |
+|---|---|
+| Deployment | `forgejo-github-bridge`, one replica (two for faster failover, §7) |
+| CloudNativePG cluster | PostgreSQL, or a database in an existing cluster |
+| Secrets | the GitHub App's private key, the two Forgejo tokens, the database DSN (CNPG's app Secret) |
+| ConfigMap | the repository configuration |
+| Service | `/healthz`, `/readyz`, `/metrics`, cluster-internal |
 
-One replica is sufficient; a second one only adds faster failover, since the advisory lock keeps it passive. Resources are delivered as a Helm chart, like the other platform projects.
+One replica is sufficient; a second one only adds faster failover, since the advisory lock keeps it passive. Resources are delivered as a Helm chart.
 
 The chart does not create the database. It takes the DSN from an existing Secret with a configurable key, because the Secret usually belongs to someone else: CloudNativePG writes the connection string under `uri`.
 
@@ -566,7 +556,7 @@ Per maintainer who merges in Forgejo:
 
 - Forgejo: set the account's primary e-mail to an address that may be public and belongs to the maintainer's GitHub account — their GitHub-verified address, or their `…@users.noreply.github.com` address. A merge through the web interface, and a rebase merge in particular, records the merging account as the committer of every commit, and the push mirror publishes it. An internal address would be published as it is, and GitHub could not link the committer to anyone. This is Forgejo's behaviour, not the bridge's, and applies to every commit made through Forgejo's web interface.
 
-Per bridged repository, the one-time setup is:
+Per bridged repository, the one-time setup is below; [installation](installation.md) has it step by step.
 
 1. GitHub: install the GitHub App; set the default branch to the contribution target.
 2. Forgejo: create the contrib fork owned by `github-contrib`, with no push mirror and no secrets.
@@ -579,18 +569,14 @@ Per bridged repository, the one-time setup is:
 
 ## 18. Implementation stack
 
-```text
-Go
-small dedicated REST clients    GitHub App auth (RS256 JWT, installation
-                                tokens restricted to one repository),
-                                Forgejo; shared pagination and ETag cache
-git CLI                         fetch/push in a scratch bare repository
-                                (phase 2; the image changes from
-                                distroless to one that carries git)
-PostgreSQL                      jackc/pgx v5, embedded migrations
-log/slog                        structured logging
-Prometheus                      metrics
-```
+| Part | Choice |
+|---|---|
+| language | Go |
+| GitHub and Forgejo | small dedicated REST clients: GitHub App auth (RS256 JWT, installation tokens restricted to one repository), shared pagination and ETag cache |
+| Git | the git CLI, against a cache of bare repositories; the image is Alpine with git |
+| state | PostgreSQL through jackc/pgx v5, migrations embedded |
+| logs | log/slog, structured |
+| metrics | Prometheus, and a Grafana dashboard chart |
 
 No SDK for either forge. The bridge uses about a dozen endpoints on each side; an SDK would bring a major version a month and still not do the two things the shared client is for: follow pagination without ever sending a credential to a host other than the configured one, and answer an unchanged GitHub list from its ETag, which GitHub does not count against the rate limit.
 
@@ -602,63 +588,54 @@ Key metrics: poll duration and errors per repository and side, dirty queue depth
 
 ### Phase 1: issues
 
-```text
-GitHub App authentication, polling with cursors and ETags
-PostgreSQL state, migrations, advisory lock, dirty queue, reconciler
-GitHub issue → Forgejo issue
-Forgejo issue with publish label → GitHub issue
-comments in both directions, /internal
-content translation (§13)
-loop prevention
-periodic full resync with deletion handling
-mapping recovery from markers
-```
+- GitHub App authentication, polling with cursors and ETags
+- PostgreSQL state, migrations, advisory lock, dirty queue, reconciler
+- GitHub issue → Forgejo issue
+- Forgejo issue with publish label → GitHub issue
+- comments in both directions, `/internal`
+- content translation (§13)
+- loop prevention
+- periodic full resync with deletion handling
+- mapping recovery from markers
 
 Status: implemented.
 
 ### Phase 2: pull requests
 
-```text
-contrib repository import, pr/<n> branches
-Forgejo PR creation, head updates, foreign-push detection
-conversation comments and review summaries
-merge detection and verification on GitHub
-close handling in both directions
-rebase requests (per-repository rebaseRequests)
-touches-ci labelling
-```
+- contrib repository import, `pr/<n>` branches
+- Forgejo PR creation, head updates, foreign-push detection
+- conversation comments and review summaries
+- merge detection and verification on GitHub
+- close handling in both directions
+- rebase requests (per-repository `rebaseRequests`)
+- `touches-ci` labelling
+- configurable messages
 
 Status: implemented; end-to-end tested against GitHub and Forgejo 16.
 
 ### Phase 3: refinement
 
-```text
-CI status → GitHub commit status on the PR head
-line-level review comments
-optional Forgejo webhook as reconcile hint
-```
+- CI status → GitHub commit status on the PR head
+- line-level review comments
+- optional Forgejo webhook as a hint to reconcile sooner
 
 ### Phase 4: inspection (optional)
 
-```text
-read-only REST API: pairs, queue, failures, activity
-optional web console on top of it
-```
+- read-only REST API: pairs, queue, failures, activity
+- optional web console on top of it
 
-See §23. Not started; the design below is a proposal with open questions.
+See §23. Not started; a proposal with open questions.
 
 ---
 
 ## 20. Non-goals
 
-```text
-public endpoints or webhook receivers on the internet
-pushing to GitHub (the push mirror does this)
-GitHub Projects, Discussions or Actions
-Forgejo account provisioning for contributors
-identity federation between GitHub and Forgejo
-full bidirectional state replication
-```
+- public endpoints or webhook receivers on the internet
+- pushing to GitHub (the push mirror does this)
+- GitHub Projects, Discussions or Actions
+- Forgejo account provisioning for contributors
+- identity federation between GitHub and Forgejo
+- full bidirectional state replication
 
 ---
 
@@ -690,7 +667,7 @@ off by default, and change nothing about what the bridge does.
 
 Served by the bridge itself, on its own listener, cluster-internal like
 everything else it serves. Described in OpenAPI, which is the source of truth
-for both the server and any client, as with mcp-gateway's inspect API.
+for both the server and any client.
 
 | Endpoint | Answers |
 |---|---|
@@ -719,17 +696,17 @@ credential. If one proves necessary, it gets its own design.
 
 An optional web UI on top of the API, for the questions people actually ask:
 where is this contribution, what is stuck and why, what did the bridge do
-today. Shipped as a separate image, the way mcp-gateway ships its console, so
-a deployment that does not want a UI does not carry one.
+today. Shipped as a separate image, so a deployment that does not want a UI
+does not carry one.
 
 ### Open questions
 
 - **Authentication.** Cluster-internal is not enough for a UI people open in a
-  browser. Behind the platform's existing authentication (as mcp-gateway's
-  console is), or a gateway in front of it — to be decided with the platform.
-- **Console technology.** The same stack as mcp-gateway's console, for one way
-  of building consoles on the platform, or server-rendered pages from the
-  bridge itself, for no second image and no build toolchain.
+  browser. Behind an existing single sign-on, or an authenticating gateway in
+  front of it.
+- **Console technology.** A single-page application in its own image, or
+  server-rendered pages from the bridge itself, for no second image and no
+  build toolchain.
 - **Activity retention.** How long, and whether it lives in the bridge's
-  database or goes to the platform's log store instead.
+  database or goes to a log store instead.
 

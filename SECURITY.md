@@ -20,7 +20,7 @@ Of particular interest is anything that lets someone on GitHub:
 - make the bridge overwrite work it did not push.
 
 The security model is described in [docs/security.md](docs/security.md) and
-[CONCEPT.md §15–16](CONCEPT.md#15-security-properties).
+[design §15–16](docs/design.md#15-security-properties).
 
 ## Supported versions
 

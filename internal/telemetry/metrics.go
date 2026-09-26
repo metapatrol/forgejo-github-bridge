@@ -1,6 +1,6 @@
 // Package telemetry holds the bridge's Prometheus metrics.
 //
-// The set is what CONCEPT.md §18 names: whether polls work, how long the queue
+// The set is what docs/design.md §18 names: whether polls work, how long the queue
 // is and how old its oldest entry, what reconciles end in, and how much of
 // the GitHub rate limit is left. Together they answer the one question an
 // operator has about a bridge — is anything stuck, and where.

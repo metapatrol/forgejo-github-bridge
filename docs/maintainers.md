@@ -4,6 +4,13 @@ For maintainers, who work in Forgejo. Nothing here needs GitHub: the bridge
 carries what matters there and back. Contributors, on the other side, use
 GitHub as they would for any project and need not know Forgejo exists.
 
+**Contents**
+
+- [Issues](#issues)
+- [References, mentions and links](#references-mentions-and-links)
+- [Pull requests](#pull-requests)
+- [What the contributor sees](#what-the-contributor-sees)
+
 ## Issues
 
 ### Issues from GitHub
@@ -77,6 +84,20 @@ the next time the referring issue changes, or at the latest at the next full
 resync (every six hours by default).
 
 ## Pull requests
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> imported: contributor opens a PR on GitHub
+  imported --> review: you approve the CI run once
+  review --> review: new commits, new approval
+  review --> merged: you merge in Forgejo
+  review --> closed: you close with a comment
+  imported --> closed: contributor withdraws it
+  closed --> imported: contributor reopens it
+  merged --> [*]: GitHub shows merged, or closed with the commit
+  closed --> [*]
+```
 
 ### What arrives
 

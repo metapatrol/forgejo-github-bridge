@@ -25,7 +25,7 @@ import (
 // EnvPrefix is prepended to every variable this package reads.
 const EnvPrefix = "BRIDGE_"
 
-// Defaults for the per-repository labels and markers. They are what CONCEPT.md
+// Defaults for the per-repository labels and markers. They are what docs/design.md
 // describes, and every one can be overridden per repository.
 const (
 	DefaultImportLabel    = "github"
@@ -79,7 +79,7 @@ type Repository struct {
 	// outdated merges, which the bridge's account is not allowed to read.
 	RebaseRequests bool
 	// CIPaths are path prefixes whose change in a pull request gets it the
-	// touches-ci label and a warning (CONCEPT.md §12).
+	// touches-ci label and a warning (docs/design.md §12).
 	CIPaths []string
 
 	// ImportLabel marks Forgejo issues that were imported from GitHub, so a
@@ -271,7 +271,7 @@ func load(getenv func(string) string) (*Config, error) {
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
-	// Pull requests are opened by a second account (CONCEPT.md §8), and
+	// Pull requests are opened by a second account (docs/design.md §8), and
 	// without its token they cannot be imported at all.
 	for _, r := range cfg.Repositories {
 		if r.ImportsPullRequests() && cfg.ForgejoContribToken == "" {
@@ -345,7 +345,7 @@ func (c *Config) apply(f file) error {
 				errs = append(errs, fmt.Errorf("%s.contrib: %w", where, err))
 			} else if strings.EqualFold(repo.Contrib.String(), repo.Forgejo.String()) {
 				// The whole point of the contrib repository is that it is not the
-				// canonical one: see CONCEPT.md §11 and §12.
+				// canonical one: see docs/design.md §11 and §12.
 				errs = append(errs, fmt.Errorf("%s.contrib must not be the canonical repository", where))
 			}
 		}

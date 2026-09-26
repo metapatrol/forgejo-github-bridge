@@ -18,7 +18,7 @@ import (
 )
 
 // touchesCILabel marks an imported pull request that changes CI
-// configuration (CONCEPT.md §12).
+// configuration (docs/design.md §12).
 const touchesCILabel = "touches-ci"
 
 // errWaitingForMirror is returned while a merge in Forgejo has not reached
@@ -52,7 +52,7 @@ func (b *Bridge) WithPullRequests(p Pulls) *Bridge {
 func branchFor(n int64) string { return "pr/" + strconv.FormatInt(n, 10) }
 
 // importPull imports a GitHub pull request that has no Forgejo counterpart
-// yet (CONCEPT.md §11).
+// yet (docs/design.md §11).
 func (b *Bridge) importPull(ctx context.Context, r *repo, n int64) error {
 	if b.pulls == nil || !r.cfg.ImportsPullRequests() {
 		return nil

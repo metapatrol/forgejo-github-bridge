@@ -5,7 +5,7 @@
 // Forgejo are different issues; @alice on GitHub and @alice in Forgejo are
 // different people; a link to the private Forgejo is a dead link on GitHub
 // that also tells the world what the private host is called. Everything here
-// is CONCEPT.md §13.
+// is docs/design.md §13.
 package translate
 
 import (

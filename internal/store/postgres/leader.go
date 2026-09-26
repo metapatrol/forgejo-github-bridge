@@ -34,7 +34,7 @@ func (l *Lease) Lost() <-chan struct{} { return l.lost }
 
 // AcquireLeader blocks until this process holds the leader lock or ctx ends.
 //
-// Only one instance may poll and reconcile at a time (CONCEPT.md §7): two
+// Only one instance may poll and reconcile at a time (docs/design.md §7): two
 // would each see an unmapped issue and each create its projection. A second
 // replica therefore waits here, passive, and takes over when the first one's
 // session ends.

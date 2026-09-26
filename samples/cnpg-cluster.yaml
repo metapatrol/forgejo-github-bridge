@@ -3,7 +3,7 @@
 # "uri", which is what the chart reads by default.
 #
 # The state is small — mappings, cursors, a queue — and can be rebuilt from
-# the markers in the projections if it is lost (CONCEPT.md §7). Backups are
+# the markers in the projections if it is lost (docs/design.md §7). Backups are
 # still worth having: a rebuild recovers issue pairs, but it replays every
 # comment's projection check once.
 apiVersion: postgresql.cnpg.io/v1

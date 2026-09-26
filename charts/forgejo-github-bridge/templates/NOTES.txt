@@ -1,6 +1,6 @@
 forgejo-github-bridge is polling {{ len .Values.repositories }} repository pair(s) every {{ .Values.poll.interval }}.
 
-Before the first import, make sure of CONCEPT.md §17 for every pair: the GitHub
+Before the first import, make sure of docs/design.md §17 for every pair: the GitHub
 App is installed on the GitHub repository, and the Forgejo account behind
 {{ .Values.forgejo.existingSecret }} may write issues in the Forgejo repository.
 

@@ -1,5 +1,17 @@
 # Operations
 
+**Contents**
+
+- [Health](#health)
+- [Metrics](#metrics)
+- [Logs](#logs)
+- [When something is stuck](#when-something-is-stuck)
+- [Upgrades](#upgrades)
+- [Rotating credentials](#rotating-credentials)
+- [Losing the database](#losing-the-database)
+- [Removing a repository](#removing-a-repository)
+- [Pausing](#pausing)
+
 ## Health
 
 | Endpoint | |

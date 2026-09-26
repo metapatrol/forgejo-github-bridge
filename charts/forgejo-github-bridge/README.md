@@ -74,7 +74,7 @@ shortens a failover and nothing else.
 | poll.fullResync | string | `"6h"` | How often every open bridged issue is reconciled regardless of polls, which is what notices deleted comments. |
 | poll.interval | string | `"60s"` | How often each repository is polled on each side. |
 | port | int | `8080` | The port probes and metrics are served on. Cluster-internal; the bridge has no public endpoint. |
-| replicaCount | int | `1` | One replica does the work. A second one waits on the leader lock and only shortens a failover; it never shares the work (CONCEPT.md §7). |
+| replicaCount | int | `1` | One replica does the work. A second one waits on the leader lock and only shortens a failover; it never shares the work (docs/design.md §7). |
 | repositories | list | `[]` | The bridged repositories. Each entry pairs a public GitHub repository with the private Forgejo repository that is its source of truth.    - github: example-org/foo      # required     forgejo: platform/foo       # required     publishLabel: public        # makes a Forgejo issue public     importLabel: github         # marks issues imported from GitHub     internalPrefix: /internal   # keeps a Forgejo comment private     importSince: "2026-09-01T00:00:00Z"     # Pull requests (phase 2), only with a contrib repository:     contrib: github-contrib/foo # the fork imported heads are pushed to     targetBranches: [develop]   # the bases a pull request may target     rebaseRequests: false       # ask contributors to rebase outdated PRs     ciPaths: [.forgejo/, .github/]     messages: {}                # per-repository overrides of `messages` |
 | resources.limits.cpu | string | `"500m"` |  |
 | resources.limits.memory | string | `"128Mi"` |  |

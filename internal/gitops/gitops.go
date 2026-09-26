@@ -7,7 +7,7 @@
 //	fetch  refs/pull/<n>/head  from the configured GitHub repository
 //	push   refs/heads/pr/<n>   to the configured contrib repository
 //
-// That is CONCEPT.md §15's "bounded Git operations", and the reason the
+// That is docs/design.md §15's "bounded Git operations", and the reason the
 // bridge never becomes a Git proxy for whatever GitHub tells it.
 package gitops
 

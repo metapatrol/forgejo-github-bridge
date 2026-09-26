@@ -1,8 +1,35 @@
 # Security
 
-The threat model in full is [CONCEPT.md §15–16](../CONCEPT.md#15-security-properties).
+The threat model in full is [design §15–16](design.md#15-security-properties).
 This page is the operator's version: what the bridge guarantees, what it
 relies on, and the rules that keep it that way.
+
+**Contents**
+
+- [The boundary](#the-boundary)
+- [Who is the attacker](#who-is-the-attacker)
+- [What they cannot do](#what-they-cannot-do)
+- [What it relies on](#what-it-relies-on)
+- [What the bridge deliberately does not do](#what-the-bridge-deliberately-does-not-do)
+- [Reporting a problem](#reporting-a-problem)
+
+## The boundary
+
+```mermaid
+flowchart LR
+  subgraph out["Internet: untrusted"]
+    c(["anyone with a GitHub account"]) --> gh["GitHub<br/>issues · PRs · comments"]
+  end
+  subgraph in["Private network"]
+    b["bridge"] --> contrib["contrib fork<br/>pr/N only"]
+    b --> canon["canonical repository<br/>issues and comments only"]
+    ci["CI"]
+  end
+  b -- "reads, as data" --> gh
+  contrib -. "PR, CI waits for approval" .-> ci
+  canon -- "push mirror, after a maintainer merged" --> gh
+  gh -. "no route in" .-x b
+```
 
 ## Who is the attacker
 

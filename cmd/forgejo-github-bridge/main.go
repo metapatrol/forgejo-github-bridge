@@ -103,7 +103,7 @@ func run() error {
 	defer shutdown(srv, log)
 
 	// A second replica waits here until the first one's session ends
-	// (CONCEPT.md §7). It stays ready meanwhile: readiness is about whether
+	// (docs/design.md §7). It stays ready meanwhile: readiness is about whether
 	// it could take over, not about whether it is doing the work.
 	lease, err := postgres.AcquireLeader(ctx, st.Pool(), log)
 	if err != nil {

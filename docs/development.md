@@ -1,5 +1,13 @@
 # Development
 
+**Contents**
+
+- [Layout](#layout)
+- [Tests](#tests)
+- [Running it locally](#running-it-locally)
+- [Changing things](#changing-things)
+- [Releases](#releases)
+
 ## Layout
 
 ```text

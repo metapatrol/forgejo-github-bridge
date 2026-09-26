@@ -14,6 +14,16 @@ repository pair:
 Parts 1 to 3 are done once per installation, part 4 once per maintainer,
 part 5 once per repository.
 
+**Contents**
+
+- [1. Namespace and database](#1-namespace-and-database)
+- [2. The GitHub App](#2-the-github-app)
+- [3. The Forgejo accounts](#3-the-forgejo-accounts)
+- [4. Per maintainer](#4-per-maintainer)
+- [5. Per repository](#5-per-repository)
+- [6. Deploy](#6-deploy)
+- [7. Verify before the first real contribution](#7-verify-before-the-first-real-contribution)
+
 ## 1. Namespace and database
 
 ```bash

@@ -2,7 +2,7 @@
 // corresponds to which on the other, how far each poll has read, and which
 // resources are waiting to be reconciled.
 //
-// The mappings are the authority on correspondence (CONCEPT.md §7). Markers in
+// The mappings are the authority on correspondence (docs/design.md §7). Markers in
 // the projected text exist to rebuild them, never to overrule them.
 package store
 

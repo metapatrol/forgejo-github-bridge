@@ -154,7 +154,7 @@ func (b *Bridge) Init(ctx context.Context) error {
 			}
 			if b.contribSelf == b.forgejoSelf {
 				// The split is what keeps imported pull requests untrusted in
-				// CI (CONCEPT.md §8, §12). One account for both defeats it.
+				// CI (docs/design.md §8, §12). One account for both defeats it.
 				return fmt.Errorf("the contrib token belongs to %s, the same account as the bridge token", b.contribSelf)
 			}
 			break
