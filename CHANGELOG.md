@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.3.0...v0.3.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* check the contrib fork and rights before every push ([c1e54e5](https://github.com/metapatrol/forgejo-github-bridge/commit/c1e54e5097f47cbe0ab0f45d4b8a18fbcc6f62db))
+
 # [0.3.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.2.0...v0.3.0) (2026-09-26)
 
 
