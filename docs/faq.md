@@ -49,7 +49,8 @@ and close issues. One account cannot be both. See
 
 Two reasons. A branch in the canonical repository would be published to
 GitHub by the push mirror, or removed by it. And a pull request from a fork is
-what Forgejo treats as untrusted: no secrets, approval required. See
+what Forgejo treats as untrusted: no secrets, approval required. The bridge
+creates the fork itself, as `github-contrib/<name>`. See
 [design §11](design.md#11-pull-requests).
 
 ## Can a contributor run code on our CI?

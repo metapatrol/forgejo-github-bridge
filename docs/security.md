@@ -83,7 +83,7 @@ are its own, and can ask for any `runs-on`. Approval is the control.
 |---|---|---|
 | GitHub App key | with the bridge's other secrets | issues and pull requests, read and write, on the repositories the App is installed on — and, where it is granted for private repositories, reading their contents; installation tokens are restricted per repository |
 | `github-bridge` token | same | issues, comments and labels in the canonical repositories; the account has write access there |
-| `github-contrib` token | same | pushing to its own forks, opening pull requests; read-only on canonical repositories |
+| `github-contrib` token | same | creating and pushing to its own forks, opening pull requests; read-only on canonical repositories, which the bridge checks before every import |
 | database connection string | with the bridge's other secrets | the bridge's state |
 
 A compromised bridge gives the attacker these, and nothing more: no push to a

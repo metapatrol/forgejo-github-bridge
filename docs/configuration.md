@@ -28,7 +28,7 @@ repository file changes.
 | `BRIDGE_FORGEJO_URL` | — | `forgejo.url` | the address the bridge talks to Forgejo on. **Required** |
 | `BRIDGE_FORGEJO_WEB_URL` | — | `forgejo.webURL` | the address browsers use, when it differs; links starting with either never reach GitHub |
 | `BRIDGE_FORGEJO_TOKEN` | — | `forgejo.existingSecret`, `.existingSecretKey` (`token`) | the `github-bridge` account's token. **Required** |
-| `BRIDGE_FORGEJO_CONTRIB_TOKEN` | — | `forgejo.contribExistingSecret`, `.contribExistingSecretKey` (`token`) | the `github-contrib` account's token. Required as soon as a repository sets `contrib` |
+| `BRIDGE_FORGEJO_CONTRIB_TOKEN` | — | `forgejo.contribExistingSecret`, `.contribExistingSecretKey` (`token`) | the `github-contrib` account's token. Required as soon as a repository sets `targetBranches` |
 | `BRIDGE_FORGEJO_CA_FILE` | — | `forgejo.caSecret`, `.caSecretKey` (`ca.crt`) | an extra CA to trust for Forgejo, over HTTPS and for git |
 | `BRIDGE_GIT_CACHE_DIR` | `/var/cache/forgejo-github-bridge` | (an `emptyDir` of `gitCacheSize`) | bare repositories pull request heads pass through |
 | `BRIDGE_POLL_INTERVAL` | `60s` | `poll.interval` | at least 10 s |

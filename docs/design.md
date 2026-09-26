@@ -243,17 +243,17 @@ The bridge uses two Forgejo accounts with different privileges:
 | Account | Does | Access to the canonical repository |
 |---|---|---|
 | `github-bridge` | issues, comments, labels, pull request state | write, but excluded from branch protection push lists |
-| `github-contrib` | owns the contrib repositories (§11), opens pull requests from them | read only |
+| `github-contrib` | owns the contrib repositories (§11), creating them as forks when missing; opens pull requests from them | read only |
 
 The split exists for CI: pull requests are authored by an account that is neither a collaborator nor trusted, so Forgejo treats them as untrusted fork pull requests (see §12).
 
-Tokens use the narrowest scopes Forgejo offers for each account. For `github-bridge` in phase 1 that is `write:issue`, `read:repository` and `read:user`; write access to the repository is needed because the bridge closes and reopens issues other people opened, and creates the import label.
+Tokens use the narrowest scopes Forgejo offers for each account. For `github-bridge` in phase 1 that is `write:issue`, `read:repository` and `read:user`; write access to the repository is needed because the bridge closes and reopens issues other people opened, and creates the import label. For `github-contrib` it is `write:repository` and `read:user`: it forks, pushes `pr/<n>` branches and opens pull requests, and reads its own rights on the canonical repository, which the bridge checks before every import.
 
 ---
 
 ## 9. Repository configuration
 
-The bridge only operates on repositories it is configured for. Nothing is discovered automatically.
+The bridge only operates on repositories it is configured for. Nothing is discovered automatically. The one thing it creates is a pair's contrib fork, in `github-contrib`'s own namespace, when pull requests are on and the fork is missing (§11).
 
 Scalars and credentials come from environment variables (`BRIDGE_*`, see [configuration](configuration.md)); a credential can also be read from a file named by the same variable with `_FILE`, as Docker secrets and systemd credentials provide them. The repository list and the user mapping come from a YAML file, because they are structured and because they are the part an operator edits. Unknown keys in the file are refused: a misspelt `publishlabel` silently falling back to the default is how an issue ends up public under a label nobody meant.
 
@@ -495,7 +495,7 @@ The bridge has no public endpoint. It connects out to GitHub's API and to github
 | Operation | Ref | Where |
 |---|---|---|
 | fetch | `refs/pull/<n>/head` | configured GitHub repositories only |
-| push | `refs/heads/pr/<n>`, with a lease | configured contrib repositories only |
+| push | `refs/heads/pr/<n>`, with a lease | the pairs' contrib repositories only |
 
 The bridge never pushes to a canonical repository and never pushes to GitHub. Code reaches GitHub only through the push mirror, i.e. only after a maintainer has merged it in Forgejo.
 
@@ -599,6 +599,7 @@ Status: implemented.
 ### Phase 2: pull requests
 
 - contrib repository import, `pr/<n>` branches
+- contrib forks created and checked by the bridge
 - Forgejo PR creation, head updates, foreign-push detection
 - conversation comments and review summaries
 - merge detection and verification on GitHub

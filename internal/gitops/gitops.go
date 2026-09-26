@@ -4,8 +4,8 @@
 // It does exactly two things, and neither takes a URL, a ref or a branch from
 // anywhere but its configuration and a pull request number:
 //
-//	fetch  refs/pull/<n>/head  from the configured GitHub repository
-//	push   refs/heads/pr/<n>   to the configured contrib repository
+//	fetch  refs/pull/<n>/head  from the pair's GitHub repository
+//	push   refs/heads/pr/<n>   to the pair's contrib repository
 //
 // That is docs/design.md §15's "bounded Git operations", and the reason the
 // bridge never becomes a Git proxy for whatever GitHub tells it.

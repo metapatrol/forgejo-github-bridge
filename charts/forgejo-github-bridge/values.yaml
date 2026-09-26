@@ -78,8 +78,8 @@ forgejo:
 #     importSince: "2026-09-01T00:00:00Z"
 #     # Pull requests, imported once target branches are named:
 #     targetBranches: [develop]   # the bases a pull request may target
-#     contrib: github-contrib/foo # the fork imported heads are pushed to;
-#                                 # default <contrib login>/<name>, created
+#     contrib: github-contrib/foo # the fork heads are pushed to; defaults to
+#                                 # <contrib login>/<name>, forked at startup
 #     rebaseRequests: false       # ask contributors to rebase outdated PRs
 #     ciPaths: [.forgejo/, .github/]
 #     messages: {}                # per-repository overrides of `messages`
