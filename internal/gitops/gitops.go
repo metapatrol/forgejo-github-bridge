@@ -144,7 +144,7 @@ func (g *Git) fetchPull(ctx context.Context, dir string, repo config.RepoRef, nu
 	}
 	token, err := g.githubToken(ctx, repo)
 	if err != nil {
-		return fmt.Errorf("fetching GitHub pull request #%d: anonymously: %w; no token to retry with: %v", number, anonErr, err)
+		return fmt.Errorf("fetching GitHub pull request #%d: anonymously: %w; no token to retry with: %w", number, anonErr, err)
 	}
 	if _, err := g.run(ctx, dir, &remote{header: basic("x-access-token", token)}, "fetch", "--no-tags", "--quiet", url, refspec); err != nil {
 		return fmt.Errorf("fetching GitHub pull request #%d, anonymously and with the App's token "+
