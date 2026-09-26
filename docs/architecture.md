@@ -32,7 +32,7 @@ flowchart TB
     end
   end
   bridge -- "REST API, as the GitHub App" --> gh
-  bridge -- "git fetch refs/pull/N/head, anonymous" --> gh
+  bridge -- "git fetch refs/pull/N/head" --> gh
   bridge -- "REST API, as github-bridge and github-contrib" --> canon
   bridge -- "git push pr/N, as github-contrib" --> contrib
   bridge --- db
@@ -155,7 +155,7 @@ than risk working next to another.
 | Where | Account | Used for |
 |---|---|---|
 | GitHub | the GitHub App (`<slug>[bot]`) | reading issues and pull requests, writing issues, comments and state. Installation tokens are requested per repository and restricted to it |
-| GitHub | none | `git fetch` of pull request heads from public repositories |
+| GitHub | none, or the App's installation token | `git fetch` of pull request heads: anonymous for a public repository, with the token for a private one (the App then needs *Contents: read*) |
 | Forgejo | `github-bridge` | issues, comments, labels, closing and reopening, editing pull request descriptions. Write access to the canonical repository |
 | Forgejo | `github-contrib` | pushing to the contrib fork, opening imported pull requests. **Read-only** on the canonical repository |
 
@@ -227,7 +227,8 @@ sequenceDiagram
 1. A contributor opens GitHub PR #7 from their fork against `develop`.
 2. If `develop` is not in `targetBranches`, the bridge explains once on
    GitHub and waits; changing the base picks it up.
-3. The bridge fetches `refs/pull/7/head` from GitHub anonymously and pushes
+3. The bridge fetches `refs/pull/7/head` from GitHub — anonymously, or with
+   the App's installation token if the repository is private — and pushes
    it to `pr/7` in the contrib fork with `--force-with-lease=pr/7:` (the
    branch must not exist). The Git cache keeps one bare repository per pair,
    so only new objects travel.

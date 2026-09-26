@@ -112,7 +112,8 @@ something did not cross.
    | `HTTP 403` on labels or closing | `github-bridge` has read, not write | grant write |
    | `branch pr/<n> already exists in … and was not made by the bridge` | someone created that branch in the contrib fork | delete the branch there; the import follows |
    | `waiting for the push mirror` for long | the push mirror is failing or has no sync-on-commit | check the mirror in the repository's settings |
-   | `fetching GitHub pull request #<n>` | the GitHub repository is private, or unreachable | pull requests need a public repository |
+   | `fetching GitHub pull request #<n>, anonymously and with the App's token` | the repository is private and the App lacks *Contents: read* | grant it in the App's permissions, and accept the change on the installation |
+   | `fetching GitHub pull request #<n>` | GitHub unreachable | wait; it is retried |
 
 3. After fixing the cause, nothing needs to be done: the entry is retried at
    the latest after 30 minutes. To retry now, make it due:

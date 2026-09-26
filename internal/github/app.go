@@ -131,6 +131,12 @@ func (a *app) slug(ctx context.Context) (string, error) {
 	return out.Slug, nil
 }
 
+// InstallationToken returns an installation token restricted to one
+// repository, for git to fetch a private repository's pull requests with.
+func (c *Client) InstallationToken(ctx context.Context, repo config.RepoRef) (string, error) {
+	return c.app.token(ctx, repo)
+}
+
 // token returns an installation token restricted to one repository.
 func (a *app) token(ctx context.Context, repo config.RepoRef) (string, error) {
 	key := repo.String()

@@ -102,7 +102,7 @@ flowchart TB
     end
   end
   bridge -- "REST API (poll and write)" --> gh
-  bridge -- "git fetch refs/pull/N/head (anonymous)" --> gh
+  bridge -- "git fetch refs/pull/N/head" --> gh
   bridge -- "REST API" --> canon
   bridge -- "git push pr/N" --> contrib
   bridge --- db
@@ -229,11 +229,12 @@ The App's name is not configured anywhere. The bridge is configured with the App
 | Metadata | read |
 | Issues | read and write |
 | Pull requests | read and write |
+| Contents | read — only for private repositories, to fetch pull requests |
 | Commit statuses | read and write — phase 3, for CI results |
 
 The App's private key lives with the bridge's other secrets, as a file.
 
-Git fetches of `refs/pull/N/head` from public repositories need no credentials.
+Git fetches of `refs/pull/N/head` need no credentials from a public repository. From a private one, the bridge retries a failed anonymous fetch with the App's installation token, restricted to that repository and handed to git through its environment; the App then needs *Contents: read*. Public repositories never see the token.
 
 ### Forgejo
 
@@ -326,7 +327,7 @@ sequenceDiagram
   participant C as contrib fork<br/>github-contrib/foo
   participant F as Forgejo<br/>platform/foo
   GH->>B: PR #123 opened (seen by a poll)
-  B->>GH: git fetch refs/pull/123/head (anonymous)
+  B->>GH: git fetch refs/pull/123/head (anonymous, or with the App's token)
   B->>C: git push pr/123 (lease: must not exist)
   B->>F: open PR #88 from github-contrib:pr/123 into develop (as github-contrib)
   B->>F: label github (as github-bridge)

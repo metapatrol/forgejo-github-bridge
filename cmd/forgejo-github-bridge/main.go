@@ -130,7 +130,8 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("identifying the Forgejo contrib account: %w", err)
 		}
-		git := gitops.New(cfg.GitCacheDir, "https://github.com", cfg.ForgejoURL, login, cfg.ForgejoContribToken, cfg.ForgejoCAFile)
+		git := gitops.New(cfg.GitCacheDir, "https://github.com", cfg.ForgejoURL, login, cfg.ForgejoContribToken, cfg.ForgejoCAFile).
+			WithGitHubToken(gh.InstallationToken)
 		b.WithPullRequests(bridge.Pulls{GitHub: gh, Forgejo: fj, Contrib: contrib, Git: git})
 	}
 	if err := b.Init(ctx); err != nil {

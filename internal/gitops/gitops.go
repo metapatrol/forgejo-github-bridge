@@ -35,6 +35,11 @@ var ErrLeaseRejected = errors.New("the branch moved since the bridge last pushed
 // branchPattern is the only shape of branch this package pushes.
 var branchPattern = regexp.MustCompile(`^pr/[0-9]+$`)
 
+// GitHubToken returns an installation token for a GitHub repository. It is
+// only asked for when an anonymous fetch fails, which is what a private
+// repository does.
+type GitHubToken func(ctx context.Context, repo config.RepoRef) (string, error)
+
 // Git runs the git CLI against a cache of bare repositories.
 type Git struct {
 	// cacheDir holds one bare repository per bridged pair. Kept between
@@ -42,11 +47,31 @@ type Git struct {
 	cacheDir   string
 	githubURL  string
 	forgejoURL *url.URL
-	// auth is the Authorization header for the contrib account. Passed to
-	// git through its environment, never its arguments, so it does not show
-	// up in a process listing.
+	// auth is the Authorization header for the contrib account.
 	auth   string
 	caFile string
+	// githubToken, when set, lets a fetch that failed anonymously be retried
+	// with the GitHub App's installation token.
+	githubToken GitHubToken
+}
+
+// remote is how git authenticates to one side: an Authorization header, and
+// a CA to trust. The zero value is anonymous.
+type remote struct {
+	header string
+	caFile string
+}
+
+// WithGitHubToken lets pull requests of private GitHub repositories be
+// fetched with the App's installation token. The App then needs the
+// Contents: read permission.
+func (g *Git) WithGitHubToken(f GitHubToken) *Git {
+	g.githubToken = f
+	return g
+}
+
+func basic(user, password string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+password))
 }
 
 // New creates a Git for the given contrib account. githubURL is
@@ -56,7 +81,7 @@ func New(cacheDir, githubURL string, forgejoURL *url.URL, login, token, caFile s
 		cacheDir:   cacheDir,
 		githubURL:  strings.TrimRight(githubURL, "/"),
 		forgejoURL: forgejoURL,
-		auth:       "Basic " + base64.StdEncoding.EncodeToString([]byte(login+":"+token)),
+		auth:       basic(login, token),
 		caFile:     caFile,
 	}
 }
@@ -75,24 +100,23 @@ func (g *Git) Import(ctx context.Context, repo config.Repository, number int64, 
 		return "", err
 	}
 	contrib := g.forgejoURL.JoinPath(repo.Contrib.Owner, repo.Contrib.Name+".git").String()
-	github := g.githubURL + "/" + repo.GitHub.Owner + "/" + repo.GitHub.Name + ".git"
+	forgejo := &remote{header: g.auth, caFile: g.caFile}
 	local := "refs/pull/" + strconv.FormatInt(number, 10)
 
 	// The base, so the push negotiates against history the contrib
 	// repository already has. Failing is not fatal: the push then sends more.
-	_, _ = g.run(ctx, dir, true, "fetch", "--no-tags", "--quiet", contrib, "+refs/heads/"+base+":refs/contrib/"+base)
+	_, _ = g.run(ctx, dir, forgejo, "fetch", "--no-tags", "--quiet", contrib, "+refs/heads/"+base+":refs/contrib/"+base)
 
-	if _, err := g.run(ctx, dir, false, "fetch", "--no-tags", "--quiet", github,
-		"+refs/pull/"+strconv.FormatInt(number, 10)+"/head:"+local); err != nil {
-		return "", fmt.Errorf("fetching GitHub pull request #%d: %w", number, err)
+	if err := g.fetchPull(ctx, dir, repo.GitHub, number, local); err != nil {
+		return "", err
 	}
-	sha, err := g.run(ctx, dir, false, "rev-parse", "--verify", local+"^{commit}")
+	sha, err := g.run(ctx, dir, nil, "rev-parse", "--verify", local+"^{commit}")
 	if err != nil {
 		return "", err
 	}
 	sha = strings.TrimSpace(sha)
 
-	out, err := g.run(ctx, dir, true, "push", "--porcelain",
+	out, err := g.run(ctx, dir, forgejo, "push", "--porcelain",
 		"--force-with-lease=refs/heads/"+branch+":"+expected,
 		contrib, local+":refs/heads/"+branch)
 	if err != nil {
@@ -104,6 +128,31 @@ func (g *Git) Import(ctx context.Context, repo config.Repository, number int64, 
 	return sha, nil
 }
 
+// fetchPull fetches a pull request's head from GitHub: anonymously first,
+// which is all a public repository needs, and with the App's installation
+// token if that fails, which is what a private repository needs. The token
+// is asked for only then, and goes to github.com only.
+func (g *Git) fetchPull(ctx context.Context, dir string, repo config.RepoRef, number int64, local string) error {
+	url := g.githubURL + "/" + repo.Owner + "/" + repo.Name + ".git"
+	refspec := "+refs/pull/" + strconv.FormatInt(number, 10) + "/head:" + local
+	_, anonErr := g.run(ctx, dir, nil, "fetch", "--no-tags", "--quiet", url, refspec)
+	if anonErr == nil {
+		return nil
+	}
+	if g.githubToken == nil {
+		return fmt.Errorf("fetching GitHub pull request #%d: %w", number, anonErr)
+	}
+	token, err := g.githubToken(ctx, repo)
+	if err != nil {
+		return fmt.Errorf("fetching GitHub pull request #%d: anonymously: %w; no token to retry with: %v", number, anonErr, err)
+	}
+	if _, err := g.run(ctx, dir, &remote{header: basic("x-access-token", token)}, "fetch", "--no-tags", "--quiet", url, refspec); err != nil {
+		return fmt.Errorf("fetching GitHub pull request #%d, anonymously and with the App's token "+
+			"(a private repository needs the App's Contents: read permission): %w", number, err)
+	}
+	return nil
+}
+
 // repository returns the bare cache repository for a pair, creating it.
 func (g *Git) repository(ctx context.Context, repo config.Repository) (string, error) {
 	dir := filepath.Join(g.cacheDir, repo.GitHub.Owner+"__"+repo.GitHub.Name+".git")
@@ -113,15 +162,16 @@ func (g *Git) repository(ctx context.Context, repo config.Repository) (string, e
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	if _, err := g.run(ctx, dir, false, "init", "--bare", "--quiet"); err != nil {
+	if _, err := g.run(ctx, dir, nil, "init", "--bare", "--quiet"); err != nil {
 		return "", err
 	}
 	return dir, nil
 }
 
-// run runs git in dir. withAuth adds the contrib account's credentials and
-// CA, which only requests to Forgejo get: GitHub is fetched anonymously.
-func (g *Git) run(ctx context.Context, dir string, withAuth bool, args ...string) (string, error) {
+// run runs git in dir, authenticated towards one remote when r is set. The
+// credentials go through git's environment, never its arguments, so they do
+// not show up in a process listing.
+func (g *Git) run(ctx context.Context, dir string, r *remote, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // the arguments are built from configuration
 	cmd.Dir = dir
 	env := append(os.Environ(),
@@ -131,12 +181,12 @@ func (g *Git) run(ctx context.Context, dir string, withAuth bool, args ...string
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL=/dev/null",
 	)
-	if withAuth {
+	if r != nil {
 		env = append(env, "GIT_CONFIG_COUNT=2",
-			"GIT_CONFIG_KEY_0=http.extraHeader", "GIT_CONFIG_VALUE_0=Authorization: "+g.auth,
+			"GIT_CONFIG_KEY_0=http.extraHeader", "GIT_CONFIG_VALUE_0=Authorization: "+r.header,
 			"GIT_CONFIG_KEY_1=credential.helper", "GIT_CONFIG_VALUE_1=")
-		if g.caFile != "" {
-			env = append(env, "GIT_SSL_CAINFO="+g.caFile)
+		if r.caFile != "" {
+			env = append(env, "GIT_SSL_CAINFO="+r.caFile)
 		}
 	}
 	cmd.Env = env

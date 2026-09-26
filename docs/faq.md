@@ -117,8 +117,11 @@ relies on is Forgejo's.
 
 ## Does the GitHub repository have to be public?
 
-For issues, no. For pull requests, yes: the bridge fetches pull request heads
-anonymously, which works only for public repositories.
+No. The bridge fetches a pull request's commits anonymously first, which is
+all a public repository needs. For a private one it retries with the GitHub
+App's installation token, restricted to that repository; the App then needs
+the *Contents: read* permission. Contributors to a private repository need
+to be able to fork it, which is an organisation setting.
 
 ## Can we change what the bot says?
 

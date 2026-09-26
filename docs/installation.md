@@ -71,6 +71,7 @@ Create it in the organisation:
 | Callback URL, OAuth during installation | empty, off |
 | Webhook → Active | **off**: the bridge polls |
 | Repository permissions | Issues: **Read and write**; Pull requests: **Read and write**. Metadata: read-only is set automatically |
+| … for a private repository | also Contents: **Read-only**, so the bridge can fetch pull requests with the App's token. A public repository does not need it |
 | Everything else | No access |
 | Where can it be installed | Only on this account |
 
@@ -133,8 +134,9 @@ nobody.
 
 ### On GitHub
 
-1. Create the repository, e.g. `example-org/foo`. For pull requests it has to
-   be public: the bridge fetches their commits anonymously.
+1. Create the repository, e.g. `example-org/foo`. The bridge fetches pull
+   requests anonymously from a public repository, and with the App's token
+   from a private one — which is when the App needs *Contents: read*.
 2. Set its default branch to the branch contributions go to, e.g. `develop`
    (it exists once the mirror has pushed it).
 3. Install the App on it: App page → *Install App* → the organisation →
