@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
@@ -132,23 +132,20 @@ func TestPrivateRepositories(t *testing.T) {
 
 	const token = "installation-token"
 	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
-	var private bool
-	var anonymous, authorised int
-	var mu sync.Mutex
+	// Written by the test, read by the server's goroutines.
+	var private atomic.Bool
+	var authorised atomic.Int32
 	cgiHandler := &cgi.Handler{Path: backend, Env: []string{"GIT_PROJECT_ROOT=" + githubRoot, "GIT_HTTP_EXPORT_ALL=1"}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
 		switch r.Header.Get("Authorization") {
 		case "":
-			anonymous++
 		case want:
-			authorised++
+			authorised.Add(1)
 		default:
 			http.Error(w, "bad credentials", http.StatusForbidden)
 			return
 		}
-		if private && r.Header.Get("Authorization") != want {
+		if private.Load() && r.Header.Get("Authorization") != want {
 			w.Header().Set("WWW-Authenticate", `Basic realm="GitHub"`)
 			http.Error(w, "repository not found", http.StatusUnauthorized)
 			return
@@ -177,13 +174,13 @@ func TestPrivateRepositories(t *testing.T) {
 		if _, err := g.Import(ctx, repo, 3, "develop", "pr/3", ""); err != nil {
 			t.Fatal(err)
 		}
-		if asked != 0 || authorised != 0 {
-			t.Errorf("a public fetch used the token (asked %d, authorised requests %d)", asked, authorised)
+		if asked != 0 || authorised.Load() != 0 {
+			t.Errorf("a public fetch used the token (asked %d, authorised requests %d)", asked, authorised.Load())
 		}
 		git(t, forgejoDir, "--git-dir=foo.git", "branch", "-D", "pr/3")
 	})
 
-	private = true
+	private.Store(true)
 	t.Run("private: retried with the installation token", func(t *testing.T) {
 		g := New(filepath.Join(root, "cache-private"), srv.URL, forgejo, "c", "t", "").WithGitHubToken(tokens)
 		sha, err := g.Import(ctx, repo, 3, "develop", "pr/3", "")
@@ -193,8 +190,8 @@ func TestPrivateRepositories(t *testing.T) {
 		if sha != head {
 			t.Errorf("imported %s, want %s", sha, head)
 		}
-		if asked != 1 || authorised == 0 {
-			t.Errorf("want one token and authorised requests, have asked %d, authorised %d", asked, authorised)
+		if asked != 1 || authorised.Load() == 0 {
+			t.Errorf("want one token and authorised requests, have asked %d, authorised %d", asked, authorised.Load())
 		}
 	})
 
