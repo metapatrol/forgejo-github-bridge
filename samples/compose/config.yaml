@@ -2,8 +2,7 @@
 repositories:
   - github: example-org/foo
     forgejo: platform/foo
-    # For pull requests; remove these three lines to bridge issues only.
-    contrib: github-contrib/foo
+    # For pull requests; remove these two lines to bridge issues only.
     targetBranches: [develop]
     rebaseRequests: true
 

@@ -61,8 +61,8 @@ forgejo:
   # -- The key inside that Secret.
   caSecretKey: ca.crt
   # -- The Secret holding the github-contrib account's token. Required as soon
-  # as a repository sets `contrib`: imported pull requests are opened by this
-  # account, which must have no write access to the canonical repository.
+  # as a repository sets `targetBranches`: imported pull requests are opened by
+  # this account, which must have no write access to the canonical repository.
   contribExistingSecret: ""
   # -- The key inside that Secret.
   contribExistingSecretKey: token
@@ -76,9 +76,10 @@ forgejo:
 #     importLabel: github         # marks issues imported from GitHub
 #     internalPrefix: /internal   # keeps a Forgejo comment private
 #     importSince: "2026-09-01T00:00:00Z"
-#     # Pull requests (phase 2), only with a contrib repository:
-#     contrib: github-contrib/foo # the fork imported heads are pushed to
+#     # Pull requests, imported once target branches are named:
 #     targetBranches: [develop]   # the bases a pull request may target
+#     contrib: github-contrib/foo # the fork imported heads are pushed to;
+#                                 # default <contrib login>/<name>, created
 #     rebaseRequests: false       # ask contributors to rebase outdated PRs
 #     ciPaths: [.forgejo/, .github/]
 #     messages: {}                # per-repository overrides of `messages`

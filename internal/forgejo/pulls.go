@@ -86,6 +86,46 @@ func (c *Client) SetBase(ctx context.Context, repo config.RepoRef, number int64,
 		map[string]string{"base": base}, nil)
 }
 
+// Repository implements forge.ContribPulls.
+func (c *Client) Repository(ctx context.Context, repo config.RepoRef) (forge.RepoInfo, error) {
+	var r repository
+	err := c.api.Do(ctx, http.MethodGet, repoPath(repo), nil, nil, &r)
+	return r.toForge(), err
+}
+
+// Fork implements forge.ContribPulls.
+func (c *Client) Fork(ctx context.Context, repo config.RepoRef, name string) (forge.RepoInfo, error) {
+	var r repository
+	err := c.api.Do(ctx, http.MethodPost, repoPath(repo)+"/forks", nil, map[string]string{"name": name}, &r)
+	return r.toForge(), err
+}
+
+// PushMirrors implements forge.ContribPulls.
+func (c *Client) PushMirrors(ctx context.Context, repo config.RepoRef) (int, error) {
+	mirrors, err := rest.GetAll[struct{}](ctx, c.api, repoPath(repo)+"/push_mirrors", url.Values{"limit": {pageSize}})
+	return len(mirrors), err
+}
+
+type repository struct {
+	FullName string `json:"full_name"`
+	Fork     bool   `json:"fork"`
+	Parent   *struct {
+		FullName string `json:"full_name"`
+	} `json:"parent"`
+	Permissions struct {
+		Admin bool `json:"admin"`
+		Push  bool `json:"push"`
+	} `json:"permissions"`
+}
+
+func (r repository) toForge() forge.RepoInfo {
+	info := forge.RepoInfo{FullName: r.FullName, Fork: r.Fork, CanPush: r.Permissions.Push, IsAdmin: r.Permissions.Admin}
+	if r.Parent != nil {
+		info.Parent = r.Parent.FullName
+	}
+	return info
+}
+
 type branchInfo struct {
 	Ref string `json:"ref"`
 	SHA string `json:"sha"`

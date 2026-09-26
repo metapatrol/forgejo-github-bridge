@@ -66,9 +66,9 @@ func TestRefusals(t *testing.T) {
 		{name: "path traversal", file: "repositories:\n  - github: a/..\n    forgejo: a/b\n", want: "owner/name"},
 		{name: "duplicate", file: minimal + "  - github: metapatrol/FOO\n    forgejo: platform/bar\n", want: "configured twice"},
 		{name: "contrib is canonical", file: minimal + "    contrib: platform/foo\n", want: "contrib"},
-		{name: "pull requests without target branches", file: minimal + "    contrib: contrib/foo\n",
+		{name: "contrib without target branches", file: minimal + "    contrib: contrib/foo\n",
 			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "targetBranches"},
-		{name: "pull requests without contrib token", file: minimal + "    contrib: contrib/foo\n    targetBranches: [develop]\n", want: "FORGEJO_CONTRIB_TOKEN"},
+		{name: "pull requests without contrib token", file: minimal + "    targetBranches: [develop]\n", want: "FORGEJO_CONTRIB_TOKEN"},
 		{name: "odd target branch", file: minimal + "    contrib: contrib/foo\n    targetBranches: [\"-x\"]\n",
 			env: map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}, want: "not a branch name"},
 		{name: "shared contrib repository", file: minimal + "    contrib: c/foo\n    targetBranches: [develop]\n" +
@@ -163,5 +163,16 @@ func TestSecretsFromFiles(t *testing.T) {
 	_, err = load(env(t, minimal, map[string]string{"BRIDGE_FORGEJO_TOKEN": "", "BRIDGE_FORGEJO_TOKEN_FILE": filepath.Join(dir, "missing")}))
 	if err == nil || !strings.Contains(err.Error(), "FORGEJO_TOKEN_FILE") {
 		t.Errorf("want an error naming FORGEJO_TOKEN_FILE, have %v", err)
+	}
+}
+
+func TestPullRequestsWithoutAnExplicitContrib(t *testing.T) {
+	cfg, err := load(env(t, minimal+"    targetBranches: [develop]\n", map[string]string{"BRIDGE_FORGEJO_CONTRIB_TOKEN": "c"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := cfg.Repositories[0]
+	if !r.ImportsPullRequests() || !r.Contrib.Empty() {
+		t.Errorf("want pull requests on and the contrib repository left to the bridge: %+v", r)
 	}
 }

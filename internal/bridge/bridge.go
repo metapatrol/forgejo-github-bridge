@@ -161,6 +161,11 @@ func (b *Bridge) Init(ctx context.Context) error {
 		}
 	}
 	b.log.Info("identities resolved", "github", b.githubSelf, "forgejo", b.forgejoSelf, "contrib", b.contribSelf)
+	if b.contribSelf != "" {
+		if err := b.provisionContrib(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -43,7 +43,7 @@ type Pulls struct {
 }
 
 // WithPullRequests enables importing pull requests for the repositories
-// that configure a contrib repository.
+// that name target branches.
 func (b *Bridge) WithPullRequests(p Pulls) *Bridge {
 	b.pulls = &p
 	return b
@@ -76,6 +76,12 @@ func (b *Bridge) importPull(ctx context.Context, r *repo, n int64) error {
 		if found {
 			return b.pair(ctx, r, m)
 		}
+		return err
+	}
+
+	// Rights change; this is checked where it matters, not only at start.
+	if err := b.checkContribRights(ctx, r); err != nil {
+		b.log.Error("not importing a pull request", "repository", r.cfg.Key(), "github", n, "error", err)
 		return err
 	}
 

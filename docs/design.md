@@ -263,8 +263,8 @@ Forgejo is usually reached on an in-cluster address while people's links use its
 repositories:
   - github: metapatrol/mcp-gateway
     forgejo: metapatrol/mcp-gateway
-    contrib: github-contrib/mcp-gateway
-    targetBranches: [develop]
+    targetBranches: [develop]      # enables pull requests
+    # contrib defaults to github-contrib/mcp-gateway, forked at startup
     publishLabel: public
 
 userMapping:
@@ -339,7 +339,7 @@ The **contrib repository** is a Forgejo fork of the canonical repository, owned 
 - the canonical repository's push mirror never sees bridge branches, so they are neither published to GitHub nor pruned by it;
 - Forgejo treats the pull request as coming from a fork, which is what CI isolation relies on (§12).
 
-The contrib repository has no push mirror, no Actions secrets and no variables. Each pair has its own: branches are named after GitHub pull request numbers, which are unique only per repository, and the configuration refuses two pairs sharing one.
+The contrib repository has no push mirror, no Actions secrets and no variables. The bridge creates it as `github-contrib/<name>` unless one is configured, and refuses to start when it is not a fork of the canonical repository, has a push mirror, or when `github-contrib` can write to the canonical repository; the last is checked again before every import, because rights change and it is what keeps imported pull requests waiting for approval (§12). Each pair has its own: branches are named after GitHub pull request numbers, which are unique only per repository, and the configuration refuses two pairs sharing one.
 
 The bridge never overwrites a branch it did not push. If `pr/<n>` already exists when a pull request is imported and holds anything but that pull request's head, the import stops, stays queued, counts as failing (§18) and says in the log which branch is in the way.
 
@@ -555,7 +555,7 @@ Per maintainer who merges in Forgejo:
 Per bridged repository, the one-time setup is below; [installation](installation.md) has it step by step.
 
 1. GitHub: install the GitHub App; set the default branch to the contribution target.
-2. Forgejo: create the contrib fork owned by `github-contrib`, with no push mirror and no secrets.
+2. Forgejo: give `github-contrib` read access. The bridge creates the contrib fork at startup and checks it: a fork of the canonical repository, without a push mirror. Secrets and variables it cannot see; a fresh fork has none.
 3. Forgejo: enable "sync on commit" for the canonical push mirror, so merges reach GitHub promptly.
 4. Forgejo: require approval for fork pull request workflow runs and verify it with a test pull request.
 5. Forgejo: keep the repository's merge style (rebase, then fast-forward). To have GitHub always show imported pull requests as merged, block merging outdated pull requests on the base branch and set `rebaseRequests: true` for the repository, so the bridge asks contributors to rebase (§11).

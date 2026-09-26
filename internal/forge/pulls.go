@@ -60,10 +60,28 @@ type ForgejoPulls interface {
 	SetBase(ctx context.Context, repo config.RepoRef, number int64, base string) error
 }
 
-// ContribPulls is what the bridge does as the github-contrib account: open
-// pull requests from the contrib repository, and remove their branches.
+// RepoInfo is what the bridge checks about a repository, as seen by the
+// account asking.
+type RepoInfo struct {
+	FullName string
+	Fork     bool
+	// Parent is the repository a fork was made from, as owner/name.
+	Parent string
+	// CanPush and IsAdmin are the asking account's rights on it.
+	CanPush bool
+	IsAdmin bool
+}
+
+// ContribPulls is what the bridge does as the github-contrib account: keep
+// its forks, open pull requests from them, and remove their branches.
 type ContribPulls interface {
 	Self(ctx context.Context) (string, error)
+	// Repository describes a repository as the contrib account sees it.
+	Repository(ctx context.Context, repo config.RepoRef) (RepoInfo, error)
+	// Fork forks repo into the contrib account, under name.
+	Fork(ctx context.Context, repo config.RepoRef, name string) (RepoInfo, error)
+	// PushMirrors counts a repository's push mirrors.
+	PushMirrors(ctx context.Context, repo config.RepoRef) (int, error)
 	// CreatePullRequest opens a pull request on repo from head, given as
 	// owner:branch, into base.
 	CreatePullRequest(ctx context.Context, repo config.RepoRef, head, base, title, body string) (PullRequest, error)

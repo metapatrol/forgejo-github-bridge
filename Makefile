@@ -166,19 +166,19 @@ helm-verify:
 		ARGS="$(HELM_MINIMUM) --set-json github.appID=12345678"; \
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="the contrib token from its Secret" WANT="BRIDGE_FORGEJO_CONTRIB_TOKEN" \
-		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
+		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].targetBranches={develop}'"; \
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="the target branches in the config file" WANT='- "develop"' \
-		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
+		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].targetBranches={develop}'"; \
 	$(MAKE) --no-print-directory helm-contains \
 		WHY="a message template, passed through untouched" WANT='Merged as {{.ShortCommit}}.' \
 		ARGS="$(HELM_MINIMUM) --set 'repositories[0].messages.merged=Merged as {{.ShortCommit}}.'"; \
 	echo "--- the chart must refuse what it says it refuses"; \
 	$(MAKE) --no-print-directory helm-refuses \
 		WHY="pull requests without the contrib token" \
-		ARGS="$(HELM_MINIMUM) --set 'repositories[0].contrib=github-contrib/example' --set 'repositories[0].targetBranches={develop}'"; \
+		ARGS="$(HELM_MINIMUM) --set 'repositories[0].targetBranches={develop}'"; \
 	$(MAKE) --no-print-directory helm-refuses \
-		WHY="pull requests without target branches" \
+		WHY="a contrib repository without target branches" \
 		ARGS="$(HELM_MINIMUM) --set forgejo.contribExistingSecret=c --set 'repositories[0].contrib=github-contrib/example'"; \
 	$(MAKE) --no-print-directory helm-refuses \
 		WHY="no database" ARGS="$(HELM_MINIMUM) --set database.existingSecret="; \

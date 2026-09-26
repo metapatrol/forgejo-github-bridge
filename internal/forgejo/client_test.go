@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/rest"
 )
 
 var repo = config.RepoRef{Owner: "platform", Name: "foo"}
@@ -97,5 +98,47 @@ func TestClient(t *testing.T) {
 	}
 	if !slices.Equal(issueLabels, []int64{1, 9}) {
 		t.Errorf("issue labels %v", issueLabels)
+	}
+}
+
+func TestContribRepositories(t *testing.T) {
+	var forkName string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/repos/github-contrib/foo", func(w http.ResponseWriter, _ *http.Request) {
+		http.NotFound(w, nil)
+	})
+	mux.HandleFunc("GET /api/v1/repos/platform/foo", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"full_name":"platform/foo","fork":false,"permissions":{"admin":false,"push":false,"pull":true}}`)
+	})
+	mux.HandleFunc("POST /api/v1/repos/platform/foo/forks", func(w http.ResponseWriter, r *http.Request) {
+		var req struct{ Name string }
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		forkName = req.Name
+		fmt.Fprint(w, `{"full_name":"github-contrib/foo","fork":true,"parent":{"full_name":"platform/foo"},
+			"permissions":{"admin":true,"push":true,"pull":true}}`)
+	})
+	mux.HandleFunc("GET /api/v1/repos/github-contrib/foo/push_mirrors", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[{"remote_name":"remote_mirror_1"}]`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	c := New(base, "secret", srv.Client())
+	ctx := context.Background()
+	fork := config.RepoRef{Owner: "github-contrib", Name: "foo"}
+
+	if _, err := c.Repository(ctx, fork); !rest.IsNotFound(err) {
+		t.Errorf("a missing repository: %v", err)
+	}
+	canonical, err := c.Repository(ctx, repo)
+	if err != nil || canonical.CanPush || canonical.IsAdmin || canonical.Fork {
+		t.Errorf("canonical = %+v, %v", canonical, err)
+	}
+	created, err := c.Fork(ctx, repo, "foo")
+	if err != nil || forkName != "foo" || !created.Fork || created.Parent != "platform/foo" || !created.CanPush {
+		t.Errorf("fork = %+v (name %q), %v", created, forkName, err)
+	}
+	if n, err := c.PushMirrors(ctx, fork); err != nil || n != 1 {
+		t.Errorf("push mirrors = %d, %v", n, err)
 	}
 }

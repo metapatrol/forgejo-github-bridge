@@ -16,8 +16,6 @@ import (
 
 const contribUser = "github-contrib"
 
-var contribRepo = config.RepoRef{Owner: contribUser, Name: "foo"}
-
 type pullHarness struct {
 	*harness
 	git *fake.Git
@@ -26,7 +24,6 @@ type pullHarness struct {
 func newPullHarness(t *testing.T, tweak func(*config.Repository)) *pullHarness {
 	t.Helper()
 	h := newHarness(t)
-	h.repo.Contrib = contribRepo
 	h.repo.TargetBranches = []string{"develop"}
 	h.repo.CIPaths = config.DefaultCIPaths
 	if tweak != nil {

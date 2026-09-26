@@ -68,7 +68,9 @@ These are not the bridge's to enforce. They are the operator's.
 - **No workflow uses `pull_request_target`** together with a checkout of the
   pull request's head. `pull_request_target` runs the base branch's workflow
   with secrets.
-- **The contrib fork has no push mirror, no secrets and no variables.**
+- **The contrib fork has no push mirror, no secrets and no variables.** The
+  bridge checks the mirror and that `github-contrib` cannot write to the
+  canonical repository; secrets and variables it cannot see.
 - **The approval gate is verified** with a test pull request before the first
   real one ([Installation](./installation.md#7-verify-before-the-first-real-contribution)).
 

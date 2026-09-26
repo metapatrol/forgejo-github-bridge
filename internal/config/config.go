@@ -69,7 +69,9 @@ func ParseRepoRef(s string) (RepoRef, error) {
 type Repository struct {
 	GitHub  RepoRef
 	Forgejo RepoRef
-	// Contrib is the Forgejo fork contributions are imported into. Phase 2;
+	// Contrib is the Forgejo fork contributions are imported into. Empty
+	// means the contrib account's fork of the canonical repository, under
+	// its name, which the bridge creates when it is missing.
 	// unset means pull requests are not imported.
 	Contrib RepoRef
 	// TargetBranches are the base branches an imported pull request may target.
@@ -99,8 +101,8 @@ type Repository struct {
 }
 
 // ImportsPullRequests reports whether pull requests are imported for this
-// pair. They are only once a contrib repository is configured.
-func (r Repository) ImportsPullRequests() bool { return !r.Contrib.Empty() }
+// pair: they are once target branches are named.
+func (r Repository) ImportsPullRequests() bool { return len(r.TargetBranches) > 0 }
 
 // DefaultCIPaths are where Forgejo reads workflows from. .github counts: a
 // repository without .forgejo/workflows has its .github/workflows run.
@@ -372,9 +374,10 @@ func (c *Config) apply(f file) error {
 			repo.CIPaths = DefaultCIPaths
 		}
 		if !repo.Contrib.Empty() && len(repo.TargetBranches) == 0 {
-			// Which branches outsiders may propose changes to is a decision,
-			// not something to default.
-			errs = append(errs, fmt.Errorf("%s.targetBranches must name the branches pull requests may target", where))
+			// A contrib repository without target branches imports nothing,
+			// which is not what anyone setting it meant. Which branches
+			// outsiders may propose changes to is a decision, not a default.
+			errs = append(errs, fmt.Errorf("%s.targetBranches must name the branches pull requests may target; contrib alone enables nothing", where))
 		}
 		for _, b := range repo.TargetBranches {
 			if !branchPattern.MatchString(b) {

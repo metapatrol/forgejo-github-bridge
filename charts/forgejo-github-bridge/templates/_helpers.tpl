@@ -170,7 +170,7 @@ userMapping:
 {{- fail "repositories must name at least one bridged repository" -}}
 {{- end -}}
 {{- range .Values.repositories -}}
-{{- if and .contrib (not $.Values.forgejo.contribExistingSecret) -}}
+{{- if and .targetBranches (not $.Values.forgejo.contribExistingSecret) -}}
 {{- fail (printf "forgejo.contribExistingSecret is required: %s imports pull requests" .github) -}}
 {{- end -}}
 {{- if and .contrib (not .targetBranches) -}}

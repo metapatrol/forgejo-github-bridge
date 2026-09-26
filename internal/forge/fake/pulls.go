@@ -2,6 +2,7 @@ package fake
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -225,6 +226,94 @@ func (f *Forge) DeleteBranch(_ context.Context, _ config.RepoRef, branch string)
 		delete(f.branches, branch)
 	}
 	return nil
+}
+
+// Grant gives login push, and optionally admin, rights on repo.
+func (f *Forge) Grant(r config.RepoRef, login string, push, admin bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rights[r.String()+" "+login] = [2]bool{push, admin}
+}
+
+// AddRepository creates a repository as its owner would, e.g. a
+// repository in the contrib account's namespace that is not a fork.
+func (f *Forge) AddRepository(r config.RepoRef, info forge.RepoInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	info.FullName = r.String()
+	f.repos[r.String()] = &info
+}
+
+// AddPushMirror adds a push mirror to repo.
+func (f *Forge) AddPushMirror(r config.RepoRef) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mirror[r.String()]++
+}
+
+// Forks counts the repositories created through Fork.
+func (f *Forge) Forks() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, r := range f.repos {
+		if r.Fork {
+			n++
+		}
+	}
+	return n
+}
+
+func (f *Forge) describe(r config.RepoRef) (forge.RepoInfo, bool) {
+	var info forge.RepoInfo
+	if known, ok := f.repos[r.String()]; ok {
+		info = *known
+	} else if r.Owner == f.self {
+		return forge.RepoInfo{}, false
+	} else {
+		info = forge.RepoInfo{FullName: r.String()}
+	}
+	rights := f.rights[r.String()+" "+f.self]
+	info.CanPush, info.IsAdmin = rights[0] || r.Owner == f.self, rights[1] || r.Owner == f.self
+	return info, true
+}
+
+// Repository implements forge.ContribPulls.
+func (f *Forge) Repository(_ context.Context, r config.RepoRef) (forge.RepoInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return forge.RepoInfo{}, err
+	}
+	info, ok := f.describe(r)
+	if !ok {
+		return forge.RepoInfo{}, forge.ErrNotFound
+	}
+	return info, nil
+}
+
+// Fork implements forge.ContribPulls.
+func (f *Forge) Fork(_ context.Context, r config.RepoRef, name string) (forge.RepoInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return forge.RepoInfo{}, err
+	}
+	fork := config.RepoRef{Owner: f.self, Name: name}
+	if _, ok := f.repos[fork.String()]; ok {
+		return forge.RepoInfo{}, fmt.Errorf("repository %s already exists", fork)
+	}
+	f.Writes++
+	f.repos[fork.String()] = &forge.RepoInfo{FullName: fork.String(), Fork: true, Parent: r.String()}
+	info, _ := f.describe(fork)
+	return info, nil
+}
+
+// PushMirrors implements forge.ContribPulls.
+func (f *Forge) PushMirrors(_ context.Context, r config.RepoRef) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.mirror[r.String()], nil
 }
 
 // Git is a fake of the bridge's Git: it moves a GitHub pull request's head

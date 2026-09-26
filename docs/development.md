@@ -85,8 +85,8 @@ were each checked by breaking the code and watching them fail.
 
 There is no local stand-in for GitHub. To see the bridge work end to end,
 give it a pair of its own to play with: a throwaway public GitHub repository
-with the App installed, a Forgejo repository with a push mirror to it, and a
-contrib fork. Then open issues and pull requests on both sides and watch them
+with the App installed, and a Forgejo repository with a push mirror to it;
+the bridge forks it for `github-contrib` itself. Then open issues and pull requests on both sides and watch them
 cross. The tests cover the logic without any of that.
 
 To try an unreleased image on a single-node k3s cluster without a registry:

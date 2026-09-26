@@ -14,7 +14,7 @@ The examples use Forgejo at `forgejo.example.com`, the GitHub organisation
 |---|---|
 | canonical, in Forgejo | `platform/foo` |
 | public, on GitHub | `example-org/foo` |
-| contrib fork, in Forgejo | `github-contrib/foo` (only for pull requests) |
+| contrib fork, in Forgejo | `github-contrib/foo` (only for pull requests; the bridge creates it) |
 
 Parts 1 to 3 are done once per installation, part 4 once per maintainer,
 part 5 once per repository.
@@ -116,7 +116,8 @@ by.
    ([security](security.md#ci)).
 3. Create a token with `write:repository` and `read:user`.
 
-The bridge refuses to start if both tokens belong to the same account.
+The bridge refuses to start if both tokens belong to the same account, and
+if `github-contrib` can write to a canonical repository.
 
 ## 4. Per maintainer
 
@@ -154,15 +155,10 @@ nobody.
 For pull requests, additionally:
 
 4. Give `github-contrib` read access to `platform/foo`.
-5. Fork `platform/foo` as `github-contrib`, into `github-contrib/foo`:
 
-   ```bash
-   curl -H "Authorization: token <contrib-token>" -H 'Content-Type: application/json' \
-     -X POST https://forgejo.example.com/api/v1/repos/platform/foo/forks -d '{}'
-   ```
-
-   The fork must have **no push mirror, no Actions secrets and no
-   variables**. A fresh fork has none.
+The contrib fork, `github-contrib/foo`, is the bridge's: it creates it at
+startup, and refuses to import into one that is not a fork of `platform/foo`
+or has a push mirror. Add no Actions secrets or variables to it.
 
 ### In the bridge's configuration
 
@@ -171,7 +167,6 @@ repositories:
   - github: example-org/foo
     forgejo: platform/foo
     # for pull requests:
-    contrib: github-contrib/foo
     targetBranches: [develop]
     rebaseRequests: true
 userMapping:
@@ -228,7 +223,6 @@ forgejo:
 repositories:
   - github: example-org/foo
     forgejo: platform/foo
-    contrib: github-contrib/foo
     targetBranches: [develop]
     rebaseRequests: true
 userMapping:
@@ -282,6 +276,7 @@ msg="starting forgejo-github-bridge" version=… repositories="[example-org/foo=
 msg="applying migration" name=0001_initial.sql            (first start only)
 msg="holding the leader lock; this instance does the work"
 msg="identities resolved" github=<slug>[bot] forgejo=github-bridge contrib=github-contrib
+msg="created the contrib fork" repository=example-org/foo fork=github-contrib/foo   (first start only)
 ```
 
 ## 7. Verify before the first real contribution

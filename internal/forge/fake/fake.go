@@ -43,6 +43,12 @@ type shared struct {
 	// commits a branch holds, and how far a commit is behind it.
 	contains map[string]bool
 	behind   map[string]int
+	// repos holds the repositories created or described through the fake;
+	// any other repository exists, owned by someone else, and grants no
+	// rights. rights maps "owner/name login" to what that login may do.
+	repos  map[string]*forge.RepoInfo
+	rights map[string][2]bool
+	mirror map[string]int
 
 	// Writes counts every change made through the forge.Client interface,
 	// which is to say by the bridge.
@@ -86,6 +92,9 @@ func New(self string, first int64) *Forge {
 		branches: map[string]string{},
 		contains: map[string]bool{},
 		behind:   map[string]int{},
+		repos:    map[string]*forge.RepoInfo{},
+		rights:   map[string][2]bool{},
+		mirror:   map[string]int{},
 	}}
 }
 

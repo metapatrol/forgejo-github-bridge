@@ -56,8 +56,8 @@ repositories:
     publishLabel: public                # default
     internalPrefix: /internal           # default; "" makes every comment public
     importSince: "2026-09-01T00:00:00Z" # optional
-    contrib: github-contrib/foo         # enables pull requests
-    targetBranches: [develop]           # required with contrib
+    targetBranches: [develop]           # enables pull requests
+    contrib: github-contrib/foo         # default <contrib login>/<name>
     rebaseRequests: false               # default
     ciPaths: [.forgejo/, .github/]      # default
     messages: {}                        # per-repository overrides
@@ -81,8 +81,8 @@ same names.
 | `publishLabel` | makes a Forgejo issue public. Opt-in: without it, nothing leaves Forgejo. Removing it freezes the pair |
 | `internalPrefix` | a Forgejo comment starting with it stays in Forgejo, even on a bridged issue. Editing the prefix in or out withdraws or publishes the comment |
 | `importSince` | GitHub issues opened before this RFC 3339 time are never imported. Unset imports every open one |
-| `contrib` | the Forgejo fork imported pull request heads are pushed to. Its own per pair; never the canonical repository |
-| `targetBranches` | the base branches a pull request may target. A pull request against another branch gets one explanation and waits |
+| `targetBranches` | the base branches a pull request may target. Naming any turns on importing pull requests. A pull request against another branch gets one explanation and waits |
+| `contrib` | the Forgejo fork imported pull request heads are pushed to. Defaults to the contrib account's fork under the canonical repository's name, e.g. `github-contrib/foo`, which the bridge creates at startup if it is missing. Set it only for a fork under another name — two canonical repositories of the same name in different organisations need that. Its own per pair; never the canonical repository |
 | `rebaseRequests` | ask contributors to rebase a pull request that is behind its base. Meant to go with a branch protection that blocks outdated merges, which the bridge cannot read itself |
 | `ciPaths` | path prefixes whose change gets a pull request the `touches-ci` label and a warning. `.github/` is included by default because Forgejo runs `.github/workflows` when `.forgejo/workflows` does not exist |
 | `messages` | see below |
@@ -91,8 +91,13 @@ The file is refused, with every problem listed, when: a key is unknown or
 misspelt; a repository reference is not `owner/name`; a repository appears
 twice on either side; `contrib` is the canonical repository, another pair's
 canonical repository, or another pair's contrib; `contrib` is set without
-`targetBranches` or without the contrib token; a target branch has an odd
-name.
+`targetBranches`; `targetBranches` is set without the contrib token; a target
+branch has an odd name.
+
+With pull requests on, the bridge also refuses to start when `github-contrib`
+can write to a canonical repository, when the contrib repository is not a
+fork of it or has a push mirror, or when two pairs would default to the same
+fork. It checks the write access again before every import.
 
 ### userMapping
 
