@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.1.0...v0.2.0) (2026-09-26)
+
+
+### Features
+
+* read credentials from files, and run in Docker without Kubernetes ([6dd4af3](https://github.com/metapatrol/forgejo-github-bridge/commit/6dd4af3e2634d463b5f5140c59c09d9dd5359fad))
+
 # [0.1.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.0.0...v0.1.0) (2026-09-25)
 
 
