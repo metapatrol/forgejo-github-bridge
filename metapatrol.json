@@ -1,0 +1,4 @@
+{
+  "name": "forgejo-github-bridge",
+  "purpose": "Develop in a private Forgejo. Take contributions on GitHub."
+}

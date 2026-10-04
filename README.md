@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="docs/images/logo.svg" alt="" width="128" height="128">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".metapatrol/forgejo-github-bridge-lockup-dark.png">
+    <img alt="metapatrol / forgejo-github-bridge" src=".metapatrol/forgejo-github-bridge-lockup-light.png" width="420">
+  </picture>
 </p>
-
-<h1 align="center">forgejo-github-bridge</h1>
 
 <p align="center">
   <strong>Develop in a private Forgejo. Take contributions on GitHub.</strong>
@@ -20,7 +21,8 @@
   <a href="docs/README.md">Documentation</a> ·
   <a href="docs/faq.md">FAQ</a> ·
   <a href="docs/design.md">Design</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SECURITY.md">Security</a>
 </p>
 
 ---

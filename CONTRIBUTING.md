@@ -50,6 +50,12 @@ DSNs removed.
    the bot closes it with a note naming the commit — your authorship is kept
    on every commit either way.
 
+## Brand assets
+
+The lockup, the social preview and the favicons in `.metapatrol/` are
+generated: `npx @metapatrol/brand-kit init` rewrites them from
+`metapatrol.json`. Edit `metapatrol.json`, not the files.
+
 ## Security
 
 Please do not report security problems in public issues. See
