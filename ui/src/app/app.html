@@ -1,21 +1,5 @@
 <mp-app-shell project="forgejo-github-bridge" home="/" [nav]="groups()">
-  <ng-template mpShellAccount>
-    <!-- read-only and event-driven: the account slot says whether the console is current -->
-    <span
-      class="mp-status text-sm"
-      [attr.data-status]="live().status"
-      [title]="live().tip"
-      role="status"
-      aria-live="polite"
-    >
-      <span class="text-fg-muted">{{ live().text }}</span>
-      @if (live().status === 'warning') {
-        <span class="hidden text-xs text-fg-subtle sm:inline">· may not be current</span>
-      }
-    </span>
-  </ng-template>
-
-  <!-- the bridge's health in one word; folded, only its dot -->
+  <!-- the bridge's health in one word, the live updates' included; folded, only its dot -->
   <ng-template mpShellStatus let-collapsed>
     <a
       routerLink="/"

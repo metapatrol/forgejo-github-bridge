@@ -4,6 +4,7 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideApiConfiguration } from '../api/api-configuration';
 import { Status } from '../api/models/status';
+import { EventsService } from './events';
 import { StatusService } from './status';
 
 const base: Status = {
@@ -68,6 +69,14 @@ describe('StatusService', () => {
     });
     expect(h.text).toBe('GitHub 2.4 % left');
     expect(h.status).toBe('warning');
+  });
+
+  it('puts interrupted live updates first', async () => {
+    TestBed.inject(EventsService).state.set('reconnecting');
+    const h = await answer({ ...base, leader: { present: false } });
+    expect(h.text).toBe('reconnecting…');
+    expect(h.status).toBe('warning');
+    expect(h.detail).toContain('may not be current');
   });
 
   it('counts what fails', async () => {
