@@ -3,6 +3,8 @@ import { RouterLink } from '@angular/router';
 import { MpClock, MpTime } from '@metapatrol/ng';
 import { QueueEntry } from '../api/models/queue-entry';
 import { until } from '../core/format';
+import { KINDS, pairLink } from '../core/kinds';
+import { PairKind } from '../api/models/pair-kind';
 import { SideLabel } from './badges';
 
 /** Queued work: failing entries with their last error, the rest with when they are due. */
@@ -15,7 +17,7 @@ import { SideLabel } from './badges';
     <table class="mp-table w-full min-w-[52rem] table-fixed">
       <thead>
         <tr>
-          <th scope="col" class="w-44">item</th>
+          <th scope="col" class="w-56">item</th>
           @if (showRepository()) {
             <th scope="col" class="w-52">repository</th>
           }
@@ -38,7 +40,11 @@ import { SideLabel } from './badges';
                   rel="noopener noreferrer"
                   >#{{ e.number }}</a
                 >
-                @if (e.pairId) {
+                @if (e.pairId && e.kind) {
+                  <a [routerLink]="link(e.kind, e.pairId)" class="mp-link text-xs"
+                    >{{ kindName(e.kind) }} →</a
+                  >
+                } @else if (e.pairId) {
                   <a [routerLink]="['/pairs', e.pairId]" class="mp-link text-xs">pair →</a>
                 }
               </span>
@@ -92,6 +98,14 @@ export class QueueTable {
 
   protected due(at: string): string {
     return until(at, this.clock.now());
+  }
+
+  protected link(kind: PairKind, id: number): (string | number)[] {
+    return pairLink(kind, id);
+  }
+
+  protected kindName(kind: PairKind): string {
+    return KINDS[kind].one;
   }
 
   protected firstLine(text: string): string {

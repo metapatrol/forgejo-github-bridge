@@ -74,10 +74,16 @@ export class KindLabel {
           >rebase requested</mp-pill
         >
       }
-      @if (pair().state !== 'open' && !p.outcomeReported) {
-        <mp-pill tone="warn" tip="The merge or close has not been reported on GitHub yet."
-          >not reported</mp-pill
-        >
+      @if (pair().state !== 'open') {
+        @if (p.outcomeReported) {
+          <mp-pill tone="ok" tip="The merge or close has been reported on GitHub."
+            >reported</mp-pill
+          >
+        } @else {
+          <mp-pill tone="warn" tip="The merge or close has not been reported on GitHub yet."
+            >report pending</mp-pill
+          >
+        }
       }
     }
   `,

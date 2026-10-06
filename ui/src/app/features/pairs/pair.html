@@ -1,11 +1,11 @@
-<mp-page-header section="pairs" link="/pairs" [title]="title()" />
+<mp-page-header [section]="list().many" [link]="list().route" [title]="title()" />
 
 <mp-load-state
   [error]="pair.error()"
   [loading]="pair.isLoading() && !pair.hasValue()"
-  what="pair"
+  [what]="list().one"
   [name]="id().toString()"
-  back="/pairs"
+  [back]="list().route"
 />
 
 @if (p(); as p) {
@@ -13,7 +13,7 @@
     @if (p.queued; as q) {
       @if (q.lastError) {
         <mp-notice tone="warn">
-          The last attempt to reconcile this pair failed ({{ q.attempts }}
+          The last attempt to reconcile this {{ list().one }} failed ({{ q.attempts }}
           {{ q.attempts === 1 ? 'attempt' : 'attempts' }}):
           <code class="font-mono text-xs">{{ q.lastError }}</code>
         </mp-notice>
@@ -27,14 +27,10 @@
     }
 
     <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
-      <mp-panel index="01" title="pair">
+      <mp-panel index="01" [title]="list().one">
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
-          <dt class="text-fg-muted">kind</dt>
-          <dd><app-kind [kind]="p.kind" /></dd>
           <dt class="text-fg-muted">state</dt>
-          <dd class="flex flex-wrap items-center gap-1">
-            <app-state [state]="p.state" /><app-pull-flags [pair]="p" />
-          </dd>
+          <dd class="flex flex-wrap items-center gap-1"><app-state [state]="p.state" /></dd>
           <dt class="text-fg-muted">repository</dt>
           <dd class="font-mono">
             <a [routerLink]="['/repositories', ...repoPath(p.repository)]" class="mp-link">{{
@@ -53,10 +49,21 @@
               >#{{ p.forgejoNumber }}</a
             >
           </dd>
-          <dt class="text-fg-muted">opened on</dt>
-          <dd>
-            <app-side [side]="p.origin" /> by <span class="font-mono">{{ p.author || '—' }}</span>
-          </dd>
+          @if (p.kind === 'issue') {
+            <dt class="text-fg-muted">opened on</dt>
+            <dd>
+              <app-side [side]="p.origin" />
+              <span class="text-fg-muted">
+                {{
+                  p.origin === 'github'
+                    ? '— imported into Forgejo'
+                    : '— published to GitHub with the publish label'
+                }}</span
+              >
+            </dd>
+          }
+          <dt class="text-fg-muted">{{ p.kind === 'pull' ? 'contributor' : 'opened by' }}</dt>
+          <dd class="font-mono">{{ p.author || '—' }}</dd>
           <dt class="text-fg-muted">paired</dt>
           <dd [title]="timestamp(p.createdAt)"><mp-time [value]="p.createdAt" /></dd>
           <dt class="text-fg-muted">last change</dt>
@@ -65,8 +72,10 @@
       </mp-panel>
 
       @if (p.pull; as pr) {
-        <mp-panel index="02" title="pull request">
+        <mp-panel index="02" title="import">
           <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
+            <dt class="text-fg-muted">flags</dt>
+            <dd><app-pull-flags [pair]="p" /></dd>
             <dt class="text-fg-muted">contrib branch</dt>
             <dd class="font-mono">
               @if (pr.contribBranchUrl) {
@@ -83,7 +92,7 @@
             </dd>
             <dt class="text-fg-muted">imported head</dt>
             <dd><mp-id [value]="pr.importedHeadSha" [keep]="7" /></dd>
-            <dt class="text-fg-muted">head updates</dt>
+            <dt class="text-fg-muted">new commits</dt>
             <dd>{{ pr.headFrozen ? 'frozen: someone else pushed' : 'imported as they come' }}</dd>
             <dt class="text-fg-muted">touches CI</dt>
             <dd>
@@ -106,9 +115,9 @@
       }
     </div>
 
-    <mp-panel index="03" [title]="'comments · ' + p.commentPairs.length">
+    <mp-panel [index]="p.pull ? '03' : '02'" [title]="'comments · ' + p.commentPairs.length">
       <div class="overflow-x-auto">
-        <table class="mp-table">
+        <table class="mp-table w-full">
           <thead>
             <tr>
               <th scope="col">written on</th>
@@ -152,7 +161,7 @@
     </mp-panel>
 
     @if (p.queued; as q) {
-      <mp-panel index="04" title="queued">
+      <mp-panel [index]="p.pull ? '04' : '03'" title="queued">
         <app-queue-table [entries]="[q]" [showRepository]="false" />
       </mp-panel>
     }

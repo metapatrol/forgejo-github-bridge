@@ -1,0 +1,78 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { MpListSearch, mpQueryParams } from '@metapatrol/ng';
+
+export interface FilterOption {
+  value: string;
+  label: string;
+}
+
+/** The filters above a list of issues or pull requests, all in the URL. */
+@Component({
+  selector: 'app-pair-filters',
+  imports: [MpListSearch],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'mp-panel-head flex-wrap items-center gap-3' },
+  template: `
+    <mp-list-search
+      class="flex-nowrap"
+      [query]="q()"
+      [shown]="shown()"
+      [total]="total()"
+      placeholder="Title or number"
+    />
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="sr-only" for="f-repository">Repository</label>
+      <select
+        id="f-repository"
+        class="mp-input w-auto"
+        (change)="filter('repository', $any($event.target).value)"
+      >
+        <option value="">all repositories</option>
+        @for (r of repositories(); track r) {
+          <option [value]="r" [selected]="r === repository()">{{ r }}</option>
+        }
+      </select>
+      <label class="sr-only" for="f-state">State</label>
+      <select
+        id="f-state"
+        class="mp-input w-auto"
+        (change)="filter('state', $any($event.target).value)"
+      >
+        <option value="">any state</option>
+        @for (s of states(); track s.value) {
+          <option [value]="s.value" [selected]="s.value === state()">{{ s.label }}</option>
+        }
+      </select>
+      @if (origins().length) {
+        <label class="sr-only" for="f-origin">Origin</label>
+        <select
+          id="f-origin"
+          class="mp-input w-auto"
+          (change)="filter('origin', $any($event.target).value)"
+        >
+          <option value="">from either side</option>
+          @for (o of origins(); track o.value) {
+            <option [value]="o.value" [selected]="o.value === origin()">{{ o.label }}</option>
+          }
+        </select>
+      }
+    </div>
+  `,
+})
+export class PairFilters {
+  readonly repositories = input<readonly string[]>([]);
+  readonly states = input<readonly FilterOption[]>([]);
+  /** Empty: no origin filter. */
+  readonly origins = input<readonly FilterOption[]>([]);
+  readonly repository = input<string | undefined>();
+  readonly state = input<string | undefined>();
+  readonly origin = input<string | undefined>();
+  readonly q = input<string | undefined>();
+  readonly shown = input(0);
+  readonly total = input(0);
+  private readonly setQuery = mpQueryParams();
+
+  protected filter(name: string, value: string): void {
+    this.setQuery({ [name]: value || null, offset: null });
+  }
+}

@@ -2,10 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
+  inject,
   input,
   numberAttribute,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   MpId,
   MpLoadState,
@@ -18,8 +20,10 @@ import {
 import { getPair } from '../../api/fn/pairs/get-pair';
 import { apiResource } from '../../core/api';
 import { repoPath, shortSha } from '../../core/format';
+import { KINDS, pairLink } from '../../core/kinds';
+import { PairKind } from '../../api/models/pair-kind';
 import { autoRefresh } from '../../core/refresh';
-import { KindLabel, PullFlags, SideLabel, StateBadge } from '../../shared/badges';
+import { PullFlags, SideLabel, StateBadge } from '../../shared/badges';
 import { QueueTable } from '../../shared/queue-table';
 
 @Component({
@@ -32,7 +36,6 @@ import { QueueTable } from '../../shared/queue-table';
     MpPageHeader,
     MpPanel,
     MpTime,
-    KindLabel,
     SideLabel,
     StateBadge,
     PullFlags,
@@ -43,6 +46,9 @@ import { QueueTable } from '../../shared/queue-table';
 })
 export class PairDetailPage {
   readonly id = input.required({ transform: (v: unknown) => numberAttribute(v) });
+  /** From the route: which list this page belongs to. */
+  readonly kind = input.required<PairKind>();
+  protected readonly list = computed(() => KINDS[this.kind()]);
   protected readonly pair = apiResource(getPair, () =>
     Number.isFinite(this.id()) ? { id: this.id() } : undefined,
   );
@@ -57,5 +63,14 @@ export class PairDetailPage {
 
   constructor() {
     autoRefresh(this.pair);
+    // An issue opened as a pull request's page, or the other way round, goes
+    // where it belongs.
+    const router = inject(Router);
+    effect(() => {
+      const p = this.p();
+      if (p && p.kind !== this.kind()) {
+        void router.navigate(pairLink(p.kind, p.id), { replaceUrl: true });
+      }
+    });
   }
 }

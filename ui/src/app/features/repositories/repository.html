@@ -114,25 +114,57 @@
       }
     </mp-panel>
 
-    <mp-panel index="05" title="recent pairs">
+    <mp-panel index="05" title="issues">
       <a
         mpPanelActions
-        routerLink="/pairs"
+        routerLink="/issues"
         [queryParams]="{ repository: key() }"
         class="mp-link text-xs"
-        >all {{ pairs.body()?.total ?? '' }} pairs →</a
+        >all {{ issues.body()?.total ?? '' }} →</a
       >
       <mp-load-state
-        [error]="pairs.error()"
-        [loading]="pairs.isLoading() && !pairs.hasValue()"
-        what="pairs"
+        [error]="issues.error()"
+        [loading]="issues.isLoading() && !issues.hasValue()"
+        what="issues"
       />
-      @if (pairs.hasValue()) {
+      @if (issues.hasValue()) {
         <app-pairs-table
-          [pairs]="pairs.body()?.items ?? []"
+          kind="issue"
+          [pairs]="issues.body()?.items ?? []"
           [showRepository]="false"
-          empty="No pairs yet."
+          empty="No issues bridged yet."
         />
+      }
+    </mp-panel>
+
+    <mp-panel index="06" title="pull requests">
+      @if (r.pullRequests) {
+        <a
+          mpPanelActions
+          routerLink="/pulls"
+          [queryParams]="{ repository: key() }"
+          class="mp-link text-xs"
+          >all {{ pulls.body()?.total ?? '' }} →</a
+        >
+      }
+      @if (r.pullRequests) {
+        <mp-load-state
+          [error]="pulls.error()"
+          [loading]="pulls.isLoading() && !pulls.hasValue()"
+          what="pull requests"
+        />
+        @if (pulls.hasValue()) {
+          <app-pairs-table
+            kind="pull"
+            [pairs]="pulls.body()?.items ?? []"
+            [showRepository]="false"
+            empty="No pull requests imported yet."
+          />
+        }
+      } @else {
+        <p class="px-4 py-3 text-sm text-fg-subtle">
+          Pull requests are not imported for this repository: it names no target branches.
+        </p>
       }
     </mp-panel>
   </div>

@@ -23,7 +23,7 @@
       </mp-notice>
     }
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.6fr_1fr]">
       <div class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3">
         <span class="mp-label mb-0"><span class="mp-label-index">01</span>leader</span>
         @if (s.leader; as l) {
@@ -61,22 +61,44 @@
         </span>
       </a>
 
-      <a
-        routerLink="/pairs"
-        class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3 text-fg no-underline hover:border-line-strong"
+      <div
+        class="mp-panel mp-panel-flush grid grid-cols-2 divide-x divide-line sm:col-span-2 xl:col-span-1"
       >
-        <span class="mp-label mb-0"><span class="mp-label-index">03</span>pairs</span>
-        <span class="text-3xl font-semibold tabular-nums">{{
-          count(totals().issuesOpen + totals().pullsOpen)
-        }}</span>
-        <span class="flex flex-wrap gap-x-3 font-mono text-xs text-fg-muted">
-          <span>{{ totals().issuesOpen }} issues open</span>
-          <span>{{ totals().pullsOpen }} pull requests open</span>
-        </span>
-      </a>
+        <a
+          routerLink="/issues"
+          [queryParams]="{ state: 'open' }"
+          class="flex min-w-0 flex-col gap-2 rounded-l-[inherit] px-4 py-3 text-fg no-underline hover:bg-surface-2"
+        >
+          <span class="mp-label mb-0"><span class="mp-label-index">03</span>issues</span>
+          <span class="text-3xl font-semibold tabular-nums">{{ count(totals().issuesOpen) }}</span>
+          <span class="flex flex-col font-mono text-xs text-fg-muted">
+            <span>open</span>
+            <span>{{ count(totals().issuesClosed) }} closed</span>
+          </span>
+        </a>
+        <a
+          routerLink="/pulls"
+          [queryParams]="{ state: 'open' }"
+          class="flex min-w-0 flex-col gap-2 rounded-r-[inherit] px-4 py-3 text-fg no-underline hover:bg-surface-2"
+        >
+          <span class="mp-label mb-0 truncate"
+            ><span class="mp-label-index">04</span>pull requests</span
+          >
+          <span class="text-3xl font-semibold tabular-nums">{{ count(totals().pullsOpen) }}</span>
+          <span class="flex flex-col font-mono text-xs text-fg-muted">
+            <span>open</span>
+            <span
+              >{{ count(totals().pullsMerged) }} merged ·
+              {{ count(totals().pullsClosed) }} closed</span
+            >
+          </span>
+        </a>
+      </div>
 
-      <div class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3">
-        <span class="mp-label mb-0"><span class="mp-label-index">04</span>this instance</span>
+      <div
+        class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3 sm:col-span-2 xl:col-span-1"
+      >
+        <span class="mp-label mb-0"><span class="mp-label-index">05</span>this instance</span>
         <span class="font-mono text-xl font-semibold">{{ s.version }}</span>
         <span class="flex flex-col font-mono text-xs text-fg-muted">
           <span>{{ s.instance }} · {{ s.mode }} mode</span>

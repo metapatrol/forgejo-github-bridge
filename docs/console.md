@@ -62,8 +62,9 @@ and the bridge's error messages, which name repositories and accounts.
 | View | |
 |---|---|
 | Overview | the instance doing the work and since when, the queue and how much of it is failing, and every repository with its counts |
-| Repositories | each pair's configuration, its pair counts, how far each poll has read on each side, its queue and its newest pairs |
-| Pairs | every issue and pull request pair, newest first; searchable by title or number, filterable by repository, kind, state and origin. A pair links to both sides and shows its comment pairs; a pull request its contrib branch, imported head, whether it touches CI, is frozen, has a rebase request open, and whether its outcome was reported |
+| Repositories | each pair's configuration, its counts, how far each poll has read on each side, its queue, and its newest issues and pull requests in panels of their own |
+| Issues | every issue pair, newest first; searchable by title or number, filterable by repository, state and the side it was opened on. An issue links to both sides and shows its comment pairs |
+| Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported. One links to both sides and shows its contrib branch, imported head and comment pairs |
 | Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full |
 
 ![The queue: what is failing, how often, and why](./images/console-queue.png)

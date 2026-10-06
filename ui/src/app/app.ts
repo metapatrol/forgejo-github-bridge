@@ -29,7 +29,8 @@ export class App {
         items: [
           { path: '/', label: 'Overview', icon: 'layout-dashboard', exact: true },
           { path: '/repositories', label: 'Repositories', icon: 'folder-git-2' },
-          { path: '/pairs', label: 'Pairs', icon: 'git-compare-arrows' },
+          { path: '/issues', label: 'Issues', icon: 'circle-dot' },
+          { path: '/pulls', label: 'Pull requests', icon: 'git-pull-request' },
           {
             path: '/queue',
             label: 'Queue',

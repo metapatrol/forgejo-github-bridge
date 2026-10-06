@@ -44,21 +44,38 @@ describe('PairsTable', () => {
 
   it('links both sides and shows what is wrong', () => {
     const fixture = TestBed.createComponent(PairsTable);
+    fixture.componentRef.setInput('kind', 'pull');
     fixture.componentRef.setInput('pairs', [pull]);
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     const hrefs = Array.from(el.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('https://github.com/metapatrol/foo/pull/12');
     expect(hrefs).toContain('https://forgejo.example.com/platform/foo/pulls/90');
-    expect(hrefs).toContain('/pairs/7');
+    expect(hrefs).toContain('/pulls/7');
     const text = el.textContent ?? '';
     expect(text).toContain('frozen');
     expect(text).toContain('touches CI');
     expect(text).toContain('failing');
   });
 
+  it('shows where an issue was opened, and no pull request columns', () => {
+    const fixture = TestBed.createComponent(PairsTable);
+    fixture.componentRef.setInput('kind', 'issue');
+    fixture.componentRef.setInput('pairs', [
+      { ...pull, kind: 'issue', origin: 'forgejo', pull: undefined, queued: undefined },
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const heads = Array.from(el.querySelectorAll('th')).map((t) => t.textContent?.trim());
+    expect(heads).toContain('origin');
+    expect(heads).not.toContain('flags');
+    expect(el.textContent).toContain('Forgejo');
+    expect(el.querySelector('a')?.getAttribute('href')).toBe('/issues/7');
+  });
+
   it('says when there is nothing', () => {
     const fixture = TestBed.createComponent(PairsTable);
+    fixture.componentRef.setInput('kind', 'issue');
     fixture.componentRef.setInput('pairs', []);
     fixture.componentRef.setInput('empty', 'No pair matches.');
     fixture.detectChanges();

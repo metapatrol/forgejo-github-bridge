@@ -21,14 +21,34 @@ export const routes: Routes = [
       import('./features/repositories/repository').then((m) => m.RepositoryDetail),
   },
   {
-    path: 'pairs',
-    title: title('Pairs'),
+    path: 'issues',
+    title: title('Issues'),
+    data: { kind: 'issue' },
     loadComponent: () => import('./features/pairs/pairs').then((m) => m.Pairs),
   },
   {
-    path: 'pairs/:id',
-    title: title('Pair'),
+    path: 'issues/:id',
+    title: title('Issue'),
+    data: { kind: 'issue' },
     loadComponent: () => import('./features/pairs/pair').then((m) => m.PairDetailPage),
+  },
+  {
+    path: 'pulls',
+    title: title('Pull requests'),
+    data: { kind: 'pull' },
+    loadComponent: () => import('./features/pairs/pairs').then((m) => m.Pairs),
+  },
+  {
+    path: 'pulls/:id',
+    title: title('Pull request'),
+    data: { kind: 'pull' },
+    loadComponent: () => import('./features/pairs/pair').then((m) => m.PairDetailPage),
+  },
+  // Before issues and pull requests had pages of their own.
+  { path: 'pairs', redirectTo: 'issues' },
+  {
+    path: 'pairs/:id',
+    loadComponent: () => import('./features/pairs/pair-redirect').then((m) => m.PairRedirect),
   },
   {
     path: 'queue',
