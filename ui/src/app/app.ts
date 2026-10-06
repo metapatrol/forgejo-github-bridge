@@ -19,7 +19,6 @@ export class App {
         label: 'Bridge',
         items: [
           { path: '/', label: 'Overview', icon: 'layout-dashboard', exact: true },
-          { path: '/repositories', label: 'Repositories', icon: 'folder-git-2' },
           { path: '/issues', label: 'Issues', icon: 'circle-dot' },
           { path: '/pulls', label: 'Pull requests', icon: 'git-pull-request' },
         ],

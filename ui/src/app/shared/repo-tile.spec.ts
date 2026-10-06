@@ -22,28 +22,20 @@ const repo: Repository = {
 describe('RepoTile', () => {
   beforeEach(() => TestBed.configureTestingModule({ providers: [provideRouter([])] }));
 
-  function render(detailed: boolean) {
+  function render() {
     const fixture = TestBed.createComponent(RepoTile);
     fixture.componentRef.setInput('repo', repo);
     fixture.componentRef.setInput('name', 'foo');
-    fixture.componentRef.setInput('detailed', detailed);
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
   }
 
   it('links the repository and says what fails', () => {
-    const el = render(false);
+    const el = render();
     expect(el.querySelector('a')?.getAttribute('href')).toBe('/repositories/metapatrol/foo');
     const text = el.textContent ?? '';
     expect(text).toContain('foo');
     expect(text).toContain('2 failing');
     expect(text).toContain('PRs 3 open · 2 merged · 1 closed');
-    expect(text).not.toContain('targets');
-  });
-
-  it('names the contrib fork and target branches when detailed', () => {
-    const text = render(true).textContent ?? '';
-    expect(text).toContain('targets develop');
-    expect(text).toContain('asks to rebase');
   });
 });

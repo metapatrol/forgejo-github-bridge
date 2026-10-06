@@ -1,5 +1,5 @@
 import { Repository } from '../api/models/repository';
-import { byHealth, displayNames, lastPoll, repoHealth } from './repos';
+import { byHealth, displayNames, filterRepos, lastPoll, repoHealth } from './repos';
 
 function repo(key: string, depth: number, failing: number, cursors: string[] = []): Repository {
   return {
@@ -58,5 +58,23 @@ describe('displayNames', () => {
   it('keeps it when owners differ', () => {
     const repos = [repo('metapatrol/a', 0, 0), repo('other/b', 0, 0)];
     expect(repos.map(displayNames(repos))).toEqual(['metapatrol/a', 'other/b']);
+  });
+});
+
+describe('filterRepos', () => {
+  it('matches either name, ignoring case, keeping the order', () => {
+    const repos = [
+      repo('metapatrol/b-api', 0, 0),
+      repo('metapatrol/a-api', 0, 0),
+      repo('o/web', 0, 0),
+    ];
+    repos[2].forgejo = 'platform/API-web';
+    expect(filterRepos(repos, 'API').map((r) => r.key)).toEqual([
+      'metapatrol/b-api',
+      'metapatrol/a-api',
+      'o/web',
+    ]);
+    expect(filterRepos(repos, '  ').length).toBe(3);
+    expect(filterRepos(repos, 'nothing')).toEqual([]);
   });
 });

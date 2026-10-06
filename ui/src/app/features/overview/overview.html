@@ -92,9 +92,18 @@
     </div>
 
     <section class="flex flex-col gap-3" aria-labelledby="repositories-heading">
-      <header class="flex items-baseline justify-between gap-3">
+      <header class="flex flex-wrap items-center justify-between gap-3">
         <h2 id="repositories-heading" class="mp-label mb-0">Repositories</h2>
-        <a routerLink="/repositories" class="mp-link text-xs">all repositories →</a>
+        @if (filterable()) {
+          <mp-list-search
+            class="flex-nowrap justify-end"
+            param="repo"
+            placeholder="Filter repositories"
+            [query]="repo()"
+            [shown]="sorted().length"
+            [total]="all().length"
+          />
+        }
       </header>
       <mp-load-state
         [error]="repos.error()"
@@ -106,7 +115,9 @@
           <li class="min-w-0"><app-repo-tile [repo]="r" [name]="name()(r)" /></li>
         } @empty {
           @if (repos.hasValue()) {
-            <li class="text-sm text-fg-subtle">No repositories configured.</li>
+            <li class="text-sm text-fg-subtle">
+              {{ all().length ? 'No repository matches.' : 'No repositories configured.' }}
+            </li>
           }
         }
       </ul>

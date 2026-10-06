@@ -45,3 +45,20 @@ export function displayNames(repos: readonly Repository[]): (r: Repository) => s
   }
   return (r) => r.key.slice(r.key.indexOf('/') + 1);
 }
+
+/** Above this many repositories, the overview offers a filter. */
+export const FILTER_FROM = 10;
+
+/** The repositories whose GitHub or Forgejo name contains the query, ignoring case; order kept. */
+export function filterRepos(
+  repos: readonly Repository[],
+  query: string | null | undefined,
+): Repository[] {
+  const q = (query ?? '').trim().toLowerCase();
+  if (!q) {
+    return [...repos];
+  }
+  return repos.filter(
+    (r) => r.github.toLowerCase().includes(q) || r.forgejo.toLowerCase().includes(q),
+  );
+}

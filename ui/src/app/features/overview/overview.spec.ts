@@ -4,6 +4,7 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideApiConfiguration } from '../../api/api-configuration';
+import { Repository } from '../../api/models/repository';
 import { Status } from '../../api/models/status';
 import { Overview } from './overview';
 
@@ -28,7 +29,29 @@ const working: Status = {
   ],
 };
 
-async function render(status: Status): Promise<HTMLElement> {
+function repository(name: string, failing = 0): Repository {
+  return {
+    key: `metapatrol/${name}`,
+    github: `metapatrol/${name}`,
+    forgejo: `platform/${name}-src`,
+    githubUrl: '',
+    forgejoUrl: '',
+    pullRequests: false,
+    targetBranches: [],
+    rebaseRequests: false,
+    importLabel: 'github',
+    publishLabel: 'public',
+    counts: { issuesOpen: 0, issuesClosed: 0, pullsOpen: 0, pullsMerged: 0, pullsClosed: 0 },
+    queue: { depth: failing, failing },
+    cursors: [],
+  };
+}
+
+async function render(
+  status: Status,
+  repos: Repository[] = [],
+  filter?: string,
+): Promise<HTMLElement> {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -38,11 +61,14 @@ async function render(status: Status): Promise<HTMLElement> {
     ],
   });
   const fixture = TestBed.createComponent(Overview);
+  if (filter !== undefined) {
+    fixture.componentRef.setInput('repo', filter);
+  }
   fixture.detectChanges();
   TestBed.inject(ApplicationRef).tick();
   const http = TestBed.inject(HttpTestingController);
   http.expectOne('/api/v1/status').flush(status);
-  http.expectOne('/api/v1/repositories').flush([]);
+  http.expectOne('/api/v1/repositories').flush(repos);
   await fixture.whenStable();
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
@@ -91,5 +117,35 @@ describe('Overview', () => {
     expect(Array.from(el.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toContain(
       '/queue',
     );
+  });
+
+  it('offers no filter for a few repositories', async () => {
+    const el = await render(
+      working,
+      ['a', 'b', 'c'].map((n) => repository(n)),
+    );
+    expect(el.querySelector('mp-list-search')).toBeNull();
+    expect(el.querySelectorAll('app-repo-tile').length).toBe(3);
+  });
+
+  it('filters many repositories by ?repo=, problems first', async () => {
+    const many = Array.from({ length: 10 }, (_, i) => repository(`svc-${i}`));
+    many.push(repository('gateway', 2), repository('gateway-ui'));
+    const el = await render(working, many, 'GATEWAY');
+    expect(el.querySelector('mp-list-search')).not.toBeNull();
+    const names = Array.from(el.querySelectorAll('app-repo-tile')).map((t) =>
+      t.querySelector('a')?.getAttribute('href'),
+    );
+    expect(names).toEqual([
+      '/repositories/metapatrol/gateway',
+      '/repositories/metapatrol/gateway-ui',
+    ]);
+    expect(el.textContent).toContain('2 of 12');
+  });
+
+  it('matches the Forgejo name too', async () => {
+    const many = Array.from({ length: 10 }, (_, i) => repository(`svc-${i}`));
+    const el = await render(working, many, 'svc-3-src');
+    expect(el.querySelectorAll('app-repo-tile').length).toBe(1);
   });
 });

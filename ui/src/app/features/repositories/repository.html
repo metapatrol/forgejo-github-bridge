@@ -1,4 +1,4 @@
-<mp-page-header section="repositories" link="/repositories" [title]="key()" mono />
+<mp-page-header section="overview" link="/" [title]="key()" mono />
 
 <mp-load-state
   [error]="repos.error()"
@@ -7,8 +7,7 @@
 />
 @if (missing()) {
   <p class="text-sm text-fg-muted">
-    No repository {{ key() }} is configured.
-    <a routerLink="/repositories" class="mp-link">All repositories</a>.
+    No repository {{ key() }} is configured. <a routerLink="/" class="mp-link">All repositories</a>.
   </p>
 }
 

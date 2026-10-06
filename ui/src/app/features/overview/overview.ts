@@ -1,10 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { count, MpClock, MpLoadState, MpNotice, MpPageHeader, MpTime } from '@metapatrol/ng';
+import {
+  count,
+  MpClock,
+  MpListSearch,
+  MpLoadState,
+  MpNotice,
+  MpPageHeader,
+  MpTime,
+} from '@metapatrol/ng';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
-import { byHealth, displayNames } from '../../core/repos';
+import { byHealth, displayNames, FILTER_FROM, filterRepos } from '../../core/repos';
 import { REPO_GRID, RepoTile, TILE_LINK } from '../../shared/repo-tile';
 import { liveReload } from '../../core/events';
 import { OPEN } from '../../core/state-filter';
@@ -15,7 +23,7 @@ import { StatusService } from '../../core/status';
 
 @Component({
   selector: 'app-overview',
-  imports: [RouterLink, MpLoadState, MpNotice, MpPageHeader, MpTime, Meter, RepoTile],
+  imports: [RouterLink, MpListSearch, MpLoadState, MpNotice, MpPageHeader, MpTime, Meter, RepoTile],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview.html',
 })
@@ -27,8 +35,14 @@ export class Overview {
   protected readonly grid = REPO_GRID;
   protected readonly tileLink = TILE_LINK;
   protected readonly open = OPEN;
-  /** Problems first. */
-  protected readonly sorted = computed(() => byHealth(this.repos.body() ?? []));
+  /** The filter above the tiles, from ?repo=; offered only for many repositories. */
+  readonly repo = input<string>();
+  protected readonly all = computed(() => this.repos.body() ?? []);
+  protected readonly filterable = computed(() => this.all().length >= FILTER_FROM);
+  /** Problems first, then by name; filtered when there is a filter. */
+  protected readonly sorted = computed(() =>
+    byHealth(this.filterable() ? filterRepos(this.all(), this.repo()) : this.all()),
+  );
   /** Repository names for the tiles: without the owner when they share one. */
   protected readonly name = computed(() => displayNames(this.repos.body() ?? []));
 

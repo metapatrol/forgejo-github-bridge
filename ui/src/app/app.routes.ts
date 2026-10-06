@@ -10,11 +10,8 @@ export const routes: Routes = [
     title: title('Overview'),
     loadComponent: () => import('./features/overview/overview').then((m) => m.Overview),
   },
-  {
-    path: 'repositories',
-    title: title('Repositories'),
-    loadComponent: () => import('./features/repositories/repositories').then((m) => m.Repositories),
-  },
+  // The list of repositories is the overview's.
+  { path: 'repositories', pathMatch: 'full', redirectTo: '' },
   {
     path: 'repositories/:owner/:name',
     title: title('Repository'),

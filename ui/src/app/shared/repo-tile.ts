@@ -1,10 +1,4 @@
-import {
-  booleanAttribute,
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MpTime } from '@metapatrol/ng';
 import { Repository } from '../api/models/repository';
@@ -61,24 +55,6 @@ export const TILE_LINK =
         <span class="font-mono text-xs text-fg-subtle">PRs off</span>
       }
       <span class="truncate font-mono text-xs text-fg-subtle">↔ {{ repo().forgejo }}</span>
-      @if (detailed()) {
-        <span class="mt-1 flex flex-col gap-0.5 border-t border-line pt-2 text-xs text-fg-muted">
-          @if (repo().pullRequests) {
-            <span class="truncate"
-              >into
-              <span class="font-mono">{{
-                repo().contrib || 'the contrib account’s fork'
-              }}</span></span
-            >
-            <span class="truncate"
-              >targets <span class="font-mono">{{ repo().targetBranches.join(', ') }}</span
-              >{{ repo().rebaseRequests ? ' · asks to rebase' : '' }}</span
-            >
-          } @else {
-            <span class="text-fg-subtle">pull requests are not imported</span>
-          }
-        </span>
-      }
       <span class="mt-auto pt-1 text-xs text-fg-subtle">
         @if (polled(); as at) {
           polled <mp-time [value]="at" />
@@ -93,8 +69,6 @@ export class RepoTile {
   readonly repo = input.required<Repository>();
   /** What to call it; the full key by default. */
   readonly name = input('');
-  /** Also how pull requests are imported, for the repositories page. */
-  readonly detailed = input(false, { transform: booleanAttribute });
 
   protected readonly tileLink = TILE_LINK;
   protected readonly path = computed(() => repoPath(this.repo().key));
