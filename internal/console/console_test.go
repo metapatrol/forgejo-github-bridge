@@ -32,12 +32,15 @@ type reports struct {
 	queueFilter store.QueueFilter
 	system      store.System
 	limits      []store.RateLimit
+	authors     []store.Author
 	err         error
 }
 
 func (r *reports) System(context.Context) (store.System, error) { return r.system, r.err }
 
 func (r *reports) RateLimits(context.Context) ([]store.RateLimit, error) { return r.limits, r.err }
+
+func (r *reports) Authors(context.Context) ([]store.Author, error) { return r.authors, r.err }
 
 func (r *reports) Leader(context.Context) (store.Leader, error)           { return r.leader, r.err }
 func (r *reports) QueueSummary(context.Context) (store.QueueStats, error) { return r.stats, r.err }
@@ -79,7 +82,7 @@ var (
 	pullPair = store.PairReport{
 		IssueMapping: store.IssueMapping{ID: 2, Repository: "metapatrol/foo", Kind: store.KindPull, GitHubNumber: 8, ForgejoNumber: 72, Origin: store.GitHub},
 		State:        store.StateMerged, CreatedAt: now, UpdatedAt: now,
-		Pull: &store.PullReport{PullRequestState: store.PullRequestState{ContribBranch: "pr/8", ImportedHeadSHA: "abc", State: store.PullMerged, TouchesCI: true}, UpdatedAt: now},
+		Pull: &store.PullReport{PullRequestState: store.PullRequestState{ContribBranch: "pr/8", ImportedHeadSHA: "abc", State: store.PullMerged, TouchesCI: true, RebaseCommentID: 55}, UpdatedAt: now},
 	}
 )
 
@@ -157,8 +160,8 @@ func TestPairsAreLinkedOnBothSides(t *testing.T) {
 	r := &reports{pairs: []store.PairReport{issuePair, pullPair}}
 	h := newConsole(t, r)
 	var page v1.PairPage
-	get(t, h, "/api/v1/pairs?repository=metapatrol/foo&kind=pull&state=merged&origin=github&q=%238&limit=10&offset=20", &page)
-	want := store.PairFilter{Repository: "metapatrol/foo", Kind: store.KindPull, State: store.StateMerged, Origin: store.GitHub, Query: "#8", Limit: 10, Offset: 20}
+	get(t, h, "/api/v1/pairs?repository=metapatrol/foo&kind=pull&state=merged&origin=github&author=alice&q=%238&limit=10&offset=20", &page)
+	want := store.PairFilter{Repository: "metapatrol/foo", Kind: store.KindPull, State: store.StateMerged, Origin: store.GitHub, Author: "alice", Query: "#8", Limit: 10, Offset: 20}
 	if r.pairFilter != want {
 		t.Errorf("filter = %+v, want %+v", r.pairFilter, want)
 	}
@@ -174,6 +177,9 @@ func TestPairsAreLinkedOnBothSides(t *testing.T) {
 	}
 	if pull.GithubUrl != "https://github.com/metapatrol/foo/pull/8" || pull.ForgejoUrl != "https://forgejo.example.com/platform/foo/pulls/72" {
 		t.Errorf("pull links = %s, %s", pull.GithubUrl, pull.ForgejoUrl)
+	}
+	if pull.Pull == nil || *pull.Pull.RebaseCommentUrl != "https://github.com/metapatrol/foo/pull/8#issuecomment-55" {
+		t.Errorf("rebase comment = %v", pull.Pull)
 	}
 	if pull.Pull == nil || !pull.Pull.TouchesCi || *pull.Pull.ContribBranchUrl != "https://forgejo.example.com/github-contrib/foo/src/branch/pr/8" {
 		t.Errorf("pull = %+v", pull.Pull)
@@ -339,5 +345,17 @@ func TestNoEventsWithoutASource(t *testing.T) {
 	h := newConsole(t, &reports{})
 	if res := get(t, h, "/api/v1/events", nil); res.StatusCode != http.StatusServiceUnavailable {
 		t.Errorf("status %d", res.StatusCode)
+	}
+}
+
+func TestAuthorsLinkToTheirProfiles(t *testing.T) {
+	h := newConsole(t, &reports{authors: []store.Author{
+		{Login: "alice", Side: store.GitHub, Issues: 3, Pulls: 1, Last: now},
+		{Login: "jdoe", Side: store.Forgejo, Issues: 1, Last: now},
+	}})
+	var a []v1.Author
+	get(t, h, "/api/v1/authors", &a)
+	if len(a) != 2 || *a[0].ProfileUrl != "https://github.com/alice" || *a[1].ProfileUrl != "https://forgejo.example.com/jdoe" || a[0].Issues != 3 {
+		t.Errorf("authors = %+v", a)
 	}
 }

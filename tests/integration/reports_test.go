@@ -342,3 +342,27 @@ func TestRateLimitsAreKept(t *testing.T) {
 		t.Errorf("rate limits = %+v, %v", got, err)
 	}
 }
+
+func TestAuthorsAndTheirPairs(t *testing.T) {
+	st := open(t)
+	seedReports(t, st)
+	ctx := context.Background()
+	authors, err := st.Authors(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byLogin := map[string]store.Author{}
+	for _, a := range authors {
+		byLogin[a.Login] = a
+	}
+	if a := byLogin["bob"]; a.Pulls != 1 || a.Side != store.GitHub {
+		t.Errorf("bob = %+v", a)
+	}
+	if a := byLogin["jdoe"]; a.Issues != 1 || a.Side != store.Forgejo {
+		t.Errorf("jdoe = %+v", a)
+	}
+	pairs, total, err := st.Pairs(ctx, store.PairFilter{Author: "alice"})
+	if err != nil || total != 1 || pairs[0].Author != "alice" {
+		t.Errorf("alice's pairs = %+v of %d, %v", pairs, total, err)
+	}
+}

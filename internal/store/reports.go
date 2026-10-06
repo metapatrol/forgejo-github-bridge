@@ -36,6 +36,19 @@ type Reports interface {
 	System(ctx context.Context) (System, error)
 	// RateLimits lists the GitHub rate-limit windows as last saved.
 	RateLimits(ctx context.Context) ([]RateLimit, error)
+	// Authors lists who opened pairs, the most active first.
+	Authors(ctx context.Context) ([]Author, error)
+}
+
+// Author is someone who opened pairs: a GitHub login for pairs that came
+// from GitHub, a Forgejo login for issues published from Forgejo.
+type Author struct {
+	Login  string
+	Side   Side
+	Issues int
+	Pulls  int
+	// Last is when the newest of their pairs was made.
+	Last time.Time
 }
 
 // Leader is the instance doing the work.
@@ -85,6 +98,8 @@ type PairFilter struct {
 	Kind       Kind
 	State      PairState
 	Origin     Side
+	// Author is who opened it, on the origin side.
+	Author string
 	// Query matches the title, case-insensitively, or a number on either
 	// side.
 	Query  string

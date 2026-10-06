@@ -195,6 +195,30 @@ func (s *server) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListAuthors implements v1.ServerInterface.
+func (s *server) ListAuthors(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := ctxFor(r)
+	defer cancel()
+	authors, err := s.reports.Authors(ctx)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out := make([]v1.Author, 0, len(authors))
+	for _, a := range authors {
+		author := v1.Author{Login: a.Login, Side: v1.Side(a.Side), Issues: a.Issues, Pulls: a.Pulls, LastAt: a.Last}
+		var profile string
+		if a.Side == store.GitHub {
+			profile = s.opts.GitHubWebURL.JoinPath(a.Login).String()
+		} else {
+			profile = s.opts.ForgejoWebURL.JoinPath(a.Login).String()
+		}
+		author.ProfileUrl = &profile
+		out = append(out, author)
+	}
+	writeJSON(w, out)
+}
+
 // GetSystem implements v1.ServerInterface.
 func (s *server) GetSystem(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := ctxFor(r)
@@ -391,6 +415,13 @@ func (s *server) ListPairs(w http.ResponseWriter, r *http.Request, p v1.ListPair
 		}
 		f.Origin = store.Side(*p.Origin)
 	}
+	if p.Author != nil {
+		if len(*p.Author) > 100 {
+			writeError(w, http.StatusBadRequest, "author is longer than 100 characters")
+			return
+		}
+		f.Author = *p.Author
+	}
 	if p.Q != nil {
 		if len(*p.Q) > 200 {
 			writeError(w, http.StatusBadRequest, "q is longer than 200 characters")
@@ -529,6 +560,10 @@ func (s *server) pair(p store.PairReport) v1.Pair {
 			ContribBranch: p.Pull.ContribBranch, ImportedHeadSha: p.Pull.ImportedHeadSHA,
 			HeadFrozen: p.Pull.HeadFrozen, TouchesCi: p.Pull.TouchesCI, RebaseRequested: p.Pull.RebaseRequested,
 			OutcomeReported: p.Pull.OutcomeReported, UpdatedAt: p.Pull.UpdatedAt,
+		}
+		if p.Pull.RebaseCommentID != 0 {
+			u := s.issueURL(p.Repository, store.GitHub, p.Kind, p.GitHubNumber) + "#issuecomment-" + strconv.FormatInt(p.Pull.RebaseCommentID, 10)
+			pull.RebaseCommentUrl = &u
 		}
 		if cfg, ok := s.repos[p.Repository]; ok && !cfg.Contrib.Empty() {
 			u := s.opts.ForgejoWebURL.JoinPath(cfg.Contrib.Owner, cfg.Contrib.Name, "src", "branch", p.Pull.ContribBranch).String()

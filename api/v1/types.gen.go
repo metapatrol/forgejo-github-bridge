@@ -118,6 +118,20 @@ func (e StatusMode) Valid() bool {
 	}
 }
 
+// Author defines model for Author.
+type Author struct {
+	Issues int `json:"issues"`
+
+	// LastAt When the newest of their pairs was made.
+	LastAt time.Time `json:"lastAt"`
+	Login  string    `json:"login"`
+
+	// ProfileUrl Their profile on that side.
+	ProfileUrl *string `json:"profileUrl,omitempty"`
+	Pulls      int     `json:"pulls"`
+	Side       Side    `json:"side"`
+}
+
 // CommentPair defines model for CommentPair.
 type CommentPair struct {
 	CreatedAt        time.Time `json:"createdAt"`
@@ -269,6 +283,9 @@ type PullRequest struct {
 
 	// OutcomeReported The merge or close has been reported on GitHub.
 	OutcomeReported bool `json:"outcomeReported"`
+
+	// RebaseCommentUrl The bridge's comment on GitHub about rebasing, when it wrote one.
+	RebaseCommentUrl *string `json:"rebaseCommentUrl,omitempty"`
 
 	// RebaseRequested The bridge currently asks the contributor to rebase.
 	RebaseRequested bool `json:"rebaseRequested"`
@@ -510,6 +527,9 @@ type ListPairsParams struct {
 	Kind       *PairKind  `form:"kind,omitempty" json:"kind,omitempty"`
 	State      *PairState `form:"state,omitempty" json:"state,omitempty"`
 	Origin     *Side      `form:"origin,omitempty" json:"origin,omitempty"`
+
+	// Author Who opened it, on the origin side; combine with origin to tell a GitHub login from a Forgejo one.
+	Author *string `form:"author,omitempty" json:"author,omitempty"`
 
 	// Q Matches the title, case-insensitively, or a number on either side.
 	Q      *string `form:"q,omitempty" json:"q,omitempty"`

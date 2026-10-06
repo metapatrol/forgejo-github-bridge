@@ -253,6 +253,9 @@ func (s *Store) Pairs(ctx context.Context, f store.PairFilter) ([]store.PairRepo
 	if f.Origin != "" {
 		where = append(where, "m.origin = "+arg(string(f.Origin)))
 	}
+	if f.Author != "" {
+		where = append(where, "m.author = "+arg(f.Author))
+	}
 	if q := strings.TrimSpace(f.Query); q != "" {
 		cond := "m.title ILIKE " + arg("%"+likeEscape(q)+"%")
 		if n, err := strconv.ParseInt(strings.TrimPrefix(q, "#"), 10, 64); err == nil {
@@ -409,6 +412,31 @@ func (s *Store) RateLimits(ctx context.Context) ([]store.RateLimit, error) {
 		out, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (store.RateLimit, error) {
 			var l store.RateLimit
 			return l, row.Scan(&l.Resource, &l.Limit, &l.Remaining, &l.Used, &l.ResetAt, &l.ObservedAt)
+		})
+		return err
+	})
+	return out, err
+}
+
+// Authors implements store.Reports.
+func (s *Store) Authors(ctx context.Context) ([]store.Author, error) {
+	var out []store.Author
+	err := s.read(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT author, origin, count(*) FILTER (WHERE kind = 'issue'), count(*) FILTER (WHERE kind = 'pull'),
+			       max(created_at)
+			FROM issue_mapping WHERE author <> ''
+			GROUP BY author, origin
+			ORDER BY count(*) DESC, max(created_at) DESC, author`)
+		if err != nil {
+			return err
+		}
+		out, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (store.Author, error) {
+			var a store.Author
+			var side string
+			err := row.Scan(&a.Login, &side, &a.Issues, &a.Pulls, &a.Last)
+			a.Side = store.Side(side)
+			return a, err
 		})
 		return err
 	})

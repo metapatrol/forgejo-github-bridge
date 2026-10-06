@@ -99,6 +99,26 @@ paths:
               schema: { $ref: "#/components/schemas/System" }
         default: { $ref: "#/components/responses/Error" }
 
+  /authors:
+    get:
+      operationId: listAuthors
+      tags: [pairs]
+      summary: Who opened the pairs
+      description: |
+        Everyone who opened an issue or pull request the bridge holds, the
+        most active first: GitHub logins for what came from GitHub, Forgejo
+        logins for issues published from Forgejo. The bridge records the
+        author of a pair, not of its comments.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Author" }
+        default: { $ref: "#/components/responses/Error" }
+
   /repositories:
     get:
       operationId: listRepositories
@@ -139,6 +159,10 @@ paths:
         - name: origin
           in: query
           schema: { $ref: "#/components/schemas/Side" }
+        - name: author
+          in: query
+          description: Who opened it, on the origin side; combine with origin to tell a GitHub login from a Forgejo one.
+          schema: { type: string, maxLength: 100 }
         - name: q
           in: query
           description: Matches the title, case-insensitively, or a number on either side.
@@ -354,6 +378,23 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Cursor" }
 
+    Author:
+      type: object
+      required: [login, side, issues, pulls, lastAt]
+      properties:
+        login: { type: string }
+        side:
+          $ref: "#/components/schemas/Side"
+        profileUrl:
+          type: string
+          description: Their profile on that side.
+        issues: { type: integer }
+        pulls: { type: integer }
+        lastAt:
+          type: string
+          format: date-time
+          description: When the newest of their pairs was made.
+
     PairCounts:
       type: object
       required: [issuesOpen, issuesClosed, pullsOpen, pullsMerged, pullsClosed]
@@ -466,6 +507,9 @@ components:
         rebaseRequested:
           type: boolean
           description: The bridge currently asks the contributor to rebase.
+        rebaseCommentUrl:
+          type: string
+          description: The bridge's comment on GitHub about rebasing, when it wrote one.
         outcomeReported:
           type: boolean
           description: The merge or close has been reported on GitHub.

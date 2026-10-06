@@ -14,6 +14,9 @@ import (
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Who opened the pairs
+	// (GET /authors)
+	ListAuthors(w http.ResponseWriter, r *http.Request)
 	// Changes as they happen
 	// (GET /events)
 	StreamEvents(w http.ResponseWriter, r *http.Request)
@@ -45,6 +48,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListAuthors operation middleware
+func (siw *ServerInterfaceWrapper) ListAuthors(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAuthors(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // StreamEvents operation middleware
 func (siw *ServerInterfaceWrapper) StreamEvents(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +114,14 @@ func (siw *ServerInterfaceWrapper) ListPairs(w http.ResponseWriter, r *http.Requ
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "origin", r.URL.Query(), &params.Origin, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "origin", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "author" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "author", r.URL.Query(), &params.Author, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "author", Err: err})
 		return
 	}
 
@@ -357,6 +382,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc("GET "+options.BaseURL+"/authors", wrapper.ListAuthors)
 	m.HandleFunc("GET "+options.BaseURL+"/events", wrapper.StreamEvents)
 	m.HandleFunc("GET "+options.BaseURL+"/pairs", wrapper.ListPairs)
 	m.HandleFunc("GET "+options.BaseURL+"/pairs/{id}", wrapper.GetPair)
