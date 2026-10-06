@@ -114,13 +114,13 @@
       }
     </mp-panel>
 
-    <mp-panel index="05" title="issues">
+    <mp-panel index="05" title="open issues">
       <a
         mpPanelActions
         routerLink="/issues"
-        [queryParams]="{ repository: key() }"
+        [queryParams]="openLink(issues.body()?.total)"
         class="mp-link text-xs"
-        >all {{ issues.body()?.total ?? '' }} →</a
+        >{{ moreLabel(issues.body()?.total) }}</a
       >
       <mp-load-state
         [error]="issues.error()"
@@ -132,19 +132,19 @@
           kind="issue"
           [pairs]="issues.body()?.items ?? []"
           [showRepository]="false"
-          empty="No issues bridged yet."
+          empty="No open issues."
         />
       }
     </mp-panel>
 
-    <mp-panel index="06" title="pull requests">
+    <mp-panel index="06" [title]="r.pullRequests ? 'open pull requests' : 'pull requests'">
       @if (r.pullRequests) {
         <a
           mpPanelActions
           routerLink="/pulls"
-          [queryParams]="{ repository: key() }"
+          [queryParams]="openLink(pulls.body()?.total)"
           class="mp-link text-xs"
-          >all {{ pulls.body()?.total ?? '' }} →</a
+          >{{ moreLabel(pulls.body()?.total) }}</a
         >
       }
       @if (r.pullRequests) {
@@ -158,7 +158,7 @@
             kind="pull"
             [pairs]="pulls.body()?.items ?? []"
             [showRepository]="false"
-            empty="No pull requests imported yet."
+            empty="No open pull requests."
           />
         }
       } @else {

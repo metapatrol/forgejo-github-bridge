@@ -9,7 +9,7 @@ import { MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
 import { listPairs } from '../../api/fn/pairs/list-pairs';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { PairKind } from '../../api/models/pair-kind';
-import { PairState } from '../../api/models/pair-state';
+import { apiState } from '../../core/state-filter';
 import { Side } from '../../api/models/side';
 import { apiResource } from '../../core/api';
 import { KINDS } from '../../core/kinds';
@@ -55,7 +55,7 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
         [states]="states()"
         [origins]="kind() === 'issue' ? origins : []"
         [repository]="repository()"
-        [state]="params().state"
+        [state]="state()"
         [origin]="params().origin"
         [q]="q()"
         [shown]="pairs.body()?.items?.length ?? 0"
@@ -109,10 +109,7 @@ export class Pairs {
   protected readonly params = computed(() => ({
     kind: this.kind(),
     repository: this.repository() || undefined,
-    state: oneOf<PairState>(
-      this.state(),
-      this.states().map((s) => s.value as PairState),
-    ),
+    state: apiState(this.state()),
     origin: this.kind() === 'issue' ? oneOf<Side>(this.origin(), ['github', 'forgejo']) : undefined,
     q: this.q() || undefined,
     limit: LIMIT,

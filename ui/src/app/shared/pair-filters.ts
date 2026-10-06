@@ -33,15 +33,11 @@ export interface FilterOption {
         }
       </select>
       <label class="sr-only" for="f-state">State</label>
-      <select
-        id="f-state"
-        class="mp-input w-auto"
-        (change)="filter('state', $any($event.target).value)"
-      >
-        <option value="">any state</option>
+      <select id="f-state" class="mp-input w-auto" (change)="setState($any($event.target).value)">
         @for (s of states(); track s.value) {
           <option [value]="s.value" [selected]="s.value === state()">{{ s.label }}</option>
         }
+        <option value="any" [selected]="state() === 'any'">any state</option>
       </select>
       @if (origins().length) {
         <label class="sr-only" for="f-origin">Origin</label>
@@ -65,12 +61,17 @@ export class PairFilters {
   /** Empty: no origin filter. */
   readonly origins = input<readonly FilterOption[]>([]);
   readonly repository = input<string | undefined>();
+  /** The selected state: one of states(), or 'any'. */
   readonly state = input<string | undefined>();
   readonly origin = input<string | undefined>();
   readonly q = input<string | undefined>();
   readonly shown = input(0);
   readonly total = input(0);
   private readonly setQuery = mpQueryParams();
+
+  protected setState(selected: string): void {
+    this.setQuery({ state: selected, offset: null });
+  }
 
   protected filter(name: string, value: string): void {
     this.setQuery({ [name]: value || null, offset: null });

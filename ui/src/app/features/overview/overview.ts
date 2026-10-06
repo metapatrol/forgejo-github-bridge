@@ -7,6 +7,7 @@ import { repoPath } from '../../core/format';
 import { byHealth, displayNames } from '../../core/repos';
 import { REPO_GRID, RepoTile } from '../../shared/repo-tile';
 import { autoRefresh } from '../../core/refresh';
+import { OPEN } from '../../core/state-filter';
 import { StatusService } from '../../core/status';
 
 @Component({
@@ -21,6 +22,7 @@ export class Overview {
   protected readonly count = count;
   protected readonly repoPath = repoPath;
   protected readonly grid = REPO_GRID;
+  protected readonly open = OPEN;
   /** Problems first. */
   protected readonly sorted = computed(() => byHealth(this.repos.body() ?? []));
   /** Repository names for the tiles: without the owner when they share one. */

@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { requireState } from './core/state-filter';
 
 const title = (page: string) => `${page} · forgejo-github-bridge`;
 
@@ -24,6 +25,8 @@ export const routes: Routes = [
     path: 'issues',
     title: title('Issues'),
     data: { kind: 'issue' },
+    canActivate: [requireState('issue')],
+    runGuardsAndResolvers: 'paramsOrQueryParamsChange',
     loadComponent: () => import('./features/pairs/pairs').then((m) => m.Pairs),
   },
   {
@@ -36,6 +39,8 @@ export const routes: Routes = [
     path: 'pulls',
     title: title('Pull requests'),
     data: { kind: 'pull' },
+    canActivate: [requireState('pull')],
+    runGuardsAndResolvers: 'paramsOrQueryParamsChange',
     loadComponent: () => import('./features/pairs/pairs').then((m) => m.Pairs),
   },
   {
@@ -45,7 +50,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/pairs/pair').then((m) => m.PairDetailPage),
   },
   // Before issues and pull requests had pages of their own.
-  { path: 'pairs', redirectTo: 'issues' },
+  { path: 'pairs', redirectTo: '/issues?state=open' },
   {
     path: 'pairs/:id',
     loadComponent: () => import('./features/pairs/pair-redirect').then((m) => m.PairRedirect),

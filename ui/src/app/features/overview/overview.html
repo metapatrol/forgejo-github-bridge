@@ -66,7 +66,7 @@
       >
         <a
           routerLink="/issues"
-          [queryParams]="{ state: 'open' }"
+          [queryParams]="open"
           class="flex min-w-0 flex-col gap-2 rounded-l-[inherit] px-4 py-3 text-fg no-underline hover:bg-surface-2"
         >
           <span class="mp-label mb-0"><span class="mp-label-index">03</span>issues</span>
@@ -78,7 +78,7 @@
         </a>
         <a
           routerLink="/pulls"
-          [queryParams]="{ state: 'open' }"
+          [queryParams]="open"
           class="flex min-w-0 flex-col gap-2 rounded-r-[inherit] px-4 py-3 text-fg no-underline hover:bg-surface-2"
         >
           <span class="mp-label mb-0 truncate"
