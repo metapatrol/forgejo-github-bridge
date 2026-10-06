@@ -77,6 +77,12 @@ func issueMappings(t *testing.T, s store.Store) {
 	if got, _, _ := s.IssueByGitHub(ctx, "a/b", 42); !got.SyncedClosed {
 		t.Error("synced state not stored")
 	}
+	if err := s.SetIssueSummary(ctx, m.ID, "Crash on start", "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := s.IssueByForgejo(ctx, "a/b", 71); got.Title != "Crash on start" || got.Author != "alice" {
+		t.Errorf("summary not stored: %+v", got)
+	}
 
 	if _, err := s.InsertComment(ctx, store.CommentMapping{IssueMappingID: m.ID, GitHubCommentID: 1, ForgejoCommentID: 2, Origin: store.GitHub}); err != nil {
 		t.Fatal(err)

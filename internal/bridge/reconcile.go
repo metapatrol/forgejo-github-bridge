@@ -230,6 +230,16 @@ func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error 
 	if err := errors.Join(ghErr, fjErr); err != nil {
 		return err
 	}
+	// The title as GitHub shows it, which is public by definition: a Forgejo
+	// issue whose publish label was removed keeps its last public title here
+	// (docs/design.md §23). The author is the origin side's.
+	author := gh.Author
+	if m.Origin == store.Forgejo {
+		author = fj.Author
+	}
+	if err := b.summarize(ctx, m, gh.Title, author); err != nil {
+		return err
+	}
 
 	if m.Origin == store.Forgejo && !hasLabel(fj.Labels, r.cfg.PublishLabel) {
 		// The label was removed after publishing. The GitHub issue stays, and
@@ -258,6 +268,15 @@ func (b *Bridge) pair(ctx context.Context, r *repo, m store.IssueMapping) error 
 		return err
 	}
 	return b.syncState(ctx, r, m, gh, fj)
+}
+
+// summarize keeps the pair's title and author for the console. Written only
+// when they changed.
+func (b *Bridge) summarize(ctx context.Context, m store.IssueMapping, title, author string) error {
+	if m.Title == title && m.Author == author {
+		return nil
+	}
+	return b.store.SetIssueSummary(ctx, m.ID, title, author)
 }
 
 // participantsOf are the GitHub accounts taking part in an issue. A Forgejo

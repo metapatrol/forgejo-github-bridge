@@ -141,6 +141,10 @@ func (b *Bridge) pairPull(ctx context.Context, r *repo, m store.IssueMapping) er
 	if err := errors.Join(ghErr, fjErr); err != nil {
 		return err
 	}
+	// Imported pull requests always come from GitHub.
+	if err := b.summarize(ctx, m, gh.Title, gh.Author); err != nil {
+		return err
+	}
 
 	st, ok, err := b.store.PullRequest(ctx, m.ID)
 	if err != nil {

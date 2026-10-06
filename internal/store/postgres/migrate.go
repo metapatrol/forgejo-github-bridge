@@ -112,6 +112,30 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) error {
 	return nil
 }
 
+// CheckSchema verifies that every migration this binary carries has been
+// applied, for a process that does not migrate.
+func CheckSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	files, err := migrationNames()
+	if err != nil {
+		return err
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquiring a connection: %w", err)
+	}
+	defer conn.Release()
+	applied, err := appliedMigrations(ctx, conn.Conn())
+	if err != nil {
+		return fmt.Errorf("%w; has a bridge ever started on this database?", err)
+	}
+	for _, name := range files {
+		if _, ok := applied[name]; !ok {
+			return fmt.Errorf("the database lacks migration %s: start a bridge of this version first, which applies it", name)
+		}
+	}
+	return nil
+}
+
 // migrationNames lists the embedded migrations in the order they apply.
 func migrationNames() ([]string, error) {
 	entries, err := fs.ReadDir(migrationFS, "migrations")

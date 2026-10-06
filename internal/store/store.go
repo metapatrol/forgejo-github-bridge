@@ -58,6 +58,10 @@ type IssueMapping struct {
 	// SyncedClosed is the state both sides had after the last reconcile. A
 	// side that differs from it is the side that changed.
 	SyncedClosed bool
+	// Title and Author are the origin side's, as of the last reconcile. They
+	// are for people reading the console; the bridge decides nothing by them.
+	Title  string
+	Author string
 }
 
 // CommentMapping pairs a GitHub comment with a Forgejo comment on a mapped
@@ -139,6 +143,8 @@ type Store interface {
 	// mapped.
 	InsertIssue(ctx context.Context, m IssueMapping) (IssueMapping, error)
 	SetIssueSyncedClosed(ctx context.Context, id int64, closed bool) error
+	// SetIssueSummary records the origin side's title and author.
+	SetIssueSummary(ctx context.Context, id int64, title, author string) error
 	// DeleteIssue removes a pair and its comment mappings.
 	DeleteIssue(ctx context.Context, id int64) error
 	// OpenIssues lists the pairs of a repository that were open at their last

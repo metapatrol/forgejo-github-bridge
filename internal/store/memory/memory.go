@@ -116,6 +116,16 @@ func (s *Store) SetIssueSyncedClosed(_ context.Context, id int64, closed bool) e
 	return nil
 }
 
+func (s *Store) SetIssueSummary(_ context.Context, id int64, title, author string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m, ok := s.issues[id]; ok {
+		m.Title, m.Author = title, author
+		s.issues[id] = m
+	}
+	return nil
+}
+
 func (s *Store) DeleteIssue(_ context.Context, id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

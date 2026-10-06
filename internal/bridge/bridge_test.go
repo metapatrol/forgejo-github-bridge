@@ -494,3 +494,31 @@ func findBy(cs []forge.Comment, author string) forge.Comment {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestPairsKeepTheirPublicTitle(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	src := h.gh.Open(ghRepo, "alice", "Crash on start", "")
+	h.settle()
+	m, _, _ := h.st.IssueByGitHub(ctx, ghRepo.String(), src.Number)
+	if m.Title != "Crash on start" || m.Author != "alice" {
+		t.Errorf("imported pair = %q by %q", m.Title, m.Author)
+	}
+
+	pub := h.fj.Open(fjRepo, "jdoe", "Roadmap", "v1", "public")
+	h.settle()
+	m, _, _ = h.st.IssueByForgejo(ctx, ghRepo.String(), pub.Number)
+	if m.Title != "Roadmap" || m.Author != "jdoe" {
+		t.Errorf("published pair = %q by %q", m.Title, m.Author)
+	}
+
+	// Unpublished, then renamed: the new title never reached GitHub and must
+	// not reach the console either.
+	h.fj.SetLabels(fjRepo, pub.Number)
+	h.fj.EditBody(fjRepo, pub.Number, "Roadmap: the secret acquisition", "v2")
+	h.settle()
+	m, _, _ = h.st.IssueByForgejo(ctx, ghRepo.String(), pub.Number)
+	if m.Title != "Roadmap" {
+		t.Errorf("a frozen pair took the title GitHub never saw: %q", m.Title)
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -32,6 +33,18 @@ var _ store.Store = (*Store)(nil)
 // schema entirely, and a job is a second thing that can be forgotten in a
 // rollout. The advisory lock in Migrate makes it safe with two replicas.
 func Open(ctx context.Context, dsn string, maxConns int32, log *slog.Logger) (*Store, error) {
+	return open(ctx, dsn, maxConns, false, log)
+}
+
+// OpenReadOnly connects for the console alone (docs/console.md): it migrates
+// nothing, every transaction of the session is read-only, and it refuses a
+// database whose schema is older than this binary's, which a bridge of this
+// version has not started on yet. The role may be one that can only read.
+func OpenReadOnly(ctx context.Context, dsn string, maxConns int32, log *slog.Logger) (*Store, error) {
+	return open(ctx, dsn, maxConns, true, log)
+}
+
+func open(ctx context.Context, dsn string, maxConns int32, readOnly bool, log *slog.Logger) (*Store, error) {
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		// The DSN carries a password. Reporting the parse error alone keeps it
@@ -39,6 +52,14 @@ func Open(ctx context.Context, dsn string, maxConns int32, log *slog.Logger) (*S
 		return nil, fmt.Errorf("parsing the database DSN: %w", err)
 	}
 	cfg.MaxConns = maxConns
+	// Names the session after this host, so that the console can tell which
+	// instance holds the leader lock.
+	if host, err := os.Hostname(); err == nil {
+		cfg.ConnConfig.RuntimeParams["application_name"] = applicationPrefix + host
+	}
+	if readOnly {
+		cfg.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
@@ -52,7 +73,12 @@ func Open(ctx context.Context, dsn string, maxConns int32, log *slog.Logger) (*S
 		return nil, fmt.Errorf("connecting to the database: %w", err)
 	}
 
-	if err := Migrate(ctx, pool, log); err != nil {
+	if readOnly {
+		err = CheckSchema(ctx, pool)
+	} else {
+		err = Migrate(ctx, pool, log)
+	}
+	if err != nil {
 		pool.Close()
 		return nil, err
 	}
@@ -77,12 +103,12 @@ func conflict(err error) error {
 	return err
 }
 
-const issueColumns = `id, repository, kind, github_number, forgejo_number, origin, synced_closed`
+const issueColumns = `id, repository, kind, github_number, forgejo_number, origin, synced_closed, title, author`
 
 func scanIssue(row pgx.Row) (store.IssueMapping, error) {
 	var m store.IssueMapping
 	var origin, kind string
-	err := row.Scan(&m.ID, &m.Repository, &kind, &m.GitHubNumber, &m.ForgejoNumber, &origin, &m.SyncedClosed)
+	err := row.Scan(&m.ID, &m.Repository, &kind, &m.GitHubNumber, &m.ForgejoNumber, &origin, &m.SyncedClosed, &m.Title, &m.Author)
 	m.Origin, m.Kind = store.Side(origin), store.Kind(kind)
 	return m, err
 }
@@ -111,10 +137,10 @@ func (s *Store) IssueByForgejo(ctx context.Context, repo string, n int64) (store
 // InsertIssue implements store.Store.
 func (s *Store) InsertIssue(ctx context.Context, m store.IssueMapping) (store.IssueMapping, error) {
 	out, err := scanIssue(s.pool.QueryRow(ctx, `
-		INSERT INTO issue_mapping (repository, kind, github_number, forgejo_number, origin, synced_closed)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO issue_mapping (repository, kind, github_number, forgejo_number, origin, synced_closed, title, author)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING `+issueColumns,
-		m.Repository, string(kindOf(m)), m.GitHubNumber, m.ForgejoNumber, string(m.Origin), m.SyncedClosed))
+		m.Repository, string(kindOf(m)), m.GitHubNumber, m.ForgejoNumber, string(m.Origin), m.SyncedClosed, m.Title, m.Author))
 	if err != nil {
 		return store.IssueMapping{}, conflict(err)
 	}
@@ -125,6 +151,13 @@ func (s *Store) InsertIssue(ctx context.Context, m store.IssueMapping) (store.Is
 func (s *Store) SetIssueSyncedClosed(ctx context.Context, id int64, closed bool) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE issue_mapping SET synced_closed = $2, updated_at = now() WHERE id = $1`, id, closed)
+	return err
+}
+
+// SetIssueSummary implements store.Store.
+func (s *Store) SetIssueSummary(ctx context.Context, id int64, title, author string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE issue_mapping SET title = $2, author = $3, updated_at = now() WHERE id = $1`, id, title, author)
 	return err
 }
 
