@@ -33,6 +33,8 @@ describe('concerns', () => {
     { view: 'pairs', kind: 'issue' },
     { view: 'pair', id: 7 },
     { view: 'queue' },
+    { view: 'people' },
+    { view: 'person', login: 'alice', side: 'github' },
   ];
 
   it('reloads everything on ready and resync', () => {
@@ -97,6 +99,16 @@ describe('concerns', () => {
     for (const scope of every.filter((s) => s.view !== 'status' && s.view !== 'overview')) {
       expect(concerns(rateLimit, scope)).toBe(false);
     }
+  });
+
+  it('reloads the people for pairs, and a person for pairs and the queue', () => {
+    expect(concerns(pair(), { view: 'people' })).toBe(true);
+    expect(concerns(queue(), { view: 'people' })).toBe(false);
+    expect(concerns(cursor(), { view: 'people' })).toBe(false);
+    const person: Scope = { view: 'person', login: 'alice', side: 'github' };
+    expect(concerns(pair(), person)).toBe(true);
+    expect(concerns(queue(), person)).toBe(true);
+    expect(concerns(leader, person)).toBe(false);
   });
 
   it('reloads the queue for the queue only', () => {

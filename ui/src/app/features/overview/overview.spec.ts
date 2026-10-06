@@ -4,6 +4,7 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideApiConfiguration } from '../../api/api-configuration';
+import { Author } from '../../api/models/author';
 import { Repository } from '../../api/models/repository';
 import { Status } from '../../api/models/status';
 import { Overview } from './overview';
@@ -47,10 +48,19 @@ function repository(name: string, failing = 0): Repository {
   };
 }
 
+const people: Author[] = Array.from({ length: 10 }, (_, i) => ({
+  login: `person-${i}`,
+  side: i === 9 ? 'forgejo' : 'github',
+  issues: 10 - i,
+  pulls: i % 3,
+  lastAt: '2026-10-06T00:00:00Z',
+}));
+
 async function render(
   status: Status,
   repos: Repository[] = [],
   filter?: string,
+  authors: Author[] = [],
 ): Promise<HTMLElement> {
   TestBed.configureTestingModule({
     providers: [
@@ -69,6 +79,7 @@ async function render(
   const http = TestBed.inject(HttpTestingController);
   http.expectOne('/api/v1/status').flush(status);
   http.expectOne('/api/v1/repositories').flush(repos);
+  http.expectOne('/api/v1/authors').flush(authors);
   await fixture.whenStable();
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
@@ -147,5 +158,15 @@ describe('Overview', () => {
     const many = Array.from({ length: 10 }, (_, i) => repository(`svc-${i}`));
     const el = await render(working, many, 'svc-3-src');
     expect(el.querySelectorAll('app-repo-tile').length).toBe(1);
+  });
+
+  it('names the eight most active people, linking to their pages', async () => {
+    const el = await render(working, [], undefined, people);
+    const links = Array.from(
+      el.querySelectorAll('section[aria-labelledby="people-heading"] ul a'),
+    ).map((a) => a.getAttribute('href'));
+    expect(links.length).toBe(8);
+    expect(links[0]).toBe('/people/github/person-0');
+    expect(el.textContent).toContain('all people →');
   });
 });

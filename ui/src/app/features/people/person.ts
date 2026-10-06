@@ -1,0 +1,70 @@
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import {
+  MpLoadState,
+  MpPageHeader,
+  MpPanel,
+  MpPanelActions,
+  MpTime,
+  timestamp,
+} from '@metapatrol/ng';
+import { listAuthors } from '../../api/fn/pairs/list-authors';
+import { listPairs } from '../../api/fn/pairs/list-pairs';
+import { Side } from '../../api/models/side';
+import { apiResource } from '../../core/api';
+import { liveReload } from '../../core/events';
+import { sideName } from '../../core/history';
+import { ANY_STATE } from '../../core/state-filter';
+import { PairsTable } from '../../shared/pairs-table';
+
+const RECENT = 10;
+
+/** One person: what the bridge holds from them. */
+@Component({
+  selector: 'app-person',
+  imports: [RouterLink, MpLoadState, MpPageHeader, MpPanel, MpPanelActions, MpTime, PairsTable],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './person.html',
+})
+export class Person {
+  /** From the route. */
+  readonly side = input.required<Side>();
+  readonly login = input.required<string>();
+  protected readonly sideName = sideName;
+  protected readonly timestamp = timestamp;
+
+  protected readonly authors = apiResource(listAuthors, () => ({}));
+  protected readonly person = computed(() =>
+    this.authors.body()?.find((a) => a.side === this.side() && a.login === this.login()),
+  );
+  protected readonly unknown = computed(() => this.authors.hasValue() && !this.person());
+
+  protected readonly issues = apiResource(listPairs, () => ({
+    kind: 'issue' as const,
+    author: this.login(),
+    origin: this.side(),
+    limit: RECENT,
+  }));
+  /** Pull requests come from GitHub only. */
+  protected readonly pulls = apiResource(listPairs, () =>
+    this.side() === 'github'
+      ? { kind: 'pull' as const, author: this.login(), origin: this.side(), limit: RECENT }
+      : undefined,
+  );
+
+  /** The filtered list behind a panel, every state. */
+  protected readonly listParams = computed(() => ({
+    author: this.login(),
+    origin: this.side(),
+    state: ANY_STATE,
+  }));
+
+  constructor() {
+    liveReload(
+      () => ({ view: 'person', login: this.login(), side: this.side() }),
+      this.authors,
+      this.issues,
+      this.pulls,
+    );
+  }
+}

@@ -4,6 +4,7 @@ import { MpTime } from '@metapatrol/ng';
 import { Pair } from '../api/models/pair';
 import { PairKind } from '../api/models/pair-kind';
 import { pairLink } from '../core/kinds';
+import { Author } from './author';
 import { PullFlags, SideLabel, StateBadge } from './badges';
 
 /**
@@ -13,7 +14,7 @@ import { PullFlags, SideLabel, StateBadge } from './badges';
  */
 @Component({
   selector: 'app-pairs-table',
-  imports: [RouterLink, MpTime, SideLabel, StateBadge, PullFlags],
+  imports: [RouterLink, MpTime, Author, SideLabel, StateBadge, PullFlags],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block max-w-full overflow-x-auto' },
   template: `
@@ -39,7 +40,17 @@ import { PullFlags, SideLabel, StateBadge } from './badges';
           <tr>
             <td class="w-full max-w-0 min-w-56">
               <a [routerLink]="link(p)" class="mp-link">{{ p.title || '(no title yet)' }}</a>
-              <span class="block truncate font-mono text-xs text-fg-subtle">{{ details(p) }}</span>
+              <span class="block truncate font-mono text-xs text-fg-subtle">
+                @if (showRepository()) {
+                  {{ p.repository }}
+                }
+                @if (showRepository() && p.author && showAuthor()) {
+                  ·
+                }
+                @if (p.author && showAuthor()) {
+                  by <app-author [login]="p.author" [side]="p.origin" />
+                }
+              </span>
             </td>
             <td class="text-right font-mono text-xs whitespace-nowrap">
               <a [href]="p.githubUrl" class="mp-link" target="_blank" rel="noopener noreferrer"
@@ -112,17 +123,10 @@ export class PairsTable {
   /** Off where the list is of one repository already. */
   readonly showRepository = input(true);
   readonly empty = input('Nothing here.');
+  /** Off where the list is of one person already. */
+  readonly showAuthor = input(true);
 
   protected link(p: Pair): (string | number)[] {
     return pairLink(p.kind, p.id);
-  }
-
-  /** Under the title: the repository, unless the list is of one, and who opened it. */
-  protected details(p: Pair): string {
-    const parts = this.showRepository() ? [p.repository] : [];
-    if (p.author) {
-      parts.push(`by ${p.author}`);
-    }
-    return parts.join(' · ');
   }
 }

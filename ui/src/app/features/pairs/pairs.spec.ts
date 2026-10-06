@@ -43,4 +43,22 @@ describe('Pairs', () => {
   it('lists every state for state=any', () => {
     expect(requestedState('pull', 'any')).toBeNull();
   });
+
+  it('filters by author, with the origin their login is on', () => {
+    const fixture = TestBed.createComponent(Pairs);
+    fixture.componentRef.setInput('kind', 'pull');
+    fixture.componentRef.setInput('state', 'any');
+    fixture.componentRef.setInput('author', 'alice');
+    fixture.componentRef.setInput('origin', 'github');
+    fixture.detectChanges();
+    TestBed.inject(ApplicationRef).tick();
+    const req = http.expectOne((r) => r.url === '/api/v1/pairs');
+    expect(req.request.params.get('author')).toBe('alice');
+    expect(req.request.params.get('origin')).toBe('github');
+    fixture.detectChanges();
+    const chip = (fixture.nativeElement as HTMLElement).querySelector(
+      'button[aria-label="Remove the filter by alice"]',
+    );
+    expect(chip).not.toBeNull();
+  });
 });

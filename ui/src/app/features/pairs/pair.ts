@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import {
+  MpClock,
   MpId,
   MpLoadState,
   MpNotice,
@@ -19,12 +20,13 @@ import {
 } from '@metapatrol/ng';
 import { getPair } from '../../api/fn/pairs/get-pair';
 import { apiResource } from '../../core/api';
-import { repoPath, shortSha } from '../../core/format';
+import { repoPath, shortSha, until } from '../../core/format';
 import { KINDS, pairLink } from '../../core/kinds';
 import { PairKind } from '../../api/models/pair-kind';
 import { liveReload } from '../../core/events';
 import { PullFlags, SideLabel, StateBadge } from '../../shared/badges';
-import { QueueTable } from '../../shared/queue-table';
+import { Author } from '../../shared/author';
+import { history, HistoryEntry, sideName } from '../../core/history';
 
 @Component({
   selector: 'app-pair',
@@ -39,7 +41,7 @@ import { QueueTable } from '../../shared/queue-table';
     SideLabel,
     StateBadge,
     PullFlags,
-    QueueTable,
+    Author,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './pair.html',
@@ -58,6 +60,25 @@ export class PairDetailPage {
     return p ? p.title || `#${p.githubNumber}` : `pair ${this.id()}`;
   });
   protected readonly repoPath = repoPath;
+  protected readonly sideName = sideName;
+  /** What the bridge holds about the pair, as a timeline. */
+  protected readonly entries = computed(() => {
+    const p = this.p();
+    return p ? history(p) : [];
+  });
+  private readonly clock = inject(MpClock);
+
+  protected due(at: string): string {
+    return until(at, this.clock.now());
+  }
+
+  /** The dot of a history entry. */
+  protected dot(e: HistoryEntry): string {
+    if (e.kind === 'queued') {
+      return this.p()?.queued?.lastError ? 'error' : 'active';
+    }
+    return e.kind === 'paired' ? 'success' : e.kind === 'change' ? 'idle' : 'info';
+  }
   protected readonly shortSha = shortSha;
   protected readonly timestamp = timestamp;
 

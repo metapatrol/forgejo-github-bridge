@@ -63,7 +63,13 @@
             </dd>
           }
           <dt class="text-fg-muted">{{ p.kind === 'pull' ? 'contributor' : 'opened by' }}</dt>
-          <dd class="font-mono">{{ p.author || '—' }}</dd>
+          <dd>
+            @if (p.author) {
+              <app-author [login]="p.author" [side]="p.origin" />
+            } @else {
+              —
+            }
+          </dd>
           <dt class="text-fg-muted">paired</dt>
           <dd [title]="timestamp(p.createdAt)"><mp-time [value]="p.createdAt" /></dd>
           <dt class="text-fg-muted">last change</dt>
@@ -99,7 +105,18 @@
               {{ pr.touchesCi ? 'yes — read the workflow changes before approving a run' : 'no' }}
             </dd>
             <dt class="text-fg-muted">rebase</dt>
-            <dd>{{ pr.rebaseRequested ? 'requested from the contributor' : 'not requested' }}</dd>
+            <dd>
+              {{ pr.rebaseRequested ? 'requested from the contributor' : 'not requested' }}
+              @if (pr.rebaseCommentUrl) {
+                <a
+                  [href]="pr.rebaseCommentUrl"
+                  class="mp-link ml-1 text-xs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >the bridge's comment ↗</a
+                >
+              }
+            </dd>
             <dt class="text-fg-muted">outcome</dt>
             <dd>
               @if (p.state === 'open') {
@@ -115,55 +132,119 @@
       }
     </div>
 
-    <mp-panel [index]="p.pull ? '03' : '02'" [title]="'comments · ' + p.commentPairs.length">
-      <div class="overflow-x-auto">
-        <table class="mp-table w-full">
-          <thead>
-            <tr>
-              <th scope="col">written on</th>
-              <th scope="col">GitHub</th>
-              <th scope="col">Forgejo</th>
-              <th scope="col">paired</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (c of p.commentPairs; track c.id) {
-              <tr>
-                <td><app-side [side]="c.origin" /></td>
-                <td class="font-mono text-xs">
-                  <a
-                    [href]="c.githubUrl"
-                    class="mp-link"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    >{{ c.githubCommentId }}</a
-                  >
-                </td>
-                <td class="font-mono text-xs">
-                  <a
-                    [href]="c.forgejoUrl"
-                    class="mp-link"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    >{{ c.forgejoCommentId }}</a
-                  >
-                </td>
-                <td class="text-xs text-fg-muted"><mp-time [value]="c.createdAt" /></td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="4" class="text-sm text-fg-subtle">No comments paired.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+    <mp-panel [index]="p.pull ? '03' : '02'" title="history">
+      <ol class="flex flex-col px-4 py-3">
+        @for (e of entries(); track $index) {
+          <li class="relative flex gap-3 pb-3 last:pb-0">
+            <!-- the line down the timeline, and the entry's dot on it -->
+            <span
+              class="absolute top-4 bottom-0 left-[5px] w-px bg-line"
+              [class.hidden]="$last"
+              aria-hidden="true"
+            ></span>
+            <span
+              class="mp-status relative mt-1 shrink-0"
+              [attr.data-status]="dot(e)"
+              aria-hidden="true"
+            ></span>
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5 text-sm">
+              <span class="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span class="min-w-0">
+                  @switch (e.kind) {
+                    @case ('paired') {
+                      @if (e.origin === 'github') {
+                        opened on GitHub by
+                        <app-author [login]="e.author" [side]="e.origin" />
+                        → imported into
+                      } @else {
+                        published from Forgejo by
+                        <app-author [login]="e.author" [side]="e.origin" />
+                        →
+                      }
+                      <a
+                        [href]="e.to.href"
+                        class="mp-link font-mono"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >{{ e.to.label }}</a
+                      >
+                      <span class="text-xs text-fg-subtle">
+                        (from
+                        <a
+                          [href]="e.from.href"
+                          class="mp-link font-mono"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          >{{ e.from.label }}</a
+                        >)</span
+                      >
+                    }
+                    @case ('comment') {
+                      comment
+                      <span class="font-mono text-xs text-fg-muted"
+                        >{{ sideName(e.origin) }} →
+                        {{ sideName(e.origin === 'github' ? 'forgejo' : 'github') }}</span
+                      >
+                      @for (l of e.links; track l.label) {
+                        <a
+                          [href]="l.href"
+                          class="mp-link ml-2 text-xs"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          >{{ l.label }} ↗</a
+                        >
+                      }
+                    }
+                    @case ('import') {
+                      @if (p.pull; as pr) {
+                        imported
+                        <mp-id [value]="pr.importedHeadSha" [keep]="7" />
+                        into <span class="font-mono">{{ pr.contribBranch }}</span>
+                        <span class="ml-1 inline-flex flex-wrap gap-1 align-middle">
+                          <app-state [state]="p.state" /><app-pull-flags [pair]="p" />
+                        </span>
+                        @if (pr.rebaseCommentUrl) {
+                          <a
+                            [href]="pr.rebaseCommentUrl"
+                            class="mp-link ml-2 text-xs"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            >rebase comment ↗</a
+                          >
+                        }
+                      }
+                    }
+                    @case ('change') {
+                      <span class="text-fg-muted">last change</span>
+                    }
+                    @case ('queued') {
+                      @if (p.queued; as q) {
+                        @if (q.lastError) {
+                          <span class="text-error"
+                            >failing · {{ q.attempts }}
+                            {{ q.attempts === 1 ? 'attempt' : 'attempts' }}</span
+                          >
+                        } @else {
+                          queued
+                        }
+                        <span class="text-xs text-fg-muted">· next try {{ due(q.notBefore) }}</span>
+                      }
+                    }
+                  }
+                </span>
+                <span class="text-xs whitespace-nowrap text-fg-subtle" [title]="timestamp(e.at)"
+                  ><mp-time [value]="e.at"
+                /></span>
+              </span>
+              @if (e.kind === 'queued') {
+                @if (p.queued?.lastError; as err) {
+                  <span class="font-mono text-xs break-words text-error">{{ err }}</span>
+                }
+              }
+            </div>
+          </li>
+        }
+      </ol>
     </mp-panel>
-
-    @if (p.queued; as q) {
-      <mp-panel [index]="p.pull ? '04' : '03'" title="queued">
-        <app-queue-table [entries]="[q]" [showRepository]="false" />
-      </mp-panel>
-    }
   </div>
 }

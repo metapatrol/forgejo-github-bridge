@@ -53,6 +53,16 @@ export const routes: Routes = [
     loadComponent: () => import('./features/pairs/pair-redirect').then((m) => m.PairRedirect),
   },
   {
+    path: 'people',
+    title: title('People'),
+    loadComponent: () => import('./features/people/people').then((m) => m.People),
+  },
+  {
+    path: 'people/:side/:login',
+    title: title('Person'),
+    loadComponent: () => import('./features/people/person').then((m) => m.Person),
+  },
+  {
     path: 'queue',
     title: title('Queue'),
     loadComponent: () => import('./features/queue/queue').then((m) => m.Queue),

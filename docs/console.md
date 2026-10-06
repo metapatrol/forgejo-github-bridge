@@ -63,8 +63,9 @@ and the bridge's error messages, which name repositories and accounts.
 |---|---|
 | Overview | how much of the GitHub rate limit is left, open issues and pull requests, the queue and how much of it is failing, and every repository, problems first, with a filter once there are ten or more; a warning when no instance is doing the work |
 | A repository | opened from its tile on the overview: its configuration, its counts, how far each poll has read on each side, its queue, and its newest open issues and pull requests in panels of their own |
-| Issues | every issue pair, newest first; searchable by title or number, filterable by repository, state and the side it was opened on. An issue links to both sides and shows its comment pairs |
+| Issues | every issue pair, newest first; searchable by title or number, filterable by repository, state and the side it was opened on. An issue links to both sides and shows its history: when it was paired and from where, every comment that crossed, in which direction and with links to both sides, and its queue entry |
 | Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported. One links to both sides and shows its contrib branch, imported head and comment pairs |
+| People | who opened the issues and pull requests the bridge holds, the most active first; a person's page lists what they opened. The bridge records who opened a pair, not who wrote its comments |
 | Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full |
 | System | the service (version, uptime, schedule, the instance doing the work), the GitHub rate limit, and the database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the applied migrations, and the maintenance PostgreSQL runs now |
 

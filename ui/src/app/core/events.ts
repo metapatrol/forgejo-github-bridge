@@ -21,7 +21,9 @@ export type Scope =
   | { view: 'repository'; repository: string }
   | { view: 'pairs'; kind: PairKind; repository?: string }
   | { view: 'pair'; id: number }
-  | { view: 'queue' };
+  | { view: 'queue' }
+  | { view: 'people' }
+  | { view: 'person'; login: string; side: string };
 
 /**
  * Whether an event changes what a view shows. ready and resync change
@@ -55,6 +57,11 @@ export function concerns(e: BridgeEvent, scope: Scope): boolean {
       return (e.kind === 'pair' && e.id === scope.id) || e.kind === 'queue';
     case 'queue':
       return e.kind === 'queue';
+    case 'people':
+      return e.kind === 'pair';
+    case 'person':
+      // A pair event does not name its author: any may be theirs.
+      return e.kind === 'pair' || e.kind === 'queue';
   }
 }
 

@@ -1,0 +1,86 @@
+<mp-page-header section="people" link="/people" [title]="login()" mono />
+
+<mp-load-state
+  [error]="authors.error()"
+  [loading]="authors.isLoading() && !authors.hasValue()"
+  what="people"
+/>
+@if (unknown()) {
+  <p class="mb-4 text-sm text-fg-muted">
+    The bridge holds nothing opened by {{ login() }} on {{ sideName(side()) }}.
+    <a routerLink="/people" class="mp-link">Everyone</a>.
+  </p>
+}
+
+<div class="flex flex-col gap-5">
+  @if (person(); as a) {
+    <mp-panel index="01" title="person">
+      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
+        <dt class="text-fg-muted">login</dt>
+        <dd class="font-mono">{{ a.login }}</dd>
+        <dt class="text-fg-muted">on</dt>
+        <dd>
+          {{ sideName(a.side) }}
+          @if (a.profileUrl) {
+            <a
+              [href]="a.profileUrl"
+              class="mp-link ml-2 text-xs"
+              target="_blank"
+              rel="noopener noreferrer"
+              >profile ↗</a
+            >
+          }
+        </dd>
+        <dt class="text-fg-muted">opened</dt>
+        <dd>
+          {{ a.issues }} {{ a.issues === 1 ? 'issue' : 'issues' }}
+          @if (a.side === 'github') {
+            · {{ a.pulls }} {{ a.pulls === 1 ? 'pull request' : 'pull requests' }}
+          }
+        </dd>
+        <dt class="text-fg-muted">last</dt>
+        <dd [title]="timestamp(a.lastAt)"><mp-time [value]="a.lastAt" /></dd>
+      </dl>
+    </mp-panel>
+  }
+
+  <mp-panel index="02" title="issues">
+    <a mpPanelActions routerLink="/issues" [queryParams]="listParams()" class="mp-link text-xs"
+      >all {{ issues.body()?.total ?? '' }} →</a
+    >
+    <mp-load-state
+      [error]="issues.error()"
+      [loading]="issues.isLoading() && !issues.hasValue()"
+      what="issues"
+    />
+    @if (issues.hasValue()) {
+      <app-pairs-table
+        kind="issue"
+        [pairs]="issues.body()?.items ?? []"
+        [showAuthor]="false"
+        empty="No issues."
+      />
+    }
+  </mp-panel>
+
+  @if (side() === 'github') {
+    <mp-panel index="03" title="pull requests">
+      <a mpPanelActions routerLink="/pulls" [queryParams]="listParams()" class="mp-link text-xs"
+        >all {{ pulls.body()?.total ?? '' }} →</a
+      >
+      <mp-load-state
+        [error]="pulls.error()"
+        [loading]="pulls.isLoading() && !pulls.hasValue()"
+        what="pull requests"
+      />
+      @if (pulls.hasValue()) {
+        <app-pairs-table
+          kind="pull"
+          [pairs]="pulls.body()?.items ?? []"
+          [showAuthor]="false"
+          empty="No pull requests."
+        />
+      }
+    </mp-panel>
+  }
+</div>

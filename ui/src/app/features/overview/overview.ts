@@ -10,6 +10,9 @@ import {
   MpTime,
 } from '@metapatrol/ng';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
+import { listAuthors } from '../../api/fn/pairs/list-authors';
+import { personLink } from '../../shared/author';
+import { sideName } from '../../core/history';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
 import { byHealth, displayNames, FILTER_FROM, filterRepos } from '../../core/repos';
@@ -21,6 +24,9 @@ import { until } from '../../core/format';
 import { Meter } from '../../shared/meter';
 import { StatusService } from '../../core/status';
 
+/** How many people the overview names. */
+const TOP_AUTHORS = 8;
+
 @Component({
   selector: 'app-overview',
   imports: [RouterLink, MpListSearch, MpLoadState, MpNotice, MpPageHeader, MpTime, Meter, RepoTile],
@@ -30,6 +36,11 @@ import { StatusService } from '../../core/status';
 export class Overview {
   protected readonly status = inject(StatusService).status;
   protected readonly repos = apiResource(listRepositories, () => ({}));
+  protected readonly authors = apiResource(listAuthors, () => ({}));
+  /** The most active, as the API orders them. */
+  protected readonly topAuthors = computed(() => (this.authors.body() ?? []).slice(0, TOP_AUTHORS));
+  protected readonly personLink = personLink;
+  protected readonly sideName = sideName;
   protected readonly count = count;
   protected readonly repoPath = repoPath;
   protected readonly grid = REPO_GRID;
@@ -47,7 +58,7 @@ export class Overview {
   protected readonly name = computed(() => displayNames(this.repos.body() ?? []));
 
   constructor() {
-    liveReload(() => ({ view: 'overview' }), this.repos);
+    liveReload(() => ({ view: 'overview' }), this.repos, this.authors);
   }
 
   protected readonly s = computed(() => this.status.body());

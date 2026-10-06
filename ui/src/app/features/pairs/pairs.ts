@@ -5,7 +5,8 @@ import {
   input,
   numberAttribute,
 } from '@angular/core';
-import { MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
+import { MpIcon, MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
+import { RouterLink } from '@angular/router';
 import { listPairs } from '../../api/fn/pairs/list-pairs';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { PairKind } from '../../api/models/pair-kind';
@@ -17,6 +18,7 @@ import { liveReload } from '../../core/events';
 import { Pager } from '../../shared/pager';
 import { FilterOption, PairFilters } from '../../shared/pair-filters';
 import { PairsTable } from '../../shared/pairs-table';
+import { personLink } from '../../shared/author';
 
 const LIMIT = 50;
 
@@ -45,7 +47,7 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
 /** The list of issues, or of pull requests: the route's data says which. */
 @Component({
   selector: 'app-pairs',
-  imports: [MpLoadState, MpPageHeader, Pager, PairFilters, PairsTable],
+  imports: [RouterLink, MpIcon, MpLoadState, MpPageHeader, Pager, PairFilters, PairsTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mp-page-header [title]="title()" [note]="pairs.body()?.total?.toString()" />
@@ -61,6 +63,25 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
         [shown]="pairs.body()?.items?.length ?? 0"
         [total]="pairs.body()?.total ?? 0"
       />
+      @if (author()) {
+        <div class="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-xs">
+          <span class="text-fg-subtle">opened by</span>
+          <span
+            class="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 py-0.5 pr-1 pl-2.5"
+          >
+            <a [routerLink]="personLink()" class="mp-link font-mono">{{ author() }}</a>
+            <span class="text-fg-subtle">· {{ originName() }}</span>
+            <button
+              type="button"
+              class="grid size-5 place-items-center rounded-full text-fg-muted hover:bg-surface hover:text-fg"
+              [attr.aria-label]="'Remove the filter by ' + author()"
+              (click)="clearAuthor()"
+            >
+              <mp-icon name="x" class="size-3" />
+            </button>
+          </span>
+        </div>
+      }
       <mp-load-state
         [error]="pairs.error()"
         [loading]="pairs.isLoading() && !pairs.hasValue()"
@@ -71,6 +92,7 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
           [kind]="kind()"
           [pairs]="pairs.body()?.items ?? []"
           [showRepository]="!repository()"
+          [showAuthor]="!author()"
           [empty]="'No ' + noun() + ' match.'"
         />
         <div class="flex justify-end border-t border-line px-4 py-2">
@@ -94,6 +116,8 @@ export class Pairs {
   readonly state = input<string>();
   readonly origin = input<string>();
   readonly q = input<string>();
+  /** Who opened them, with origin the side that login is on. */
+  readonly author = input<string>();
   readonly offset = input(0, { transform: (v: unknown) => numberAttribute(v, 0) });
 
   private readonly setQuery = mpQueryParams();
@@ -110,7 +134,11 @@ export class Pairs {
     kind: this.kind(),
     repository: this.repository() || undefined,
     state: apiState(this.state()),
-    origin: this.kind() === 'issue' ? oneOf<Side>(this.origin(), ['github', 'forgejo']) : undefined,
+    origin:
+      this.kind() === 'issue' || this.author()
+        ? oneOf<Side>(this.origin(), ['github', 'forgejo'])
+        : undefined,
+    author: this.author() || undefined,
     q: this.q() || undefined,
     limit: LIMIT,
     offset: this.offset(),
@@ -130,6 +158,26 @@ export class Pairs {
       () => ({ view: 'pairs', kind: this.kind(), repository: this.repository() || undefined }),
       this.pairs,
     );
+  }
+
+  /** The side an author filter's login is on: GitHub unless the URL says Forgejo. */
+  private readonly authorSide = computed<Side>(() =>
+    this.origin() === 'forgejo' ? 'forgejo' : 'github',
+  );
+  protected readonly originName = computed(() =>
+    this.authorSide() === 'github' ? 'GitHub' : 'Forgejo',
+  );
+  protected readonly personLink = computed(() =>
+    personLink(this.authorSide(), this.author() ?? ''),
+  );
+
+  protected clearAuthor(): void {
+    // The origin came with the author on a pull request list, which has no origin filter of its own.
+    this.setQuery({
+      author: null,
+      offset: null,
+      ...(this.kind() === 'pull' ? { origin: null } : {}),
+    });
   }
 
   protected page(offset: number): void {

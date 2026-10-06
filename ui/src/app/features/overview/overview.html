@@ -122,5 +122,41 @@
         }
       </ul>
     </section>
+
+    <section class="flex flex-col gap-3" aria-labelledby="people-heading">
+      <header class="flex items-baseline justify-between gap-3">
+        <h2 id="people-heading" class="mp-label mb-0">People</h2>
+        <a routerLink="/people" class="mp-link text-xs">all people →</a>
+      </header>
+      <mp-load-state
+        [error]="authors.error()"
+        [loading]="authors.isLoading() && !authors.hasValue()"
+        what="people"
+      />
+      <ul class="flex flex-wrap gap-2">
+        @for (a of topAuthors(); track a.side + a.login) {
+          <li>
+            <a
+              [routerLink]="personLink(a.side, a.login)"
+              [class]="tileLink + ' flex items-baseline gap-2 px-3 py-1.5 text-sm'"
+              [title]="a.login + ' on ' + sideName(a.side)"
+            >
+              <span class="font-mono font-medium">{{ a.login }}</span>
+              <span class="text-xs text-fg-subtle">{{ sideName(a.side) }}</span>
+              <span class="font-mono text-xs text-fg-muted"
+                >{{ a.issues }} {{ a.issues === 1 ? 'issue' : 'issues' }}
+                @if (a.pulls) {
+                  · {{ a.pulls }} {{ a.pulls === 1 ? 'PR' : 'PRs' }}
+                }
+              </span>
+            </a>
+          </li>
+        } @empty {
+          @if (authors.hasValue()) {
+            <li class="text-sm text-fg-subtle">Nobody yet.</li>
+          }
+        }
+      </ul>
+    </section>
   </div>
 }
