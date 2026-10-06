@@ -91,6 +91,54 @@ var (
 		Name:      "leader",
 		Help:      "1 while this instance holds the leader lock and does the work.",
 	})
+
+	rateWindowRemaining = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "github_rate_limit_window_remaining",
+		Help:      "Requests left in a GitHub rate-limit window of the App installation, by GitHub's resource name, as of the last response.",
+	}, []string{"resource"})
+
+	rateWindowLimit = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "github_rate_limit_window_limit",
+		Help:      "Requests a GitHub rate-limit window allows in all.",
+	}, []string{"resource"})
+
+	rateWindowReset = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "github_rate_limit_window_reset_timestamp_seconds",
+		Help:      "When a GitHub rate-limit window starts over.",
+	}, []string{"resource"})
+
+	maintenanceInterval = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "db_maintenance_interval_seconds",
+		Help:      "Time between two database maintenance rounds as configured; zero when they are off.",
+	})
+
+	maintenanceLast = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "db_maintenance_last_round_timestamp_seconds",
+		Help:      "When the last database maintenance round finished, on any instance, as the active instance last read it; zero on an instance that is not active, or before the first round.",
+	})
+
+	maintenanceDuration = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "db_maintenance_round_duration_seconds",
+		Help:      "How long this instance's last database maintenance round took.",
+	})
+
+	maintenanceRounds = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Name:      "db_maintenance_rounds_total",
+		Help:      "Database maintenance rounds this instance ran, by outcome: ok, or failed when a table or index could not be kept.",
+	}, []string{"outcome"})
+
+	consoleSubscribers = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "console_event_subscribers",
+		Help:      "Console event streams this instance serves now: the browsers watching it live.",
+	})
 )
 
 // Register creates the series of the configured repositories at zero.
@@ -110,6 +158,14 @@ func Register(repositories []string) {
 		for _, source := range []string{"poll", "resync"} {
 			marked.WithLabelValues(r, source)
 		}
+	}
+	// The REST API's window exists before the first response, so a panel or
+	// an alert over it is not empty until then.
+	rateWindowRemaining.WithLabelValues("core")
+	rateWindowLimit.WithLabelValues("core")
+	rateWindowReset.WithLabelValues("core")
+	for _, outcome := range []string{"ok", "failed"} {
+		maintenanceRounds.WithLabelValues(outcome)
 	}
 }
 
@@ -203,6 +259,13 @@ func ObserveGitHub(resp *http.Response) {
 	if rl.Resource == "core" {
 		rateRemaining.Set(float64(remaining))
 	}
+	rateWindowRemaining.WithLabelValues(rl.Resource).Set(float64(remaining))
+	if rl.Limit > 0 {
+		rateWindowLimit.WithLabelValues(rl.Resource).Set(float64(rl.Limit))
+	}
+	if !rl.Reset.IsZero() {
+		rateWindowReset.WithLabelValues(rl.Resource).Set(float64(rl.Reset.Unix()))
+	}
 	rateMu.Lock()
 	rateLimits[rl.Resource] = rl
 	rateMu.Unlock()
@@ -217,4 +280,35 @@ func RateLimits() []RateLimit {
 		out = append(out, rl)
 	}
 	return out
+}
+
+// SetMaintenanceInterval records the configured time between database
+// maintenance rounds; zero when they are off.
+func SetMaintenanceInterval(d time.Duration) {
+	maintenanceInterval.Set(d.Seconds())
+}
+
+// SetLastMaintenance records when the last database maintenance round
+// finished, on any instance.
+func SetLastMaintenance(at time.Time) {
+	if at.IsZero() {
+		maintenanceLast.Set(0)
+		return
+	}
+	maintenanceLast.Set(float64(at.Unix()))
+}
+
+// RecordMaintenance records a database maintenance round this instance ran.
+func RecordMaintenance(took time.Duration, failures int) {
+	maintenanceDuration.Set(took.Seconds())
+	if failures > 0 {
+		maintenanceRounds.WithLabelValues("failed").Inc()
+		return
+	}
+	maintenanceRounds.WithLabelValues("ok").Inc()
+}
+
+// SetConsoleSubscribers records how many console event streams are open.
+func SetConsoleSubscribers(n int) {
+	consoleSubscribers.Set(float64(n))
 }

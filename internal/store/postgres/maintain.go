@@ -26,8 +26,9 @@ const keptRounds = 20
 // on its own; the round is the backstop, and the console shows it
 // (docs/console.md). The pattern is engram's.
 //
-// The active instance runs it; interval zero turns it off.
-func Maintain(ctx context.Context, pool *pgxpool.Pool, interval time.Duration, log *slog.Logger) {
+// The active instance runs it; interval zero turns it off. obs, when its
+// functions are set, is told what happened, for metrics.
+func Maintain(ctx context.Context, pool *pgxpool.Pool, interval time.Duration, log *slog.Logger, obs MaintenanceObserver) {
 	if interval <= 0 {
 		log.Info("database maintenance is off")
 		return
@@ -47,14 +48,55 @@ func Maintain(ctx context.Context, pool *pgxpool.Pool, interval time.Duration, l
 			}
 			continue
 		}
+		obs.last(last)
 		if due := last.Add(interval); !last.IsZero() && time.Now().Before(due) {
-			wait = max(time.Until(due), time.Minute)
+			// Checked again within the hour at the latest, so that the
+			// metrics follow a round another instance ran.
+			wait = min(max(time.Until(due), time.Minute), time.Hour)
 			continue
 		}
-		if err := RunMaintenance(ctx, pool, log); err != nil && ctx.Err() == nil {
-			log.Error("database maintenance round failed", "error", err)
+		r, err := runMaintenance(ctx, pool, log)
+		if err != nil {
+			if ctx.Err() == nil {
+				log.Error("database maintenance round failed", "error", err)
+			}
+			continue
+		}
+		if r.ran {
+			obs.round(r.took, r.failures)
+			obs.last(time.Now())
 		}
 	}
+}
+
+// MaintenanceObserver is told what database maintenance did, for metrics.
+// Either function may be nil.
+type MaintenanceObserver struct {
+	// Last is told when the last round finished, on any instance.
+	Last func(time.Time)
+	// Round is told how long a round this process ran took, and how many of
+	// its steps failed.
+	Round func(took time.Duration, failures int)
+}
+
+func (o MaintenanceObserver) last(at time.Time) {
+	if o.Last != nil {
+		o.Last(at)
+	}
+}
+
+func (o MaintenanceObserver) round(took time.Duration, failures int) {
+	if o.Round != nil {
+		o.Round(took, failures)
+	}
+}
+
+// round is what one maintenance round did.
+type round struct {
+	// ran is false when another round was running already.
+	ran      bool
+	took     time.Duration
+	failures int
 }
 
 func lastRound(ctx context.Context, pool *pgxpool.Pool) (time.Time, error) {
@@ -68,17 +110,22 @@ func lastRound(ctx context.Context, pool *pgxpool.Pool) (time.Time, error) {
 
 // RunMaintenance runs one round now, unless one is running already.
 func RunMaintenance(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) error {
+	_, err := runMaintenance(ctx, pool, log)
+	return err
+}
+
+func runMaintenance(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) (round, error) {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
-		return err
+		return round{}, err
 	}
 	defer conn.Release()
 	var got bool
 	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, maintenanceLockID).Scan(&got); err != nil {
-		return err
+		return round{}, err
 	}
 	if !got {
-		return nil
+		return round{}, nil
 	}
 	defer func() {
 		_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, maintenanceLockID)
@@ -86,7 +133,7 @@ func RunMaintenance(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) e
 
 	var id int64
 	if err := conn.QueryRow(ctx, `INSERT INTO maintenance_round DEFAULT VALUES RETURNING id`).Scan(&id); err != nil {
-		return fmt.Errorf("recording the round: %w", err)
+		return round{}, fmt.Errorf("recording the round: %w", err)
 	}
 	start := time.Now()
 	var tables, rebuilt, dropped, failures []string
@@ -145,7 +192,7 @@ func RunMaintenance(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) e
 	if _, err := conn.Exec(ctx, `
 		UPDATE maintenance_round SET finished_at = now(), tables = $2, rebuilt = $3, dropped = $4, failures = $5
 		WHERE id = $1`, id, nonNil(tables), nonNil(rebuilt), nonNil(dropped), nonNil(failures)); err != nil {
-		return fmt.Errorf("recording the round's end: %w", err)
+		return round{}, fmt.Errorf("recording the round's end: %w", err)
 	}
 	if _, err := conn.Exec(ctx, `
 		DELETE FROM maintenance_round WHERE id NOT IN (SELECT id FROM maintenance_round ORDER BY id DESC LIMIT $1)`,
@@ -158,7 +205,7 @@ func RunMaintenance(ctx context.Context, pool *pgxpool.Pool, log *slog.Logger) e
 	}
 	log.Log(ctx, level, "database maintenance round done", "tables", len(tables), "rebuilt", rebuilt,
 		"dropped", dropped, "failures", failures, "duration", time.Since(start).Round(time.Millisecond))
-	return nil
+	return round{ran: true, took: time.Since(start), failures: len(failures)}, nil
 }
 
 func names(ctx context.Context, conn *pgxpool.Conn, query string) ([]string, error) {

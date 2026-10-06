@@ -227,11 +227,36 @@ y += 4
 
 # --- GitHub API ------------------------------------------------------------------
 P.append(row("GitHub API", y)); y += 1
-P.append(ts("Rate-limit budget", 0, y, 24, 6,
+P.append(ts("Rate-limit budget", 0, y, 8, 8,
             [("min(" + M("github_rate_limit_remaining") + ")", "remaining")],
             steps=[("red", None), ("orange", 500), ("green", 1500)],
             desc="GitHub gives an App installation at least 5000 requests an hour. The budget refills every hour; a steady descent towards zero means polling too often or too many repositories for one installation."))
-y += 6
+P.append(ts("Budget by window", 8, y, 8, 8, [
+    ("max by (resource) (" + M("github_rate_limit_window_limit") + ")", "{{resource}} limit"),
+    ("min by (resource) (" + M("github_rate_limit_window_remaining") + ")", "{{resource}} remaining"),
+], desc="Every rate-limit window GitHub reported for the installation: core is the REST API the bridge uses. Other windows appear only once a response named them."))
+P.append(stat("Core window resets in", 16, y, 8, 8,
+              "max(" + M("github_rate_limit_window_reset_timestamp_seconds", 'resource="core"') + ") - time()",
+              "resets in", unit="s",
+              desc="When GitHub starts the core window over and the budget is full again. Negative for a moment when no response has arrived since the window ended."))
+y += 8
+
+# --- Database maintenance and console ------------------------------------------------
+P.append(row("Database maintenance and console", y)); y += 1
+P.append(ts("Since the last maintenance round", 0, y, 12, 8, [
+    ("time() - max(" + M("db_maintenance_last_round_timestamp_seconds") + " > 0)", "since last round"),
+    ("max(" + M("db_maintenance_interval_seconds") + " > 0)", "interval"),
+], unit="s",
+    desc="The active instance vacuums and analyzes every table once per interval. The first line should stay under the second; one that keeps rising past it is a round that does not happen. No interval line: maintenance is off."))
+P.append(stat("Last round took", 12, y, 4, 8, "max(" + M("db_maintenance_round_duration_seconds") + ")", "took",
+              unit="s", desc="How long the last round of the active instance took. Seconds for the bridge's small tables."))
+P.append(stat("Failed rounds", 16, y, 4, 8,
+              "(sum(" + increase("db_maintenance_rounds_total", "outcome", 'outcome="failed"') + ")) or vector(0)",
+              "in range", steps=[("green", None), ("orange", 1)],
+              desc="Rounds in the selected range in which a table or index could not be kept. The log line \"database maintenance round done\" names what failed."))
+P.append(stat("Watching live", 20, y, 4, 8, "sum(" + M("console_event_subscribers") + ")", "browsers",
+              desc="Browsers following the console's event stream, on all instances."))
+y += 8
 
 dashboard = {
     "__inputs": [{"name": "DS_PROMETHEUS", "label": "Prometheus", "description": "",

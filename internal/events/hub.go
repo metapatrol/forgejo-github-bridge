@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 )
 
 // Channel is the notification channel the triggers announce on.
@@ -77,12 +78,14 @@ func (h *Hub) Subscribe() (<-chan Event, func()) {
 		return ch, func() {}
 	}
 	h.subs[ch] = struct{}{}
+	telemetry.SetConsoleSubscribers(len(h.subs))
 	return ch, func() {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		if _, ok := h.subs[ch]; ok {
 			delete(h.subs, ch)
 			close(ch)
+			telemetry.SetConsoleSubscribers(len(h.subs))
 		}
 	}
 }
@@ -97,6 +100,7 @@ func (h *Hub) Close() {
 		delete(h.subs, ch)
 		close(ch)
 	}
+	telemetry.SetConsoleSubscribers(0)
 }
 
 // Run listens until ctx ends, reconnecting with backoff. After a lost

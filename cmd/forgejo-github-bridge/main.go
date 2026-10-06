@@ -73,6 +73,7 @@ func run() error {
 		keys[i] = r.Key()
 	}
 	telemetry.Register(keys)
+	telemetry.SetMaintenanceInterval(cfg.MaintenanceInterval)
 
 	repos := make([]string, len(cfg.Repositories))
 	for i, r := range cfg.Repositories {
@@ -171,7 +172,9 @@ func run() error {
 		}
 	}()
 	go saveRateLimits(runCtx, st, log)
-	go postgres.Maintain(runCtx, st.Pool(), cfg.MaintenanceInterval, log)
+	go postgres.Maintain(runCtx, st.Pool(), cfg.MaintenanceInterval, log, postgres.MaintenanceObserver{
+		Last: telemetry.SetLastMaintenance, Round: telemetry.RecordMaintenance,
+	})
 	go func() {
 		if err := b.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("the bridge stopped", "error", err)
