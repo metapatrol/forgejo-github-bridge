@@ -129,6 +129,32 @@ func commentMappings(t *testing.T, s store.Store) {
 	if got, _ := s.Comments(ctx, m.ID); len(got) != 0 {
 		t.Errorf("deleted comment mapping still there: %+v", got)
 	}
+
+	// GitHub numbers review comments apart from conversation comments: the
+	// same GitHub ID may be one of each, but not two of either.
+	conv, err := s.InsertComment(ctx, store.CommentMapping{IssueMappingID: m.ID, GitHubCommentID: 50, ForgejoCommentID: 60, Origin: store.Forgejo})
+	if err != nil || conv.KindOf() != store.CommentKindComment {
+		t.Fatalf("conversation comment = %+v, %v", conv, err)
+	}
+	line, err := s.InsertComment(ctx, store.CommentMapping{IssueMappingID: m.ID, GitHubCommentID: 50, ForgejoCommentID: 61,
+		Origin: store.Forgejo, Kind: store.CommentKindLine})
+	if err != nil {
+		t.Fatalf("a review comment with a conversation comment's ID: %v", err)
+	}
+	if _, err := s.InsertComment(ctx, store.CommentMapping{IssueMappingID: m.ID, GitHubCommentID: 50, ForgejoCommentID: 62,
+		Origin: store.Forgejo, Kind: store.CommentKindLineAsComment}); !errors.Is(err, store.ErrConflict) {
+		t.Errorf("two conversation comments with one ID: want ErrConflict, have %v", err)
+	}
+	// A line comment GitHub would not place, recreated as a conversation
+	// comment: the kind moves with the IDs.
+	line.GitHubCommentID, line.Kind = 51, store.CommentKindLineAsComment
+	if err := s.UpdateComment(ctx, line); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.Comments(ctx, m.ID)
+	if len(got) != 2 || got[1].Kind != store.CommentKindLineAsComment || got[1].GitHubCommentID != 51 {
+		t.Errorf("comments = %+v", got)
+	}
 }
 
 func cursors(t *testing.T, s store.Store) {

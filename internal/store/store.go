@@ -72,7 +72,40 @@ type CommentMapping struct {
 	GitHubCommentID  int64
 	ForgejoCommentID int64
 	Origin           Side
+	// Kind is what the two are. Empty is stored as CommentKindComment.
+	Kind CommentKind
 }
+
+// CommentKind is what a comment pair is. GitHub numbers its review comments
+// apart from its issue comments, so a GitHub ID is unique only within the
+// kinds that share its numbering.
+type CommentKind string
+
+// The kinds of comment pair.
+const (
+	// CommentKindComment pairs two conversation comments, or a Forgejo
+	// review's summary with a GitHub comment.
+	CommentKindComment CommentKind = "comment"
+	// CommentKindLine pairs a Forgejo line comment with a GitHub review
+	// comment on the same line.
+	CommentKindLine CommentKind = "line"
+	// CommentKindLineAsComment pairs a Forgejo line comment with a GitHub
+	// conversation comment, where GitHub would not place it on the line.
+	CommentKindLineAsComment CommentKind = "line_as_comment"
+)
+
+// KindOf is a comment pair's kind, an empty one read as a conversation
+// comment.
+func (c CommentMapping) KindOf() CommentKind {
+	if c.Kind == "" {
+		return CommentKindComment
+	}
+	return c.Kind
+}
+
+// GitHubReviewComment reports whether the GitHub side is a review comment,
+// numbered apart from conversation comments.
+func (c CommentMapping) GitHubReviewComment() bool { return c.KindOf() == CommentKindLine }
 
 // PullState is how far a pull request pair has come.
 type PullState string

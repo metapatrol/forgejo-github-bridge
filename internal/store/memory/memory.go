@@ -188,8 +188,9 @@ func (s *Store) InsertComment(_ context.Context, c store.CommentMapping) (store.
 	if _, ok := s.issues[c.IssueMappingID]; !ok {
 		return store.CommentMapping{}, store.ErrConflict
 	}
+	c.Kind = c.KindOf()
 	for _, o := range s.comments {
-		if o.GitHubCommentID == c.GitHubCommentID || o.ForgejoCommentID == c.ForgejoCommentID {
+		if clash(o, c) {
 			return store.CommentMapping{}, store.ErrConflict
 		}
 	}
@@ -198,11 +199,19 @@ func (s *Store) InsertComment(_ context.Context, c store.CommentMapping) (store.
 	return c, nil
 }
 
+// clash reports whether two comment pairs claim the same comment: the same
+// Forgejo comment, or the same GitHub comment of the same numbering.
+func clash(a, b store.CommentMapping) bool {
+	return a.ForgejoCommentID == b.ForgejoCommentID ||
+		(a.GitHubCommentID == b.GitHubCommentID && a.GitHubReviewComment() == b.GitHubReviewComment())
+}
+
 func (s *Store) UpdateComment(_ context.Context, c store.CommentMapping) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	c.Kind = c.KindOf()
 	for _, o := range s.comments {
-		if o.ID != c.ID && (o.GitHubCommentID == c.GitHubCommentID || o.ForgejoCommentID == c.ForgejoCommentID) {
+		if o.ID != c.ID && clash(o, c) {
 			return store.ErrConflict
 		}
 	}

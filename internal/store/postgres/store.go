@@ -238,13 +238,13 @@ func (s *Store) SavePullRequest(ctx context.Context, p store.PullRequestState) e
 	return conflict(err)
 }
 
-const commentColumns = `id, issue_mapping_id, github_comment_id, forgejo_comment_id, origin`
+const commentColumns = `id, issue_mapping_id, github_comment_id, forgejo_comment_id, origin, kind`
 
 func scanComment(row pgx.Row) (store.CommentMapping, error) {
 	var c store.CommentMapping
-	var origin string
-	err := row.Scan(&c.ID, &c.IssueMappingID, &c.GitHubCommentID, &c.ForgejoCommentID, &origin)
-	c.Origin = store.Side(origin)
+	var origin, kind string
+	err := row.Scan(&c.ID, &c.IssueMappingID, &c.GitHubCommentID, &c.ForgejoCommentID, &origin, &kind)
+	c.Origin, c.Kind = store.Side(origin), store.CommentKind(kind)
 	return c, err
 }
 
@@ -270,22 +270,24 @@ func (s *Store) Comments(ctx context.Context, issueID int64) ([]store.CommentMap
 // InsertComment implements store.Store.
 func (s *Store) InsertComment(ctx context.Context, c store.CommentMapping) (store.CommentMapping, error) {
 	out, err := scanComment(s.pool.QueryRow(ctx, `
-		INSERT INTO comment_mapping (issue_mapping_id, github_comment_id, forgejo_comment_id, origin)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO comment_mapping (issue_mapping_id, github_comment_id, forgejo_comment_id, origin, kind)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING `+commentColumns,
-		c.IssueMappingID, c.GitHubCommentID, c.ForgejoCommentID, string(c.Origin)))
+		c.IssueMappingID, c.GitHubCommentID, c.ForgejoCommentID, string(c.Origin), string(c.KindOf())))
 	if err != nil {
 		return store.CommentMapping{}, conflict(err)
 	}
 	return out, nil
 }
 
-// UpdateComment implements store.Store.
+// UpdateComment implements store.Store. The kind changes with the IDs: a
+// projection recreated may land on a line where its predecessor could not,
+// or the other way round.
 func (s *Store) UpdateComment(ctx context.Context, c store.CommentMapping) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE comment_mapping
-		SET github_comment_id = $2, forgejo_comment_id = $3, updated_at = now()
-		WHERE id = $1`, c.ID, c.GitHubCommentID, c.ForgejoCommentID)
+		SET github_comment_id = $2, forgejo_comment_id = $3, kind = $4, updated_at = now()
+		WHERE id = $1`, c.ID, c.GitHubCommentID, c.ForgejoCommentID, string(c.KindOf()))
 	return conflict(err)
 }
 
