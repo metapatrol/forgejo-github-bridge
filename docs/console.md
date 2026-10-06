@@ -61,12 +61,12 @@ and the bridge's error messages, which name repositories and accounts.
 
 | View | |
 |---|---|
-| Overview | the instance doing the work and since when, the queue and how much of it is failing, and every repository with its counts |
+| Overview | whether an instance is doing the work, the queue and how much of it is failing, how much of the GitHub rate limit is left, open issues and pull requests, and every repository |
 | Repositories | each pair's configuration, its counts, how far each poll has read on each side, its queue, and its newest issues and pull requests in panels of their own |
 | Issues | every issue pair, newest first; searchable by title or number, filterable by repository, state and the side it was opened on. An issue links to both sides and shows its comment pairs |
 | Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported. One links to both sides and shows its contrib branch, imported head and comment pairs |
 | Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full |
-| System | the service (version, uptime, schedule, the instance doing the work) and its database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the applied migrations, and the maintenance PostgreSQL runs now |
+| System | the service (version, uptime, schedule, the instance doing the work), the GitHub rate limit, and the database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the applied migrations, and the maintenance PostgreSQL runs now |
 
 ![The queue: what is failing, how often, and why](./images/console-queue.png)
 

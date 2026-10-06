@@ -738,7 +738,10 @@ are not can have it.
   a Node toolchain in the build, paid once in CI.
 - **Activity.** Not in v1. A record of every write the bridge makes needs a
   table, a retention and a reason to read it that the queue and the logs do
-  not already give; it waits for that reason. Rate-limit budget and the time
-  of the last successful poll live in the leader's memory and in the metrics,
-  not in the database, so a console on another instance cannot show them; the
-  dashboard does.
+  not already give; it waits for that reason.
+- **The GitHub rate limit.** It lives in the active instance's memory, read
+  from every response made with the installation token. That instance writes
+  it to the database every 15 seconds when it changed (`github_rate_limit`),
+  so that a console on any instance shows it, live like everything else. The
+  time of the last successful poll stays in the metrics; the poll cursors
+  say how far each poll has read.
