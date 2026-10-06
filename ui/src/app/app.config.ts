@@ -1,9 +1,10 @@
 import { provideHttpClient, withFetch } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideRouter, withComponentInputBinding, withNavigationErrorHandler } from '@angular/router';
 import { provideMetapatrol, provideMpIcons } from '@metapatrol/ng';
 import { provideApiConfiguration } from './api/api-configuration';
 import { routes } from './app.routes';
+import { reloadOnStaleBundle } from './core/stale-bundle';
 import { ICONS } from './shared/icons';
 
 export const appConfig: ApplicationConfig = {
@@ -15,7 +16,9 @@ export const appConfig: ApplicationConfig = {
       serviceName: 'the bridge',
     }),
     provideMpIcons(ICONS),
-    provideRouter(routes, withComponentInputBinding()),
+    // A tab left open across a deployment asks for chunks the new build no
+    // longer has; it reloads onto the new build instead of failing.
+    provideRouter(routes, withComponentInputBinding(), withNavigationErrorHandler((e) => reloadOnStaleBundle(e))),
     provideHttpClient(withFetch()),
     // The API is served by the same listener that serves the console.
     provideApiConfiguration('/api/v1'),
