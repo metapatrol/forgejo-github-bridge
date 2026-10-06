@@ -1,0 +1,350 @@
+<mp-page-header title="System" note="service and database">
+  <span class="flex items-center gap-3 text-xs text-fg-subtle">
+    <span>loaded <mp-time [value]="loadedAt()" /> · every 30 s</span>
+    <button type="button" class="mp-btn-ghost flex items-center gap-1.5" (click)="reload()">
+      Refresh
+    </button>
+  </span>
+</mp-page-header>
+
+<mp-load-state
+  [error]="res.error()"
+  [loading]="res.isLoading() && !res.hasValue()"
+  what="system status"
+/>
+
+@if (res.body(); as s) {
+  <div class="flex flex-col gap-5">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <!-- service -->
+      <section class="mp-panel mp-panel-flush">
+        <header class="mp-panel-head">
+          <h2 class="mp-label"><span class="mp-label-index">01</span>Service</h2>
+          <span class="font-mono text-xs text-fg-subtle"
+            >forgejo-github-bridge {{ s.service.version }}</span
+          >
+        </header>
+        <dl class="mp-kv px-4 py-3 text-sm">
+          <dt>version</dt>
+          <dd class="font-mono">{{ s.service.version }}</dd>
+          <dt>build</dt>
+          <dd class="font-mono">
+            @if (s.service.commit !== 'unknown') {
+              {{ s.service.commit }}
+              <span class="block text-xs text-fg-subtle">built {{ s.service.builtAt }}</span>
+            } @else {
+              local build
+            }
+          </dd>
+          <dt>Go</dt>
+          <dd class="font-mono">{{ s.service.goVersion }}</dd>
+          <dt>instance</dt>
+          <dd>
+            <span class="font-mono">{{ s.service.instance }}</span>
+            <span class="text-xs text-fg-subtle"> · {{ s.service.mode }} mode</span>
+          </dd>
+          <dt>up</dt>
+          <dd>
+            {{ uptime() }}
+            <span class="block text-xs text-fg-subtle"
+              >since {{ timestamp(s.service.startedAt) }}</span
+            >
+          </dd>
+          <dt>polls</dt>
+          <dd>
+            every {{ interval(s.service.pollIntervalSeconds) }}
+            <span class="block text-xs text-fg-subtle"
+              >and every open pair every {{ interval(s.service.fullResyncSeconds) }}</span
+            >
+          </dd>
+          <dt>repositories</dt>
+          <dd>
+            {{ s.service.repositories }}
+            <span class="text-xs text-fg-subtle"
+              >· {{ s.service.pullRequestRepositories }} with pull requests</span
+            >
+          </dd>
+          <dt>leader</dt>
+          <dd>
+            @if (s.service.leader; as l) {
+              @if (l.present) {
+                <span class="mp-status" data-status="success">{{
+                  l.instance || 'an instance'
+                }}</span>
+                @if (l.connectedAt; as at) {
+                  <span class="block text-xs text-fg-subtle"
+                    >connected <mp-time [value]="at"
+                  /></span>
+                }
+              }
+            }
+            @if (!s.service.leader?.present) {
+              <span class="mp-status" data-status="error">none: nothing is being bridged</span>
+            }
+          </dd>
+        </dl>
+      </section>
+
+      <!-- database -->
+      <section class="mp-panel mp-panel-flush">
+        <header class="mp-panel-head">
+          <h2 class="mp-label"><span class="mp-label-index">02</span>Database</h2>
+          <span
+            class="font-mono text-xs text-fg-subtle"
+            [title]="'PostgreSQL ' + s.database.version"
+            >PostgreSQL {{ s.database.version.split(' ')[0] }}</span
+          >
+        </header>
+        <dl class="mp-kv px-4 py-3 text-sm">
+          <dt>size</dt>
+          <dd class="font-mono">{{ bytes(s.database.sizeBytes) }}</dd>
+          <dt>sessions</dt>
+          <dd>
+            <span class="font-mono"
+              >{{ count(s.database.connections) }} of {{ count(s.database.maxConnections) }}</span
+            >
+            <span class="block text-xs text-fg-subtle"
+              >this instance's pool: {{ s.database.poolInUse }} busy,
+              {{ s.database.poolSize }} open, at most {{ s.database.poolMax }}</span
+            >
+          </dd>
+          <dt>from cache</dt>
+          <dd>
+            <span class="font-mono" [class.text-warning]="cacheHit() < 0.95">{{
+              percent(cacheHit())
+            }}</span>
+            <span class="block text-xs text-fg-subtle"
+              >of blocks read; <code>shared_buffers</code> {{ setting('shared_buffers') }}</span
+            >
+          </dd>
+          <dt>temp files</dt>
+          <dd>
+            <span class="font-mono">{{ bytes(s.database.tempBytes) }}</span>
+            <span class="block text-xs text-fg-subtle"
+              >written when a sort did not fit <code>work_mem</code> {{ setting('work_mem') }}</span
+            >
+          </dd>
+          <dt>deadlocks</dt>
+          <dd class="font-mono" [class.text-warning]="s.database.deadlocks > 0">
+            {{ count(s.database.deadlocks) }}
+          </dd>
+          <dt>unfrozen</dt>
+          <dd class="flex flex-col gap-1">
+            <span
+              class="font-mono"
+              [class.text-warning]="s.database.xidAge > s.database.freezeMaxAge / 2"
+              >{{ percent(s.database.xidAge / s.database.freezeMaxAge) }}</span
+            >
+            <app-meter
+              [value]="s.database.xidAge"
+              [max]="s.database.freezeMaxAge"
+              [warnAt]="0.5"
+              label="transaction age towards the freeze limit"
+            />
+            <span class="text-xs text-fg-subtle"
+              >oldest row {{ count(s.database.xidAge) }} transactions old; autovacuum freezes at
+              {{ count(s.database.freezeMaxAge) }}</span
+            >
+          </dd>
+          <dt>since</dt>
+          <dd class="text-xs text-fg-muted">
+            @if (s.database.statsReset; as reset) {
+              statistics reset <mp-time [value]="reset" />
+            } @else {
+              the server started
+            }
+          </dd>
+        </dl>
+        @if (s.database.settings.length) {
+          <details class="border-t border-line px-4 py-3 text-sm">
+            <summary class="cursor-pointer text-xs text-fg-muted">
+              {{ s.database.settings.length }} settings
+            </summary>
+            <dl class="mp-kv mt-2 font-mono text-xs">
+              @for (st of s.database.settings; track st.name) {
+                <dt>{{ st.name }}</dt>
+                <dd>{{ st.value }}</dd>
+              }
+            </dl>
+          </details>
+        }
+      </section>
+    </div>
+
+    <!-- tables, the largest first -->
+    <div class="flex flex-col gap-3">
+      <h2 class="mp-label mb-0"><span class="mp-label-index">03</span>Tables</h2>
+      <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+        @for (t of s.tables; track t.name) {
+          <section class="mp-panel mp-panel-flush" [attr.aria-label]="t.name">
+            <header class="mp-panel-head">
+              <h3 class="font-mono text-sm font-medium">{{ t.name }}</h3>
+              <span class="font-mono text-xs text-fg-muted"
+                >{{ bytes(t.totalBytes) }} · table {{ bytes(t.heapBytes) }} · indexes
+                {{ bytes(t.indexBytes) }}</span
+              >
+            </header>
+            <div class="flex flex-col gap-3 px-4 py-3">
+              <div
+                class="flex h-1.5 overflow-hidden rounded-full bg-surface-2"
+                role="img"
+                [attr.aria-label]="
+                  'size ' + bytes(t.totalBytes) + ', relative to the largest table'
+                "
+              >
+                <span class="bg-signal" [style.width.%]="share(t.heapBytes)"></span>
+                <span class="bg-info" [style.width.%]="share(t.indexBytes)"></span>
+              </div>
+              <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+                <div>
+                  <dt class="mp-label">rows</dt>
+                  <dd class="font-mono">{{ count(t.liveRows) }}</dd>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <dt class="mp-label">dead rows</dt>
+                  <dd>
+                    <span class="font-mono" [class.text-warning]="t.deadRows > t.vacuumThreshold">{{
+                      count(t.deadRows)
+                    }}</span>
+                    <span class="text-xs text-fg-subtle"> / {{ count(t.vacuumThreshold) }}</span>
+                  </dd>
+                  <app-meter
+                    [value]="t.deadRows"
+                    [max]="t.vacuumThreshold"
+                    label="dead rows towards the vacuum threshold"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <dt class="mp-label">changed</dt>
+                  <dd>
+                    <span class="font-mono">{{ count(t.modifiedSinceAnalyze) }}</span>
+                    <span class="text-xs text-fg-subtle"> / {{ count(t.analyzeThreshold) }}</span>
+                  </dd>
+                  <app-meter
+                    [value]="t.modifiedSinceAnalyze"
+                    [max]="t.analyzeThreshold"
+                    label="changed rows towards the analyze threshold"
+                  />
+                </div>
+                <div>
+                  <dt class="mp-label">vacuumed</dt>
+                  <dd class="text-xs">{{ lastText(t.lastVacuum, t.lastAutovacuum) }}</dd>
+                  <dt class="mp-label mt-2">analyzed</dt>
+                  <dd class="text-xs">{{ lastText(t.lastAnalyze, t.lastAutoanalyze) }}</dd>
+                </div>
+              </dl>
+              <p class="text-xs text-fg-subtle">
+                Autovacuum vacuums at {{ count(t.vacuumThreshold) }} dead rows and analyzes at
+                {{ count(t.analyzeThreshold) }} changed ones.
+              </p>
+            </div>
+            @if (t.indexes.length) {
+              <details class="border-t border-line" [open]="invalidIndexes(t) > 0">
+                <summary class="cursor-pointer px-4 py-2 text-xs text-fg-muted">
+                  {{ t.indexes.length }} {{ t.indexes.length === 1 ? 'index' : 'indexes' }}
+                  @if (invalidIndexes(t)) {
+                    <span class="mp-status ml-2" data-status="error"
+                      >{{ invalidIndexes(t) }} invalid</span
+                    >
+                  }
+                </summary>
+                <div class="overflow-x-auto">
+                  <table class="mp-table w-full">
+                    <thead>
+                      <tr>
+                        <th scope="col">index</th>
+                        <th scope="col" class="hidden sm:table-cell">method</th>
+                        <th scope="col" class="mp-num">size</th>
+                        <th scope="col" class="mp-num">scans</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (ix of t.indexes; track ix.name) {
+                        <tr>
+                          <td class="font-mono text-xs [overflow-wrap:anywhere]">
+                            {{ ix.name }}
+                            @if (!ix.valid) {
+                              <span
+                                class="mp-status ml-2"
+                                data-status="error"
+                                title="Left behind by a failed build: drop it and build it again."
+                                >invalid</span
+                              >
+                            }
+                            <span class="block text-fg-subtle sm:hidden">{{ ix.method }}</span>
+                          </td>
+                          <td class="hidden font-mono text-xs sm:table-cell">{{ ix.method }}</td>
+                          <td class="mp-num">{{ bytes(ix.bytes) }}</td>
+                          <td class="mp-num">{{ count(ix.scans) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            }
+          </section>
+        } @empty {
+          <p class="text-sm text-fg-subtle">No tables.</p>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <!-- migrations -->
+      <section class="mp-panel mp-panel-flush">
+        <header class="mp-panel-head">
+          <h2 class="mp-label"><span class="mp-label-index">04</span>Migrations</h2>
+          <span class="font-mono text-xs text-fg-subtle">{{ s.migrations.length }} applied</span>
+        </header>
+        <table class="mp-table w-full">
+          <thead>
+            <tr>
+              <th scope="col">name</th>
+              <th scope="col">applied</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of s.migrations; track m.name) {
+              <tr>
+                <td class="font-mono text-xs">{{ m.name }}</td>
+                <td
+                  class="text-xs whitespace-nowrap text-fg-muted"
+                  [title]="timestamp(m.appliedAt)"
+                >
+                  <mp-time [value]="m.appliedAt" />
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="2" class="text-sm text-fg-subtle">None applied.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <!-- running maintenance -->
+      <section class="mp-panel mp-panel-flush">
+        <header class="mp-panel-head">
+          <h2 class="mp-label"><span class="mp-label-index">05</span>Running maintenance</h2>
+          @if (s.running.length) {
+            <span class="mp-status font-mono text-xs" data-status="active">running</span>
+          }
+        </header>
+        @if (s.running.length) {
+          <ul class="flex flex-col gap-2 px-4 py-3">
+            @for (q of s.running; track $index) {
+              <li class="font-mono text-xs break-words text-fg-muted">{{ q }}</li>
+            }
+          </ul>
+        } @else {
+          <p class="px-4 py-3 text-sm text-fg-subtle">
+            Nothing is running. Autovacuum <code>{{ setting('autovacuum') }}</code> keeps the tables
+            on its own.
+          </p>
+        }
+      </section>
+    </div>
+  </div>
+}

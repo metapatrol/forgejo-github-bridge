@@ -6,7 +6,7 @@ import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
 import { byHealth, displayNames } from '../../core/repos';
 import { REPO_GRID, RepoTile } from '../../shared/repo-tile';
-import { autoRefresh } from '../../core/refresh';
+import { liveReload } from '../../core/events';
 import { OPEN } from '../../core/state-filter';
 import { StatusService } from '../../core/status';
 
@@ -29,7 +29,7 @@ export class Overview {
   protected readonly name = computed(() => displayNames(this.repos.body() ?? []));
 
   constructor() {
-    autoRefresh(this.repos);
+    liveReload(() => ({ view: 'overview' }), this.repos);
   }
 
   protected readonly s = computed(() => this.status.body());

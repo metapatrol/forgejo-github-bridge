@@ -13,7 +13,7 @@ import { apiState } from '../../core/state-filter';
 import { Side } from '../../api/models/side';
 import { apiResource } from '../../core/api';
 import { KINDS } from '../../core/kinds';
-import { autoRefresh } from '../../core/refresh';
+import { liveReload } from '../../core/events';
 import { Pager } from '../../shared/pager';
 import { FilterOption, PairFilters } from '../../shared/pair-filters';
 import { PairsTable } from '../../shared/pairs-table';
@@ -126,7 +126,10 @@ export class Pairs {
   );
 
   constructor() {
-    autoRefresh(this.pairs);
+    liveReload(
+      () => ({ view: 'pairs', kind: this.kind(), repository: this.repository() || undefined }),
+      this.pairs,
+    );
   }
 
   protected page(offset: number): void {

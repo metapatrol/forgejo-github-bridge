@@ -1,7 +1,7 @@
 import { computed, Injectable } from '@angular/core';
 import { getStatus } from '../api/fn/status/get-status';
 import { apiResource } from './api';
-import { autoRefresh } from './refresh';
+import { liveReload } from './events';
 
 /** The bridge's status, shared by the sidebar and the overview, refreshed with the console. */
 @Injectable({ providedIn: 'root' })
@@ -9,7 +9,7 @@ export class StatusService {
   readonly status = apiResource(getStatus, () => ({}));
 
   constructor() {
-    autoRefresh(this.status);
+    liveReload(() => ({ view: 'status' }), this.status);
   }
 
   /** The bridge's health in one word, for the sidebar. */

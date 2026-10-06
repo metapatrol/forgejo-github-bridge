@@ -22,7 +22,7 @@ import { apiResource } from '../../core/api';
 import { repoPath, shortSha } from '../../core/format';
 import { KINDS, pairLink } from '../../core/kinds';
 import { PairKind } from '../../api/models/pair-kind';
-import { autoRefresh } from '../../core/refresh';
+import { liveReload } from '../../core/events';
 import { PullFlags, SideLabel, StateBadge } from '../../shared/badges';
 import { QueueTable } from '../../shared/queue-table';
 
@@ -62,7 +62,7 @@ export class PairDetailPage {
   protected readonly timestamp = timestamp;
 
   constructor() {
-    autoRefresh(this.pair);
+    liveReload(() => ({ view: 'pair', id: this.id() }), this.pair);
     // An issue opened as a pull request's page, or the other way round, goes
     // where it belongs.
     const router = inject(Router);

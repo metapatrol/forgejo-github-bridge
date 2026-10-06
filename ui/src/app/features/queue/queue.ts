@@ -9,7 +9,7 @@ import { MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
 import { listQueue } from '../../api/fn/queue/list-queue';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
-import { autoRefresh } from '../../core/refresh';
+import { liveReload } from '../../core/events';
 import { QueueTable } from '../../shared/queue-table';
 
 @Component({
@@ -72,6 +72,6 @@ export class Queue {
   protected readonly repos = apiResource(listRepositories, () => ({}));
 
   constructor() {
-    autoRefresh(this.queue);
+    liveReload(() => ({ view: 'queue' }), this.queue);
   }
 }

@@ -678,6 +678,17 @@ file it was generated from.
 | `GET /api/v1/pairs` | pairs, filterable by repository, kind, state, origin and a search over title and numbers: both numbers, links to both sides, origin, state, title |
 | `GET /api/v1/pairs/{id}` | one pair in full: its comment pairs, its queue entry, and for a pull request the contrib branch, imported head, frozen, touches-ci, rebase request, outcome |
 | `GET /api/v1/queue` | what is queued: due when, how many attempts, the last error |
+| `GET /api/v1/system` | the service and its database: size, connections, cache, transaction age, tables with their autovacuum thresholds and indexes, migrations, running maintenance |
+| `GET /api/v1/events` | changes as they happen, as Server-Sent Events |
+
+**Live, without polling.** Triggers on the bridge's tables announce every
+change on one PostgreSQL channel (`NOTIFY`); every console listens on it and
+streams the changes to browsers as Server-Sent Events, which reload what they
+show. The announcement names what changed, never its content, and travels
+through the database, so a console on any instance hears the work of the
+leader. The leader lock is a session, not a row, so it is the one thing no
+trigger announces; each console checks it on a timer. The pattern is
+engram's.
 
 Everything comes from the database; no request reaches GitHub or Forgejo. The
 API costs no rate limit, and no path leads from it to a credential. The

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed } from '@angular/core';
 import { MpLoadState, MpPageHeader } from '@metapatrol/ng';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
-import { autoRefresh } from '../../core/refresh';
+import { liveReload } from '../../core/events';
 import { byHealth, displayNames } from '../../core/repos';
 import { REPO_GRID, RepoTile } from '../../shared/repo-tile';
 
@@ -36,6 +36,6 @@ export class Repositories {
   protected readonly name = computed(() => displayNames(this.repos.body() ?? []));
 
   constructor() {
-    autoRefresh(this.repos);
+    liveReload(() => ({ view: 'repositories' }), this.repos);
   }
 }

@@ -66,10 +66,15 @@ and the bridge's error messages, which name repositories and accounts.
 | Issues | every issue pair, newest first; searchable by title or number, filterable by repository, state and the side it was opened on. An issue links to both sides and shows its comment pairs |
 | Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported. One links to both sides and shows its contrib branch, imported head and comment pairs |
 | Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full |
+| System | the service (version, uptime, schedule, the instance doing the work) and its database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the applied migrations, and the maintenance PostgreSQL runs now |
 
 ![The queue: what is failing, how often, and why](./images/console-queue.png)
 
-Overview and queue refresh every 15 seconds; the switch at the top pauses it.
+![The system page: the service, the database and how autovacuum keeps each table](./images/console-system.png)
+
+Every view follows changes as they happen: the bridge's database announces
+each one, and the console streams it to the browser, which reloads what it
+shows. The switch at the top pauses that.
 A pair's title is the one GitHub shows, recorded when the bridge last
 reconciled it; a pair the bridge has not reconciled since an upgrade shows its
 numbers until it does.
@@ -86,6 +91,8 @@ read on its own:
 | `GET /api/v1/pairs` | pairs, filtered by `repository`, `kind`, `state`, `origin` and `q`, paged by `limit` and `offset` |
 | `GET /api/v1/pairs/{id}` | one pair with its comment pairs |
 | `GET /api/v1/queue` | queued entries, by `repository`, optionally `failing` only |
+| `GET /api/v1/system` | the service, the database, its tables and their upkeep |
+| `GET /api/v1/events` | changes as Server-Sent Events: which pair, queue entry or cursor changed, never its content |
 | `GET /api/v1/openapi.yaml` | the specification all of the above is generated from |
 
 [api/openapi-v1.yaml](../api/openapi-v1.yaml) is the contract: the server and
@@ -111,7 +118,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE bridge IN SCHEMA public GRANT SELECT ON TABLES
 ```
 
 It refuses to start on a database a bridge of its version has not migrated
-yet. With a role that is not the bridge's own, PostgreSQL may hide which host
+yet. Its live updates need nothing more: listening for the database's change
+announcements is allowed to a session that may only read. With a role that is not the bridge's own, PostgreSQL may hide which host
 holds the leader lock; the console then says only that one does.
 
 ## What it never does

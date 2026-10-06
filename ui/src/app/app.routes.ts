@@ -61,6 +61,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/queue/queue').then((m) => m.Queue),
   },
   {
+    path: 'system',
+    title: title('System'),
+    loadComponent: () => import('./features/system/system').then((m) => m.System),
+  },
+  {
     path: '**',
     title: title('Not found'),
     loadComponent: () => import('./features/not-found/not-found').then((m) => m.NotFound),

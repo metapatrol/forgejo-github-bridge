@@ -12,7 +12,7 @@ import { listPairs } from '../../api/fn/pairs/list-pairs';
 import { listQueue } from '../../api/fn/queue/list-queue';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
-import { autoRefresh } from '../../core/refresh';
+import { liveReload } from '../../core/events';
 import { ANY_STATE, OPEN } from '../../core/state-filter';
 import { SideLabel } from '../../shared/badges';
 import { PairsTable } from '../../shared/pairs-table';
@@ -60,7 +60,13 @@ export class RepositoryDetail {
   );
 
   constructor() {
-    autoRefresh(this.repos, this.queue, this.issues, this.pulls);
+    liveReload(
+      () => ({ view: 'repository', repository: this.key() }),
+      this.repos,
+      this.queue,
+      this.issues,
+      this.pulls,
+    );
   }
 
   /** The list behind a panel: its open ones, or all of them when none is open. */
