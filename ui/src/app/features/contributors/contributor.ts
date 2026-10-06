@@ -35,7 +35,7 @@ export class ContributorDetail {
 
   protected readonly authors = apiResource(listAuthors, () => ({}));
   protected readonly contributor = computed(() =>
-    this.authors.body()?.find((a) => a.side === this.side() && a.login === this.login()),
+    this.authors.body()?.items.find((a) => a.side === this.side() && a.login === this.login()),
   );
   protected readonly unknown = computed(() => this.authors.hasValue() && !this.contributor());
 
@@ -43,12 +43,19 @@ export class ContributorDetail {
     kind: 'issue' as const,
     author: this.login(),
     origin: this.side(),
+    sort: '-created' as const,
     limit: RECENT,
   }));
   /** Pull requests come from GitHub only. */
   protected readonly pulls = apiResource(listPairs, () =>
     this.side() === 'github'
-      ? { kind: 'pull' as const, author: this.login(), origin: this.side(), limit: RECENT }
+      ? {
+          kind: 'pull' as const,
+          author: this.login(),
+          origin: this.side(),
+          sort: '-created' as const,
+          limit: RECENT,
+        }
       : undefined,
   );
 

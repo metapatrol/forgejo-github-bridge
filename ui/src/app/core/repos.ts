@@ -27,13 +27,6 @@ export function lastPoll(r: Repository): string | undefined {
     .at(-1);
 }
 
-/** Problems first: failing, then queued, then the rest; by name within each. */
-export function byHealth(repos: readonly Repository[]): Repository[] {
-  return [...repos].sort(
-    (a, b) => repoHealth(a).rank - repoHealth(b).rank || a.key.localeCompare(b.key),
-  );
-}
-
 /**
  * How to name repositories where space is short: without the owner when they
  * all share one, as owner/name otherwise.
@@ -46,19 +39,5 @@ export function displayNames(repos: readonly Repository[]): (r: Repository) => s
   return (r) => r.key.slice(r.key.indexOf('/') + 1);
 }
 
-/** Above this many repositories, the overview offers a filter. */
+/** From this many repositories on, the overview offers a filter; the API searches. */
 export const FILTER_FROM = 10;
-
-/** The repositories whose GitHub or Forgejo name contains the query, ignoring case; order kept. */
-export function filterRepos(
-  repos: readonly Repository[],
-  query: string | null | undefined,
-): Repository[] {
-  const q = (query ?? '').trim().toLowerCase();
-  if (!q) {
-    return [...repos];
-  }
-  return repos.filter(
-    (r) => r.github.toLowerCase().includes(q) || r.forgejo.toLowerCase().includes(q),
-  );
-}

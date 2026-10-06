@@ -43,7 +43,9 @@ export class RepositoryDetail {
   protected readonly timestamp = timestamp;
 
   protected readonly repos = apiResource(listRepositories, () => ({}));
-  protected readonly repo = computed(() => this.repos.body()?.find((r) => r.key === this.key()));
+  protected readonly repo = computed(() =>
+    this.repos.body()?.items.find((r) => r.key === this.key()),
+  );
   protected readonly missing = computed(() => this.repos.hasValue() && !this.repo());
 
   protected readonly queue = apiResource(listQueue, () => ({ repository: this.key() }));
@@ -51,11 +53,18 @@ export class RepositoryDetail {
     repository: this.key(),
     kind: 'issue' as const,
     state: 'open' as const,
+    sort: '-created' as const,
     limit: RECENT,
   }));
   protected readonly pulls = apiResource(listPairs, () =>
     this.repo()?.pullRequests
-      ? { repository: this.key(), kind: 'pull' as const, state: 'open' as const, limit: RECENT }
+      ? {
+          repository: this.key(),
+          kind: 'pull' as const,
+          state: 'open' as const,
+          sort: '-created' as const,
+          limit: RECENT,
+        }
       : undefined,
   );
 

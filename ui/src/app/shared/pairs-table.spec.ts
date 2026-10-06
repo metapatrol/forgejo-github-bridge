@@ -69,6 +69,8 @@ describe('PairsTable', () => {
     const heads = Array.from(el.querySelectorAll('th')).map((t) => t.textContent?.trim());
     expect(heads).toContain('origin');
     expect(heads).not.toContain('flags');
+    // every column has its cell
+    expect(el.querySelectorAll('tbody tr:first-child td').length).toBe(heads.length);
     expect(el.textContent).toContain('Forgejo');
     expect(el.querySelector('a')?.getAttribute('href')).toBe('/issues/7');
   });

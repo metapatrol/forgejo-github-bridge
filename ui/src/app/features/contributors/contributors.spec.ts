@@ -38,7 +38,9 @@ describe('Contributors', () => {
     const fixture = TestBed.createComponent(Contributors);
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
-    http.expectOne('/api/v1/authors').flush(authors);
+    const req = http.expectOne((r) => r.url === '/api/v1/authors');
+    expect(req.request.params.get('limit')).toBe('50');
+    req.flush({ items: authors, total: authors.length });
     await fixture.whenStable();
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
@@ -56,7 +58,7 @@ describe('ContributorDetail', () => {
     fixture.componentRef.setInput('login', 'alice');
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
-    http.expectOne('/api/v1/authors').flush(authors);
+    http.expectOne('/api/v1/authors').flush({ items: authors, total: authors.length });
     const pairs = http.match((r) => r.url === '/api/v1/pairs');
     expect(pairs.map((r) => r.request.params.get('kind')).sort()).toEqual(['issue', 'pull']);
     for (const r of pairs) {
@@ -82,7 +84,7 @@ describe('ContributorDetail', () => {
     fixture.componentRef.setInput('login', 'jdoe');
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
-    http.expectOne('/api/v1/authors').flush(authors);
+    http.expectOne('/api/v1/authors').flush({ items: authors, total: authors.length });
     const pairs = http.match((r) => r.url === '/api/v1/pairs');
     expect(pairs.map((r) => r.request.params.get('kind'))).toEqual(['issue']);
   });

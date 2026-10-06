@@ -70,10 +70,10 @@ export class PairFilters {
   private readonly setQuery = mpQueryParams();
 
   protected setState(selected: string): void {
-    this.setQuery({ state: selected, offset: null });
+    this.setQuery({ state: selected });
   }
 
   protected filter(name: string, value: string): void {
-    this.setQuery({ [name]: value || null, offset: null });
+    this.setQuery({ [name]: value || null });
   }
 }

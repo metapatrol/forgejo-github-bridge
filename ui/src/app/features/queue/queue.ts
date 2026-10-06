@@ -5,25 +5,33 @@ import {
   computed,
   input,
 } from '@angular/core';
-import { MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
-import { listQueue } from '../../api/fn/queue/list-queue';
+import { MpListSearch, MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
+import { ListQueue$Params, listQueue } from '../../api/fn/queue/list-queue';
+import { pagedList, sortParam } from '../../core/paged';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
 import { liveReload } from '../../core/events';
-import { QueueTable } from '../../shared/queue-table';
+import { QUEUE_SORTS, QueueTable } from '../../shared/queue-table';
 
 @Component({
   selector: 'app-queue',
-  imports: [MpLoadState, MpPageHeader, QueueTable],
+  imports: [MpListSearch, MpLoadState, MpPageHeader, QueueTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mp-page-header title="Queue" [note]="queue.body()?.length?.toString()" />
+    <mp-page-header title="Queue" [note]="queue.total().toString()" />
     <p class="mb-4 max-w-3xl text-sm text-fg-muted">
       What waits to be reconciled. An entry that fails is retried with backoff, from 30 seconds up
       to 30 minutes; the ones failing come first.
     </p>
     <section class="mp-panel mp-panel-flush">
       <div class="mp-panel-head flex-wrap items-center gap-3">
+        <mp-list-search
+          class="flex-nowrap"
+          placeholder="Number, repository or error"
+          [query]="q()"
+          [shown]="queue.items().length"
+          [total]="queue.total()"
+        />
         <label class="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -39,21 +47,25 @@ import { QueueTable } from '../../shared/queue-table';
           (change)="setQuery({ repository: $any($event.target).value || null })"
         >
           <option value="">all repositories</option>
-          @for (r of repos.body() ?? []; track r.key) {
+          @for (r of repos.body()?.items ?? []; track r.key) {
             <option [value]="r.key" [selected]="r.key === repository()">{{ r.key }}</option>
           }
         </select>
       </div>
       <mp-load-state
         [error]="queue.error()"
-        [loading]="queue.isLoading() && !queue.hasValue()"
+        [loading]="queue.loading() && !queue.loaded()"
         what="queue"
       />
-      @if (queue.hasValue()) {
+      @if (queue.loaded()) {
         <app-queue-table
-          [entries]="queue.body() ?? []"
+          [entries]="queue.items()"
           [showRepository]="!repository()"
           [empty]="failing() ? 'Nothing is failing.' : 'Nothing is queued: everything is in step.'"
+          sortable
+          [sort]="sort()"
+          [more]="queue.more()"
+          (nearEnd)="queue.loadMore()"
         />
       }
     </section>
@@ -62,13 +74,18 @@ import { QueueTable } from '../../shared/queue-table';
 export class Queue {
   readonly failing = input(false, { transform: booleanAttribute });
   readonly repository = input<string>();
+  readonly q = input<string>();
+  /** ?sort=: a column, descending with a leading -; failing first, then by when due, by default. */
+  readonly sort = input<string>();
   protected readonly setQuery = mpQueryParams();
 
   protected readonly params = computed(() => ({
     failing: this.failing() || undefined,
     repository: this.repository() || undefined,
+    q: this.q() || undefined,
+    sort: sortParam<NonNullable<ListQueue$Params['sort']>>(this.sort(), QUEUE_SORTS),
   }));
-  protected readonly queue = apiResource(listQueue, () => this.params());
+  protected readonly queue = pagedList(listQueue, () => this.params());
   protected readonly repos = apiResource(listRepositories, () => ({}));
 
   constructor() {

@@ -61,4 +61,42 @@ describe('Pairs', () => {
     );
     expect(chip).not.toBeNull();
   });
+
+  /** The request the list makes, for the URL's parameters. */
+  function request(inputs: Record<string, string>) {
+    const fixture = TestBed.createComponent(Pairs);
+    fixture.componentRef.setInput('kind', 'issue');
+    fixture.componentRef.setInput('state', 'any');
+    for (const [k, v] of Object.entries(inputs)) {
+      fixture.componentRef.setInput(k, v);
+    }
+    fixture.detectChanges();
+    TestBed.inject(ApplicationRef).tick();
+    return { fixture, req: http.expectOne((r) => r.url === '/api/v1/pairs') };
+  }
+
+  it('passes ?q= and ?sort= on, a page of 50 at a time', () => {
+    const { req } = request({ q: 'parser', sort: '-title' });
+    expect(req.request.params.get('q')).toBe('parser');
+    expect(req.request.params.get('sort')).toBe('-title');
+    expect(req.request.params.get('limit')).toBe('50');
+    expect(req.request.params.has('cursor')).toBe(false);
+    expect(req.request.params.has('offset')).toBe(false);
+  });
+
+  it('leaves an order it does not know to the API default', () => {
+    const { req } = request({ sort: 'size' });
+    expect(req.request.params.has('sort')).toBe(false);
+  });
+
+  it('starts again from the first page when the order changes', () => {
+    const { fixture, req } = request({ sort: 'title' });
+    req.flush({ items: [], total: 120, nextCursor: 'c50' });
+    fixture.componentRef.setInput('sort', '-title');
+    fixture.detectChanges();
+    TestBed.inject(ApplicationRef).tick();
+    const next = http.expectOne((r) => r.url === '/api/v1/pairs');
+    expect(next.request.params.get('sort')).toBe('-title');
+    expect(next.request.params.has('cursor')).toBe(false);
+  });
 });

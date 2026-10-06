@@ -1,30 +1,88 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import {
+  booleanAttribute,
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  input,
+  output,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { MpClock, MpTime } from '@metapatrol/ng';
+import { MpClock, MpSort, MpTime, Sort } from '@metapatrol/ng';
+import { NearEnd } from './near-end';
 import { QueueEntry } from '../api/models/queue-entry';
 import { until } from '../core/format';
 import { KINDS, pairLink } from '../core/kinds';
 import { PairKind } from '../api/models/pair-kind';
 import { SideLabel } from './badges';
 
+/** The queue's order unless ?sort= says otherwise: failing first, then by when due. */
+export const QUEUE_SORT: Sort = { key: 'due', desc: false };
+
+/** The columns the queue can be sorted by. */
+export const QUEUE_SORTS = [
+  'due',
+  'next',
+  'marked',
+  'attempts',
+  'repository',
+  'number',
+  'error',
+] as const;
+
 /** Queued work: failing entries with their last error, the rest with when they are due. */
 @Component({
   selector: 'app-queue-table',
-  imports: [RouterLink, MpTime, SideLabel],
+  imports: [RouterLink, MpSort, MpTime, NearEnd, SideLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block max-w-full overflow-x-auto' },
   template: `
     <table class="mp-table w-full min-w-[52rem] table-fixed">
       <thead>
         <tr>
-          <th scope="col" class="w-56">item</th>
+          <th scope="col" class="w-56">
+            @if (sortable()) {
+              <mp-sort key="number" [sort]="sort()" [fallback]="fallback">item</mp-sort>
+            } @else {
+              item
+            }
+          </th>
           @if (showRepository()) {
-            <th scope="col" class="w-52">repository</th>
+            <th scope="col" class="w-52">
+              @if (sortable()) {
+                <mp-sort key="repository" [sort]="sort()" [fallback]="fallback">repository</mp-sort>
+              } @else {
+                repository
+              }
+            </th>
           }
-          <th scope="col" class="w-20">attempts</th>
-          <th scope="col" class="w-24">next try</th>
-          <th scope="col" class="w-24">marked</th>
-          <th scope="col">last error</th>
+          <th scope="col" class="w-24">
+            @if (sortable()) {
+              <mp-sort key="attempts" [sort]="sort()" [fallback]="fallback">attempts</mp-sort>
+            } @else {
+              attempts
+            }
+          </th>
+          <th scope="col" class="w-24">
+            @if (sortable()) {
+              <mp-sort key="next" [sort]="sort()" [fallback]="fallback">next try</mp-sort>
+            } @else {
+              next try
+            }
+          </th>
+          <th scope="col" class="w-24">
+            @if (sortable()) {
+              <mp-sort key="marked" [sort]="sort()" [fallback]="fallback">marked</mp-sort>
+            } @else {
+              marked
+            }
+          </th>
+          <th scope="col" class="">
+            @if (sortable()) {
+              <mp-sort key="error" [sort]="sort()" [fallback]="fallback">last error</mp-sort>
+            } @else {
+              last error
+            }
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -86,6 +144,16 @@ import { SideLabel } from './badges';
             </td>
           </tr>
         }
+        @if (more()) {
+          <tr (appNearEnd)="nearEnd.emit()">
+            <td
+              [attr.colspan]="showRepository() ? 6 : 5"
+              class="text-center text-xs text-fg-subtle"
+            >
+              loading more…
+            </td>
+          </tr>
+        }
       </tbody>
     </table>
   `,
@@ -94,6 +162,13 @@ export class QueueTable {
   readonly entries = input.required<readonly QueueEntry[]>();
   readonly showRepository = input(true);
   readonly empty = input('Nothing is queued.');
+  /** The list's ?sort=, when its headers sort it. */
+  readonly sort = input<string | undefined>();
+  readonly sortable = input(false, { transform: booleanAttribute });
+  /** Whether more rows can be loaded; the last row asks for them when it comes into view. */
+  readonly more = input(false);
+  readonly nearEnd = output<void>();
+  protected readonly fallback = QUEUE_SORT;
   private readonly clock = inject(MpClock);
 
   protected due(at: string): string {

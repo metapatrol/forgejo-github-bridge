@@ -1,5 +1,5 @@
 import { Repository } from '../api/models/repository';
-import { byHealth, displayNames, filterRepos, lastPoll, repoHealth } from './repos';
+import { displayNames, lastPoll, repoHealth } from './repos';
 
 function repo(key: string, depth: number, failing: number, cursors: string[] = []): Repository {
   return {
@@ -25,16 +25,6 @@ function repo(key: string, depth: number, failing: number, cursors: string[] = [
 }
 
 describe('repos', () => {
-  it('puts problems first, then names', () => {
-    const sorted = byHealth([
-      repo('o/idle', 0, 0),
-      repo('o/b-queued', 2, 0),
-      repo('o/failing', 3, 1),
-      repo('o/a-queued', 1, 0),
-    ]);
-    expect(sorted.map((r) => r.key)).toEqual(['o/failing', 'o/a-queued', 'o/b-queued', 'o/idle']);
-  });
-
   it('says what the queue holds', () => {
     expect(repoHealth(repo('o/x', 3, 2))).toEqual({ rank: 0, status: 'error', text: '2 failing' });
     expect(repoHealth(repo('o/x', 2, 0)).text).toBe('2 queued');
@@ -58,23 +48,5 @@ describe('displayNames', () => {
   it('keeps it when owners differ', () => {
     const repos = [repo('metapatrol/a', 0, 0), repo('other/b', 0, 0)];
     expect(repos.map(displayNames(repos))).toEqual(['metapatrol/a', 'other/b']);
-  });
-});
-
-describe('filterRepos', () => {
-  it('matches either name, ignoring case, keeping the order', () => {
-    const repos = [
-      repo('metapatrol/b-api', 0, 0),
-      repo('metapatrol/a-api', 0, 0),
-      repo('o/web', 0, 0),
-    ];
-    repos[2].forgejo = 'platform/API-web';
-    expect(filterRepos(repos, 'API').map((r) => r.key)).toEqual([
-      'metapatrol/b-api',
-      'metapatrol/a-api',
-      'o/web',
-    ]);
-    expect(filterRepos(repos, '  ').length).toBe(3);
-    expect(filterRepos(repos, 'nothing')).toEqual([]);
   });
 });

@@ -1,11 +1,28 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { MpTime } from '@metapatrol/ng';
+import { MpSort, MpTime, Sort } from '@metapatrol/ng';
+import { NearEnd } from './near-end';
 import { Pair } from '../api/models/pair';
 import { PairKind } from '../api/models/pair-kind';
 import { pairLink } from '../core/kinds';
 import { Author } from './author';
 import { PullFlags, SideLabel, StateBadge } from './badges';
+
+/** The order of a list of pairs unless ?sort= says otherwise: the newest first. */
+export const PAIRS_SORT: Sort = { key: 'created', desc: true };
+
+/** The columns a list of pairs can be sorted by. */
+export const PAIRS_SORTS = [
+  'created',
+  'updated',
+  'title',
+  'repository',
+  'author',
+  'github',
+  'forgejo',
+  'state',
+  'comments',
+] as const;
 
 /**
  * Issues or pull requests as a table. The two share the title, the numbers on
@@ -14,25 +31,69 @@ import { PullFlags, SideLabel, StateBadge } from './badges';
  */
 @Component({
   selector: 'app-pairs-table',
-  imports: [RouterLink, MpTime, Author, SideLabel, StateBadge, PullFlags],
+  imports: [RouterLink, MpSort, MpTime, Author, NearEnd, SideLabel, StateBadge, PullFlags],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block max-w-full overflow-x-auto' },
   template: `
     <table class="mp-table w-full">
       <thead>
         <tr>
-          <th scope="col">title</th>
-          <th scope="col" class="text-right">GitHub</th>
-          <th scope="col" class="text-right">Forgejo</th>
+          <th scope="col">
+            @if (sortable()) {
+              <mp-sort key="title" [sort]="sort()" [fallback]="fallback">title</mp-sort>
+            } @else {
+              title
+            }
+          </th>
+          <th scope="col" class="text-right">
+            @if (sortable()) {
+              <mp-sort key="github" [sort]="sort()" [fallback]="fallback">GitHub</mp-sort>
+            } @else {
+              GitHub
+            }
+          </th>
+          <th scope="col" class="text-right">
+            @if (sortable()) {
+              <mp-sort key="forgejo" [sort]="sort()" [fallback]="fallback">Forgejo</mp-sort>
+            } @else {
+              Forgejo
+            }
+          </th>
           @if (kind() === 'issue') {
             <th scope="col">origin</th>
           }
-          <th scope="col">state</th>
+          <th scope="col">
+            @if (sortable()) {
+              <mp-sort key="state" [sort]="sort()" [fallback]="fallback">state</mp-sort>
+            } @else {
+              state
+            }
+          </th>
           @if (kind() === 'pull') {
             <th scope="col" class="hidden xl:table-cell">flags</th>
             <th scope="col" class="hidden xl:table-cell">branch</th>
           }
-          <th scope="col">updated</th>
+          <th scope="col" class="hidden text-right xl:table-cell">
+            @if (sortable()) {
+              <mp-sort key="comments" [sort]="sort()" [fallback]="fallback">comments</mp-sort>
+            } @else {
+              comments
+            }
+          </th>
+          <th scope="col" class="hidden xl:table-cell">
+            @if (sortable()) {
+              <mp-sort key="created" [sort]="sort()" [fallback]="fallback">opened</mp-sort>
+            } @else {
+              opened
+            }
+          </th>
+          <th scope="col">
+            @if (sortable()) {
+              <mp-sort key="updated" [sort]="sort()" [fallback]="fallback">updated</mp-sort>
+            } @else {
+              updated
+            }
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -102,14 +163,28 @@ import { PullFlags, SideLabel, StateBadge } from './badges';
                 }
               </td>
             }
+            <td class="mp-num hidden xl:table-cell">{{ p.comments }}</td>
+            <td class="hidden text-xs whitespace-nowrap text-fg-muted xl:table-cell">
+              <mp-time [value]="p.createdAt" />
+            </td>
             <td class="text-xs whitespace-nowrap text-fg-muted">
               <mp-time [value]="p.updatedAt" />
             </td>
           </tr>
         } @empty {
           <tr>
-            <td [attr.colspan]="kind() === 'pull' ? 7 : 6" class="text-sm text-fg-subtle">
+            <td [attr.colspan]="kind() === 'pull' ? 9 : 8" class="text-sm text-fg-subtle">
               {{ empty() }}
+            </td>
+          </tr>
+        }
+        @if (more()) {
+          <tr (appNearEnd)="nearEnd.emit()">
+            <td
+              [attr.colspan]="kind() === 'pull' ? 9 : 8"
+              class="text-center text-xs text-fg-subtle"
+            >
+              loading more…
             </td>
           </tr>
         }
@@ -125,6 +200,13 @@ export class PairsTable {
   readonly empty = input('Nothing here.');
   /** Off where the list is of one contributor already. */
   readonly showAuthor = input(true);
+  /** The list's ?sort=, when its headers sort it. */
+  readonly sort = input<string | undefined>();
+  readonly sortable = input(false, { transform: booleanAttribute });
+  /** Whether more rows can be loaded; the last row asks for them when it comes into view. */
+  readonly more = input(false);
+  readonly nearEnd = output<void>();
+  protected readonly fallback = PAIRS_SORT;
 
   protected link(p: Pair): (string | number)[] {
     return pairLink(p.kind, p.id);

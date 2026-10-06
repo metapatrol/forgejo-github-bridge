@@ -15,7 +15,7 @@ import { contributorLink } from '../../shared/author';
 import { sideName } from '../../core/history';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
-import { byHealth, displayNames, FILTER_FROM, filterRepos } from '../../core/repos';
+import { displayNames, FILTER_FROM } from '../../core/repos';
 import { REPO_GRID, RepoTile, TILE_LINK } from '../../shared/repo-tile';
 import { liveReload } from '../../core/events';
 import { OPEN } from '../../core/state-filter';
@@ -35,10 +35,11 @@ const TOP_AUTHORS = 8;
 })
 export class Overview {
   protected readonly status = inject(StatusService).status;
+  /** Every repository, problems first: the API's default order. */
   protected readonly repos = apiResource(listRepositories, () => ({}));
-  protected readonly authors = apiResource(listAuthors, () => ({}));
-  /** The most active, as the API orders them. */
-  protected readonly topAuthors = computed(() => (this.authors.body() ?? []).slice(0, TOP_AUTHORS));
+  /** The most active contributors, as the API orders them. */
+  protected readonly authors = apiResource(listAuthors, () => ({ limit: TOP_AUTHORS }));
+  protected readonly topAuthors = computed(() => this.authors.body()?.items ?? []);
   protected readonly contributorLink = contributorLink;
   protected readonly sideName = sideName;
   protected readonly count = count;
@@ -48,17 +49,21 @@ export class Overview {
   protected readonly open = OPEN;
   /** The filter above the tiles, from ?repo=; offered only for many repositories. */
   readonly repo = input<string>();
-  protected readonly all = computed(() => this.repos.body() ?? []);
+  protected readonly all = computed(() => this.repos.body()?.items ?? []);
   protected readonly filterable = computed(() => this.all().length >= FILTER_FROM);
-  /** Problems first, then by name; filtered when there is a filter. */
+  /** The same, searched by the API, while there is a filter. */
+  protected readonly matching = apiResource(listRepositories, () =>
+    this.filterable() && this.repo() ? { q: this.repo() } : undefined,
+  );
+  /** The tiles: every repository, or the ones the filter matches; in the API's order. */
   protected readonly sorted = computed(() =>
-    byHealth(this.filterable() ? filterRepos(this.all(), this.repo()) : this.all()),
+    this.filterable() && this.repo() ? (this.matching.body()?.items ?? []) : this.all(),
   );
   /** Repository names for the tiles: without the owner when they share one. */
-  protected readonly name = computed(() => displayNames(this.repos.body() ?? []));
+  protected readonly name = computed(() => displayNames(this.all()));
 
   constructor() {
-    liveReload(() => ({ view: 'overview' }), this.repos, this.authors);
+    liveReload(() => ({ view: 'overview' }), this.repos, this.matching, this.authors);
   }
 
   protected readonly s = computed(() => this.status.body());
@@ -79,7 +84,7 @@ export class Overview {
   /** Sums over every repository. */
   protected readonly totals = computed(() => {
     const t = { issuesOpen: 0, issuesClosed: 0, pullsOpen: 0, pullsMerged: 0, pullsClosed: 0 };
-    for (const r of this.repos.body() ?? []) {
+    for (const r of this.all()) {
       t.issuesOpen += r.counts.issuesOpen;
       t.issuesClosed += r.counts.issuesClosed;
       t.pullsOpen += r.counts.pullsOpen;

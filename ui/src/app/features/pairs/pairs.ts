@@ -1,13 +1,8 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  input,
-  numberAttribute,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { MpIcon, MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
 import { RouterLink } from '@angular/router';
-import { listPairs } from '../../api/fn/pairs/list-pairs';
+import { ListPairs$Params, listPairs } from '../../api/fn/pairs/list-pairs';
+import { pagedList, sortParam } from '../../core/paged';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { PairKind } from '../../api/models/pair-kind';
 import { apiState } from '../../core/state-filter';
@@ -15,12 +10,9 @@ import { Side } from '../../api/models/side';
 import { apiResource } from '../../core/api';
 import { KINDS } from '../../core/kinds';
 import { liveReload } from '../../core/events';
-import { Pager } from '../../shared/pager';
 import { FilterOption, PairFilters } from '../../shared/pair-filters';
-import { PairsTable } from '../../shared/pairs-table';
+import { PAIRS_SORTS, PairsTable } from '../../shared/pairs-table';
 import { contributorLink } from '../../shared/author';
-
-const LIMIT = 50;
 
 const STATES: Record<PairKind, FilterOption[]> = {
   issue: [
@@ -47,10 +39,10 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
 /** The list of issues, or of pull requests: the route's data says which. */
 @Component({
   selector: 'app-pairs',
-  imports: [RouterLink, MpIcon, MpLoadState, MpPageHeader, Pager, PairFilters, PairsTable],
+  imports: [RouterLink, MpIcon, MpLoadState, MpPageHeader, PairFilters, PairsTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mp-page-header [title]="title()" [note]="pairs.body()?.total?.toString()" />
+    <mp-page-header [title]="title()" [note]="pairs.total().toString()" />
     <section class="mp-panel mp-panel-flush">
       <app-pair-filters
         [repositories]="repositories()"
@@ -60,8 +52,8 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
         [state]="state()"
         [origin]="params().origin"
         [q]="q()"
-        [shown]="pairs.body()?.items?.length ?? 0"
-        [total]="pairs.body()?.total ?? 0"
+        [shown]="pairs.items().length"
+        [total]="pairs.total()"
       />
       @if (author()) {
         <div class="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 text-xs">
@@ -84,26 +76,21 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
       }
       <mp-load-state
         [error]="pairs.error()"
-        [loading]="pairs.isLoading() && !pairs.hasValue()"
+        [loading]="pairs.loading() && !pairs.loaded()"
         [what]="noun()"
       />
-      @if (pairs.hasValue()) {
+      @if (pairs.loaded()) {
         <app-pairs-table
           [kind]="kind()"
-          [pairs]="pairs.body()?.items ?? []"
+          [pairs]="pairs.items()"
           [showRepository]="!repository()"
           [showAuthor]="!author()"
           [empty]="'No ' + noun() + ' match.'"
+          sortable
+          [sort]="sort()"
+          [more]="pairs.more()"
+          (nearEnd)="pairs.loadMore()"
         />
-        <div class="flex justify-end border-t border-line px-4 py-2">
-          <app-pager
-            [offset]="offset()"
-            [limit]="limit"
-            [shown]="pairs.body()?.items?.length ?? 0"
-            [total]="pairs.body()?.total ?? 0"
-            (moved)="page($event)"
-          />
-        </div>
       }
     </section>
   `,
@@ -118,10 +105,10 @@ export class Pairs {
   readonly q = input<string>();
   /** Who opened them, with origin the side that login is on. */
   readonly author = input<string>();
-  readonly offset = input(0, { transform: (v: unknown) => numberAttribute(v, 0) });
+  /** ?sort=: a column, descending with a leading -; the newest first by default. */
+  readonly sort = input<string>();
 
   private readonly setQuery = mpQueryParams();
-  protected readonly limit = LIMIT;
   protected readonly origins = ORIGINS;
   protected readonly noun = computed(() => KINDS[this.kind()].many);
   protected readonly title = computed(() => {
@@ -140,15 +127,14 @@ export class Pairs {
         : undefined,
     author: this.author() || undefined,
     q: this.q() || undefined,
-    limit: LIMIT,
-    offset: this.offset(),
+    sort: sortParam<NonNullable<ListPairs$Params['sort']>>(this.sort(), PAIRS_SORTS),
   }));
 
-  protected readonly pairs = apiResource(listPairs, () => this.params());
+  protected readonly pairs = pagedList(listPairs, () => this.params());
   protected readonly repos = apiResource(listRepositories, () => ({}));
   /** Pull requests only come from repositories that import them. */
   protected readonly repositories = computed(() =>
-    (this.repos.body() ?? [])
+    (this.repos.body()?.items ?? [])
       .filter((r) => this.kind() === 'issue' || r.pullRequests)
       .map((r) => r.key),
   );
@@ -175,12 +161,7 @@ export class Pairs {
     // The origin came with the author on a pull request list, which has no origin filter of its own.
     this.setQuery({
       author: null,
-      offset: null,
       ...(this.kind() === 'pull' ? { origin: null } : {}),
     });
-  }
-
-  protected page(offset: number): void {
-    this.setQuery({ offset: offset || null });
   }
 }

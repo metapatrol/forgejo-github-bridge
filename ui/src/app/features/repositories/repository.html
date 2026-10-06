@@ -106,7 +106,7 @@
       />
       @if (queue.hasValue()) {
         <app-queue-table
-          [entries]="queue.body() ?? []"
+          [entries]="queue.body()?.items ?? []"
           [showRepository]="false"
           empty="Nothing queued for this repository."
         />

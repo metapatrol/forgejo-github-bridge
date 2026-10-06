@@ -78,8 +78,22 @@ async function render(
   TestBed.inject(ApplicationRef).tick();
   const http = TestBed.inject(HttpTestingController);
   http.expectOne('/api/v1/status').flush(status);
-  http.expectOne('/api/v1/repositories').flush(repos);
-  http.expectOne('/api/v1/authors').flush(authors);
+  http
+    .expectOne((r) => r.url === '/api/v1/repositories' && !r.params.has('q'))
+    .flush({ items: repos, total: repos.length });
+  const top = http.expectOne((r) => r.url === '/api/v1/authors');
+  expect(top.request.params.get('limit')).toBe('8');
+  top.flush({ items: authors.slice(0, 8), total: authors.length });
+  // The filter is searched by the API; the test answers with the repositories that contain it.
+  for (let i = 0; i < 5 && filter; i++) {
+    await new Promise((r) => setTimeout(r));
+    TestBed.inject(ApplicationRef).tick();
+  }
+  for (const r of http.match((r) => r.url === '/api/v1/repositories' && r.params.has('q'))) {
+    const q = (r.request.params.get('q') ?? '').toLowerCase();
+    const items = repos.filter((x) => x.github.includes(q) || x.forgejo.includes(q));
+    r.flush({ items, total: items.length });
+  }
   await fixture.whenStable();
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
@@ -139,10 +153,10 @@ describe('Overview', () => {
     expect(el.querySelectorAll('app-repo-tile').length).toBe(3);
   });
 
-  it('filters many repositories by ?repo=, problems first', async () => {
+  it('has the API search many repositories, in its order', async () => {
     const many = Array.from({ length: 10 }, (_, i) => repository(`svc-${i}`));
     many.push(repository('gateway', 2), repository('gateway-ui'));
-    const el = await render(working, many, 'GATEWAY');
+    const el = await render(working, many, 'gateway');
     expect(el.querySelector('mp-list-search')).not.toBeNull();
     const names = Array.from(el.querySelectorAll('app-repo-tile')).map((t) =>
       t.querySelector('a')?.getAttribute('href'),
@@ -152,12 +166,6 @@ describe('Overview', () => {
       '/repositories/metapatrol/gateway-ui',
     ]);
     expect(el.textContent).toContain('2 of 12');
-  });
-
-  it('matches the Forgejo name too', async () => {
-    const many = Array.from({ length: 10 }, (_, i) => repository(`svc-${i}`));
-    const el = await render(working, many, 'svc-3-src');
-    expect(el.querySelectorAll('app-repo-tile').length).toBe(1);
   });
 
   it('names the eight most active contributors, linking to their pages', async () => {
