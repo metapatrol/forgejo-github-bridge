@@ -381,7 +381,7 @@ func (s *Store) CommentPairs(ctx context.Context, id int64) ([]store.CommentRepo
 	var out []store.CommentReport
 	err := s.read(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			SELECT id, issue_mapping_id, github_comment_id, forgejo_comment_id, origin, created_at
+			SELECT id, issue_mapping_id, github_comment_id, forgejo_comment_id, origin, kind, created_at
 			FROM comment_mapping WHERE issue_mapping_id = $1 ORDER BY id`, id)
 		if err != nil {
 			return err
@@ -389,11 +389,11 @@ func (s *Store) CommentPairs(ctx context.Context, id int64) ([]store.CommentRepo
 		defer rows.Close()
 		for rows.Next() {
 			var c store.CommentReport
-			var origin string
-			if err := rows.Scan(&c.ID, &c.IssueMappingID, &c.GitHubCommentID, &c.ForgejoCommentID, &origin, &c.CreatedAt); err != nil {
+			var origin, kind string
+			if err := rows.Scan(&c.ID, &c.IssueMappingID, &c.GitHubCommentID, &c.ForgejoCommentID, &origin, &kind, &c.CreatedAt); err != nil {
 				return err
 			}
-			c.Origin = store.Side(origin)
+			c.Origin, c.Kind = store.Side(origin), store.CommentKind(kind)
 			out = append(out, c)
 		}
 		return rows.Err()

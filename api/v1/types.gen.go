@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// Defines values for CommentPairKind.
+const (
+	Comment       CommentPairKind = "comment"
+	Line          CommentPairKind = "line"
+	LineAsComment CommentPairKind = "line_as_comment"
+)
+
+// Valid indicates whether the value is a known member of the CommentPairKind enum.
+func (e CommentPairKind) Valid() bool {
+	switch e {
+	case Comment:
+		return true
+	case Line:
+		return true
+	case LineAsComment:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CursorStream.
 const (
 	CursorStreamComments CursorStream = "comments"
@@ -367,8 +388,20 @@ type CommentPair struct {
 	GithubCommentId  int64     `json:"githubCommentId"`
 	GithubUrl        string    `json:"githubUrl"`
 	Id               int64     `json:"id"`
-	Origin           Side      `json:"origin"`
+
+	// Kind `comment` for conversation comments and review summaries; `line`
+	// for a Forgejo line comment carried onto its line on GitHub as a
+	// review comment; `line_as_comment` for one GitHub would not place
+	// on its line, carried into the conversation instead.
+	Kind   CommentPairKind `json:"kind"`
+	Origin Side            `json:"origin"`
 }
+
+// CommentPairKind `comment` for conversation comments and review summaries; `line`
+// for a Forgejo line comment carried onto its line on GitHub as a
+// review comment; `line_as_comment` for one GitHub would not place
+// on its line, carried into the conversation instead.
+type CommentPairKind string
 
 // Cursor How far one poll has read.
 type Cursor struct {

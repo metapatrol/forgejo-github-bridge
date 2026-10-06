@@ -212,17 +212,24 @@ func TestBadFiltersAreRefused(t *testing.T) {
 
 func TestOnePairWithItsComments(t *testing.T) {
 	h := newConsole(t, &reports{
-		pairs:    []store.PairReport{issuePair},
-		comments: []store.CommentReport{{CommentMapping: store.CommentMapping{ID: 5, GitHubCommentID: 100, ForgejoCommentID: 200, Origin: store.Forgejo}, CreatedAt: now}},
+		pairs: []store.PairReport{issuePair},
+		comments: []store.CommentReport{
+			{CommentMapping: store.CommentMapping{ID: 5, GitHubCommentID: 100, ForgejoCommentID: 200, Origin: store.Forgejo}, CreatedAt: now},
+			{CommentMapping: store.CommentMapping{ID: 6, GitHubCommentID: 300, ForgejoCommentID: 400, Origin: store.Forgejo, Kind: store.CommentKindLine}, CreatedAt: now},
+		},
 	})
 	var p v1.PairDetail
 	get(t, h, "/api/v1/pairs/1", &p)
-	if p.Title != "Crash" || len(p.CommentPairs) != 1 {
+	if p.Title != "Crash" || len(p.CommentPairs) != 2 {
 		t.Fatalf("pair = %+v", p)
 	}
 	c := p.CommentPairs[0]
-	if c.GithubUrl != "https://github.com/metapatrol/foo/issues/7#issuecomment-100" || c.ForgejoUrl != "https://forgejo.example.com/platform/foo/issues/71#issuecomment-200" {
-		t.Errorf("comment links = %s, %s", c.GithubUrl, c.ForgejoUrl)
+	if c.GithubUrl != "https://github.com/metapatrol/foo/issues/7#issuecomment-100" || c.ForgejoUrl != "https://forgejo.example.com/platform/foo/issues/71#issuecomment-200" || c.Kind != v1.Comment {
+		t.Errorf("comment = %+v", c)
+	}
+	// A review comment is anchored by its discussion on GitHub.
+	if l := p.CommentPairs[1]; l.Kind != v1.Line || l.GithubUrl != "https://github.com/metapatrol/foo/issues/7#discussion_r300" {
+		t.Errorf("line comment = %+v", l)
 	}
 	if res := get(t, h, "/api/v1/pairs/9", nil); res.StatusCode != http.StatusNotFound {
 		t.Errorf("a missing pair: %d", res.StatusCode)

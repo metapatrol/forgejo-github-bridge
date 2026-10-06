@@ -681,10 +681,18 @@ components:
 
     CommentPair:
       type: object
-      required: [id, origin, githubCommentId, forgejoCommentId, githubUrl, forgejoUrl, createdAt]
+      required: [id, origin, kind, githubCommentId, forgejoCommentId, githubUrl, forgejoUrl, createdAt]
       properties:
         id: { type: integer, format: int64 }
         origin: { $ref: "#/components/schemas/Side" }
+        kind:
+          type: string
+          description: |
+            `comment` for conversation comments and review summaries; `line`
+            for a Forgejo line comment carried onto its line on GitHub as a
+            review comment; `line_as_comment` for one GitHub would not place
+            on its line, carried into the conversation instead.
+          enum: [comment, line, line_as_comment]
         githubCommentId: { type: integer, format: int64 }
         forgejoCommentId: { type: integer, format: int64 }
         githubUrl: { type: string }

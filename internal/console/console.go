@@ -578,10 +578,16 @@ func (s *server) GetPair(w http.ResponseWriter, r *http.Request, id int64) {
 		CommentPairs: make([]v1.CommentPair, 0, len(comments)),
 	}
 	for _, c := range comments {
+		// GitHub anchors a review comment by its discussion, a conversation
+		// comment by itself.
+		anchor := "#issuecomment-"
+		if c.GitHubReviewComment() {
+			anchor = "#discussion_r"
+		}
 		out.CommentPairs = append(out.CommentPairs, v1.CommentPair{
-			Id: c.ID, Origin: v1.Side(c.Origin), CreatedAt: c.CreatedAt,
+			Id: c.ID, Origin: v1.Side(c.Origin), Kind: v1.CommentPairKind(c.KindOf()), CreatedAt: c.CreatedAt,
 			GithubCommentId: c.GitHubCommentID, ForgejoCommentId: c.ForgejoCommentID,
-			GithubUrl:  p.GithubUrl + "#issuecomment-" + strconv.FormatInt(c.GitHubCommentID, 10),
+			GithubUrl:  p.GithubUrl + anchor + strconv.FormatInt(c.GitHubCommentID, 10),
 			ForgejoUrl: p.ForgejoUrl + "#issuecomment-" + strconv.FormatInt(c.ForgejoCommentID, 10),
 		})
 	}
