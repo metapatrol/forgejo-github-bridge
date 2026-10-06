@@ -186,7 +186,7 @@
                       >
                     }
                     @case ('comment') {
-                      comment
+                      {{ e.line ? 'line comment' : 'comment' }}
                       <span class="font-mono text-xs text-fg-muted"
                         >{{ sideName(e.origin) }} →
                         {{ sideName(e.origin === 'github' ? 'forgejo' : 'github') }}</span

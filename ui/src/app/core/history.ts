@@ -18,7 +18,14 @@ export type HistoryEntry =
       from: HistoryLink;
       to: HistoryLink;
     }
-  | { kind: 'comment'; at: string; origin: Side; links: HistoryLink[] }
+  | {
+      kind: 'comment';
+      at: string;
+      origin: Side;
+      /** A comment on a line of the diff rather than in the conversation. */
+      line: boolean;
+      links: HistoryLink[];
+    }
   | { kind: 'import'; at: string }
   | { kind: 'change'; at: string }
   | { kind: 'queued'; at: string };
@@ -58,6 +65,9 @@ export function history(p: PairDetail): HistoryEntry[] {
       kind: 'comment',
       at: c.createdAt,
       origin: c.origin,
+      // Carried onto its line, or into the conversation where GitHub would
+      // not place it: a line comment either way.
+      line: c.kind !== 'comment',
       links: c.origin === 'github' ? links : links.reverse(),
     });
   }

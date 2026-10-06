@@ -29,6 +29,7 @@ const base: PairDetail = {
     {
       id: 2,
       origin: 'forgejo',
+      kind: 'line',
       githubCommentId: 20,
       forgejoCommentId: 200,
       githubUrl: 'https://github.com/c/20',
@@ -38,6 +39,7 @@ const base: PairDetail = {
     {
       id: 1,
       origin: 'github',
+      kind: 'comment',
       githubCommentId: 10,
       forgejoCommentId: 100,
       githubUrl: 'https://github.com/c/10',
@@ -79,6 +81,11 @@ describe('history', () => {
       'GitHub',
       'Forgejo',
     ]);
+  });
+
+  it('tells a line comment from a conversation comment', () => {
+    const comments = history(base).filter((e) => e.kind === 'comment');
+    expect(comments.map((c) => (c.kind === 'comment' ? c.line : undefined))).toEqual([false, true]);
   });
 
   it('has no import state for an issue, and no extra last change when nothing came later', () => {
