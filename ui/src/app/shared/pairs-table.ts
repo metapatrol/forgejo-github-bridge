@@ -1,0 +1,97 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { MpTime } from '@metapatrol/ng';
+import { Pair } from '../api/models/pair';
+import { KindLabel, PullFlags, SideLabel, StateBadge } from './badges';
+
+/** Pairs as a table: what it is, its numbers on both sides as links, its state. */
+@Component({
+  selector: 'app-pairs-table',
+  imports: [RouterLink, MpTime, KindLabel, SideLabel, StateBadge, PullFlags],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block max-w-full overflow-x-auto' },
+  template: `
+    <table class="mp-table w-full">
+      <thead>
+        <tr>
+          <th scope="col" class="hidden xl:table-cell">kind</th>
+          <th scope="col">title</th>
+          <th scope="col" class="text-right">GitHub</th>
+          <th scope="col" class="text-right">Forgejo</th>
+          <th scope="col" class="hidden xl:table-cell">origin</th>
+          <th scope="col">state</th>
+          <th scope="col">updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (p of pairs(); track p.id) {
+          <tr>
+            <td class="hidden xl:table-cell"><app-kind [kind]="p.kind" /></td>
+            <td class="w-full max-w-0 min-w-56">
+              <a [routerLink]="['/pairs', p.id]" class="mp-link">{{
+                p.title || '(no title yet)'
+              }}</a>
+              <span class="block truncate font-mono text-xs text-fg-subtle"
+                ><span class="xl:hidden">{{ kindAndOrigin(p) }}{{ details(p) ? ' · ' : '' }}</span
+                >{{ details(p) }}</span
+              >
+            </td>
+            <td class="text-right font-mono text-xs whitespace-nowrap">
+              <a [href]="p.githubUrl" class="mp-link" target="_blank" rel="noopener noreferrer"
+                >#{{ p.githubNumber }}</a
+              >
+            </td>
+            <td class="text-right font-mono text-xs whitespace-nowrap">
+              <a [href]="p.forgejoUrl" class="mp-link" target="_blank" rel="noopener noreferrer"
+                >#{{ p.forgejoNumber }}</a
+              >
+            </td>
+            <td class="hidden xl:table-cell"><app-side [side]="p.origin" /></td>
+            <td>
+              <span class="inline-flex flex-wrap items-center gap-1">
+                <app-state [state]="p.state" />
+                <app-pull-flags [pair]="p" />
+                @if (p.queued; as q) {
+                  @if (q.lastError) {
+                    <a routerLink="/queue" class="no-underline" [title]="q.lastError">
+                      <span class="mp-status text-xs" data-status="error">failing</span>
+                    </a>
+                  } @else {
+                    <span class="mp-status text-xs" data-status="active">queued</span>
+                  }
+                }
+              </span>
+            </td>
+            <td class="text-xs whitespace-nowrap text-fg-muted">
+              <mp-time [value]="p.updatedAt" />
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" class="text-sm text-fg-subtle">{{ empty() }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  `,
+})
+export class PairsTable {
+  /** Under the title: the repository, unless the list is filtered to one, and who opened it. */
+  protected details(p: Pair): string {
+    const parts = this.showRepository() ? [p.repository] : [];
+    if (p.author) {
+      parts.push(`by ${p.author}`);
+    }
+    return parts.join(' · ');
+  }
+
+  /** What the kind and origin columns say, for where they are hidden. */
+  protected kindAndOrigin(p: Pair): string {
+    const kind = p.kind === 'pull' ? 'pull request' : 'issue';
+    return `${kind} from ${p.origin === 'github' ? 'GitHub' : 'Forgejo'}`;
+  }
+
+  readonly pairs = input.required<readonly Pair[]>();
+  readonly showRepository = input(true);
+  readonly empty = input('No pairs.');
+}

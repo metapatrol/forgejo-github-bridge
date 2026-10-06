@@ -1,0 +1,149 @@
+<mp-page-header title="Overview" />
+
+<mp-load-state
+  [error]="status.error()"
+  [loading]="status.isLoading() && !status.hasValue()"
+  what="status"
+/>
+
+@if (s(); as s) {
+  <div class="flex flex-col gap-5">
+    @if (!s.leader?.present) {
+      <mp-notice tone="bad">
+        No instance holds the leader lock: nothing is being bridged. Check that the bridge is
+        running and can reach its database.
+      </mp-notice>
+    }
+    @if (s.queue.failing > 0) {
+      <mp-notice tone="warn">
+        {{ s.queue.failing }} queued {{ s.queue.failing === 1 ? 'entry' : 'entries' }} failed
+        {{ s.queue.failing === 1 ? 'its' : 'their' }} last attempt and
+        {{ s.queue.failing === 1 ? 'waits' : 'wait' }} for a retry.
+        <a routerLink="/queue" [queryParams]="{ failing: true }" class="mp-link">See why →</a>
+      </mp-notice>
+    }
+
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3">
+        <span class="mp-label mb-0"><span class="mp-label-index">01</span>leader</span>
+        @if (s.leader; as l) {
+          @if (l.present) {
+            <span class="mp-status text-xl font-semibold" data-status="success">working</span>
+            <span class="flex flex-col font-mono text-xs text-fg-muted">
+              <span>{{ l.instance || 'an instance' }}</span>
+              @if (l.connectedAt) {
+                <span>connected <mp-time [value]="l.connectedAt" /></span>
+              }
+            </span>
+          }
+        }
+        @if (!s.leader?.present) {
+          <span class="mp-status text-xl font-semibold" data-status="error">none</span>
+          <span class="font-mono text-xs text-fg-muted">nothing is being bridged</span>
+        }
+      </div>
+
+      <a
+        routerLink="/queue"
+        class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3 text-fg no-underline hover:border-line-strong"
+      >
+        <span class="mp-label mb-0"><span class="mp-label-index">02</span>queue</span>
+        <span class="text-3xl font-semibold tabular-nums">{{ count(s.queue.depth) }}</span>
+        <span class="flex flex-wrap gap-x-3 font-mono text-xs">
+          @if (s.queue.failing > 0) {
+            <span class="text-error">{{ s.queue.failing }} failing</span>
+          } @else {
+            <span class="text-fg-muted">none failing</span>
+          }
+          @if (s.queue.oldestMarkedAt) {
+            <span class="text-fg-muted">oldest <mp-time [value]="s.queue.oldestMarkedAt" /></span>
+          }
+        </span>
+      </a>
+
+      <a
+        routerLink="/pairs"
+        class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3 text-fg no-underline hover:border-line-strong"
+      >
+        <span class="mp-label mb-0"><span class="mp-label-index">03</span>pairs</span>
+        <span class="text-3xl font-semibold tabular-nums">{{
+          count(totals().issuesOpen + totals().pullsOpen)
+        }}</span>
+        <span class="flex flex-wrap gap-x-3 font-mono text-xs text-fg-muted">
+          <span>{{ totals().issuesOpen }} issues open</span>
+          <span>{{ totals().pullsOpen }} pull requests open</span>
+        </span>
+      </a>
+
+      <div class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3">
+        <span class="mp-label mb-0"><span class="mp-label-index">04</span>this instance</span>
+        <span class="font-mono text-xl font-semibold">{{ s.version }}</span>
+        <span class="flex flex-col font-mono text-xs text-fg-muted">
+          <span>{{ s.instance }} · {{ s.mode }} mode</span>
+          @if (s.commit !== 'unknown') {
+            <span [title]="'built ' + s.builtAt">{{ s.commit }}</span>
+          } @else {
+            <span>local build</span>
+          }
+        </span>
+      </div>
+    </div>
+
+    <section class="mp-panel mp-panel-flush">
+      <header class="mp-panel-head">
+        <h2 class="mp-label">Repositories</h2>
+        <a routerLink="/repositories" class="mp-link text-xs">all repositories →</a>
+      </header>
+      <mp-load-state
+        [error]="repos.error()"
+        [loading]="repos.isLoading() && !repos.hasValue()"
+        what="repositories"
+      />
+      <ul class="grid grid-cols-1 lg:grid-cols-2">
+        @for (r of repos.body() ?? []; track r.key) {
+          <li
+            class="border-t border-line first:border-t-0 lg:odd:border-r lg:[&:nth-child(2)]:border-t-0"
+          >
+            <a
+              [routerLink]="['/repositories', ...repoPath(r.key)]"
+              class="flex flex-col gap-2 px-4 py-3 text-fg no-underline hover:bg-surface-2"
+            >
+              <span class="flex items-baseline justify-between gap-2">
+                <span class="truncate font-mono text-sm">{{ r.key }}</span>
+                @if (r.queue.failing > 0) {
+                  <span class="mp-status text-xs" data-status="error"
+                    >{{ r.queue.failing }} failing</span
+                  >
+                } @else if (r.queue.depth > 0) {
+                  <span class="mp-status text-xs" data-status="active"
+                    >{{ r.queue.depth }} queued</span
+                  >
+                } @else {
+                  <span class="mp-status text-xs" data-status="success">in step</span>
+                }
+              </span>
+              <span class="font-mono text-xs text-fg-subtle">↔ {{ r.forgejo }}</span>
+              <span class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-fg-muted">
+                <span
+                  >issues {{ r.counts.issuesOpen }} open · {{ r.counts.issuesClosed }} closed</span
+                >
+                @if (r.pullRequests) {
+                  <span
+                    >pulls {{ r.counts.pullsOpen }} open · {{ r.counts.pullsMerged }} merged ·
+                    {{ r.counts.pullsClosed }} closed</span
+                  >
+                } @else {
+                  <span class="text-fg-subtle">pull requests off</span>
+                }
+              </span>
+            </a>
+          </li>
+        } @empty {
+          @if (repos.hasValue()) {
+            <li class="px-4 py-3 text-sm text-fg-subtle">No repositories configured.</li>
+          }
+        }
+      </ul>
+    </section>
+  </div>
+}

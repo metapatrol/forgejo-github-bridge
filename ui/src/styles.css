@@ -1,0 +1,32 @@
+/* The metapatrol look: Tailwind, fonts, both themes, element defaults, the
+   mp-* patterns and a theme whose utilities are the brand's roles
+   (bg-surface, text-fg-muted, border-line-strong, bg-signal …). */
+@import '@metapatrol/style/tailwind.css';
+
+/* The light theme's subtle text reaches 4.5:1 on every surface (the
+   brand's #748291 is 3.6:1 on surface). */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --mp-fg-subtle: #5f6b78;
+  }
+}
+[data-theme='light'] {
+  --mp-fg-subtle: #5f6b78;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* A panel head's label beside other content sits in a wrapper, where the
+   brand's reset for .mp-panel-head > .mp-label does not reach. */
+@layer components {
+  .mp-panel-head .mp-label {
+    margin: 0;
+  }
+}

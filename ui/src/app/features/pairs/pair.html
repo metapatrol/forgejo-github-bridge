@@ -1,0 +1,160 @@
+<mp-page-header section="pairs" link="/pairs" [title]="title()" />
+
+<mp-load-state
+  [error]="pair.error()"
+  [loading]="pair.isLoading() && !pair.hasValue()"
+  what="pair"
+  [name]="id().toString()"
+  back="/pairs"
+/>
+
+@if (p(); as p) {
+  <div class="flex flex-col gap-5">
+    @if (p.queued; as q) {
+      @if (q.lastError) {
+        <mp-notice tone="warn">
+          The last attempt to reconcile this pair failed ({{ q.attempts }}
+          {{ q.attempts === 1 ? 'attempt' : 'attempts' }}):
+          <code class="font-mono text-xs">{{ q.lastError }}</code>
+        </mp-notice>
+      }
+    }
+    @if (p.pull?.headFrozen) {
+      <mp-notice tone="warn">
+        Someone other than the bridge pushed to the contrib branch. The bridge no longer imports new
+        commits into it.
+      </mp-notice>
+    }
+
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <mp-panel index="01" title="pair">
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
+          <dt class="text-fg-muted">kind</dt>
+          <dd><app-kind [kind]="p.kind" /></dd>
+          <dt class="text-fg-muted">state</dt>
+          <dd class="flex flex-wrap items-center gap-1">
+            <app-state [state]="p.state" /><app-pull-flags [pair]="p" />
+          </dd>
+          <dt class="text-fg-muted">repository</dt>
+          <dd class="font-mono">
+            <a [routerLink]="['/repositories', ...repoPath(p.repository)]" class="mp-link">{{
+              p.repository
+            }}</a>
+          </dd>
+          <dt class="text-fg-muted">GitHub</dt>
+          <dd class="font-mono">
+            <a [href]="p.githubUrl" class="mp-link" target="_blank" rel="noopener noreferrer"
+              >#{{ p.githubNumber }}</a
+            >
+          </dd>
+          <dt class="text-fg-muted">Forgejo</dt>
+          <dd class="font-mono">
+            <a [href]="p.forgejoUrl" class="mp-link" target="_blank" rel="noopener noreferrer"
+              >#{{ p.forgejoNumber }}</a
+            >
+          </dd>
+          <dt class="text-fg-muted">opened on</dt>
+          <dd>
+            <app-side [side]="p.origin" /> by <span class="font-mono">{{ p.author || '—' }}</span>
+          </dd>
+          <dt class="text-fg-muted">paired</dt>
+          <dd [title]="timestamp(p.createdAt)"><mp-time [value]="p.createdAt" /></dd>
+          <dt class="text-fg-muted">last change</dt>
+          <dd [title]="timestamp(p.updatedAt)"><mp-time [value]="p.updatedAt" /></dd>
+        </dl>
+      </mp-panel>
+
+      @if (p.pull; as pr) {
+        <mp-panel index="02" title="pull request">
+          <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
+            <dt class="text-fg-muted">contrib branch</dt>
+            <dd class="font-mono">
+              @if (pr.contribBranchUrl) {
+                <a
+                  [href]="pr.contribBranchUrl"
+                  class="mp-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >{{ pr.contribBranch }}</a
+                >
+              } @else {
+                {{ pr.contribBranch }}
+              }
+            </dd>
+            <dt class="text-fg-muted">imported head</dt>
+            <dd><mp-id [value]="pr.importedHeadSha" [keep]="7" /></dd>
+            <dt class="text-fg-muted">head updates</dt>
+            <dd>{{ pr.headFrozen ? 'frozen: someone else pushed' : 'imported as they come' }}</dd>
+            <dt class="text-fg-muted">touches CI</dt>
+            <dd>
+              {{ pr.touchesCi ? 'yes — read the workflow changes before approving a run' : 'no' }}
+            </dd>
+            <dt class="text-fg-muted">rebase</dt>
+            <dd>{{ pr.rebaseRequested ? 'requested from the contributor' : 'not requested' }}</dd>
+            <dt class="text-fg-muted">outcome</dt>
+            <dd>
+              @if (p.state === 'open') {
+                still open
+              } @else {
+                {{ pr.outcomeReported ? 'reported on GitHub' : 'not yet reported on GitHub' }}
+              }
+            </dd>
+            <dt class="text-fg-muted">updated</dt>
+            <dd [title]="timestamp(pr.updatedAt)"><mp-time [value]="pr.updatedAt" /></dd>
+          </dl>
+        </mp-panel>
+      }
+    </div>
+
+    <mp-panel index="03" [title]="'comments · ' + p.commentPairs.length">
+      <div class="overflow-x-auto">
+        <table class="mp-table">
+          <thead>
+            <tr>
+              <th scope="col">written on</th>
+              <th scope="col">GitHub</th>
+              <th scope="col">Forgejo</th>
+              <th scope="col">paired</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of p.commentPairs; track c.id) {
+              <tr>
+                <td><app-side [side]="c.origin" /></td>
+                <td class="font-mono text-xs">
+                  <a
+                    [href]="c.githubUrl"
+                    class="mp-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ c.githubCommentId }}</a
+                  >
+                </td>
+                <td class="font-mono text-xs">
+                  <a
+                    [href]="c.forgejoUrl"
+                    class="mp-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ c.forgejoCommentId }}</a
+                  >
+                </td>
+                <td class="text-xs text-fg-muted"><mp-time [value]="c.createdAt" /></td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="text-sm text-fg-subtle">No comments paired.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </mp-panel>
+
+    @if (p.queued; as q) {
+      <mp-panel index="04" title="queued">
+        <app-queue-table [entries]="[q]" [showRepository]="false" />
+      </mp-panel>
+    }
+  </div>
+}

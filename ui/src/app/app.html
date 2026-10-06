@@ -1,0 +1,36 @@
+<mp-app-shell project="forgejo-github-bridge" home="/" [nav]="groups()">
+  <ng-template mpShellAccount>
+    <!-- read-only console: the account slot holds the auto-refresh switch -->
+    <button
+      type="button"
+      class="mp-btn-ghost flex items-center gap-2 text-sm"
+      [attr.aria-pressed]="!refresh.paused()"
+      [title]="refresh.paused() ? 'Auto-refresh is paused' : 'Refreshing every 15 s'"
+      (click)="refresh.toggle()"
+    >
+      <mp-icon class="size-4" [name]="refresh.paused() ? 'play' : 'pause'" />
+      <span class="hidden sm:inline">
+        @if (refresh.paused()) {
+          paused
+        } @else {
+          live · <mp-time [value]="refresh.lastTick()" />
+        }
+      </span>
+    </button>
+  </ng-template>
+
+  <!-- the bridge's health in one word; folded, only its dot -->
+  <ng-template mpShellStatus let-collapsed>
+    <a
+      routerLink="/"
+      class="mp-status no-underline hover:underline"
+      [attr.data-status]="status.health().status"
+      aria-live="polite"
+      [title]="status.health().detail || status.health().text"
+    >
+      <span [class.sr-only]="collapsed">{{ status.health().text }}</span>
+    </a>
+  </ng-template>
+
+  <router-outlet />
+</mp-app-shell>

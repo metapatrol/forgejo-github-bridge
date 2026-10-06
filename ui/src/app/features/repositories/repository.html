@@ -1,0 +1,139 @@
+<mp-page-header section="repositories" link="/repositories" [title]="key()" mono />
+
+<mp-load-state
+  [error]="repos.error()"
+  [loading]="repos.isLoading() && !repos.hasValue()"
+  what="repositories"
+/>
+@if (missing()) {
+  <p class="text-sm text-fg-muted">
+    No repository {{ key() }} is configured.
+    <a routerLink="/repositories" class="mp-link">All repositories</a>.
+  </p>
+}
+
+@if (repo(); as r) {
+  <div class="flex flex-col gap-5">
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <mp-panel index="01" title="configuration">
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
+          <dt class="text-fg-muted">GitHub</dt>
+          <dd class="font-mono">
+            <a [href]="r.githubUrl" class="mp-link" target="_blank" rel="noopener noreferrer">{{
+              r.github
+            }}</a>
+          </dd>
+          <dt class="text-fg-muted">Forgejo</dt>
+          <dd class="font-mono">
+            <a [href]="r.forgejoUrl" class="mp-link" target="_blank" rel="noopener noreferrer">{{
+              r.forgejo
+            }}</a>
+          </dd>
+          <dt class="text-fg-muted">pull requests</dt>
+          <dd>
+            @if (r.pullRequests) {
+              imported into
+              <span class="font-mono">{{ r.contrib || 'the contrib account’s fork' }}</span>
+            } @else {
+              <span class="text-fg-subtle">not imported</span>
+            }
+          </dd>
+          @if (r.pullRequests) {
+            <dt class="text-fg-muted">target branches</dt>
+            <dd class="font-mono">{{ r.targetBranches.join(', ') }}</dd>
+            <dt class="text-fg-muted">rebase requests</dt>
+            <dd>{{ r.rebaseRequests ? 'on' : 'off' }}</dd>
+          }
+          <dt class="text-fg-muted">import label</dt>
+          <dd class="font-mono">{{ r.importLabel }}</dd>
+          <dt class="text-fg-muted">publish label</dt>
+          <dd class="font-mono">{{ r.publishLabel }}</dd>
+          <dt class="text-fg-muted">import since</dt>
+          <dd>{{ r.importSince ? timestamp(r.importSince) : 'every open issue' }}</dd>
+        </dl>
+      </mp-panel>
+
+      <div class="flex flex-col gap-5">
+        <mp-panel index="02" title="pairs">
+          <dl
+            class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 font-mono text-sm"
+          >
+            <dt class="text-fg-muted">issues</dt>
+            <dd>{{ r.counts.issuesOpen }} open · {{ r.counts.issuesClosed }} closed</dd>
+            <dt class="text-fg-muted">pull requests</dt>
+            <dd>
+              {{ r.counts.pullsOpen }} open · {{ r.counts.pullsMerged }} merged ·
+              {{ r.counts.pullsClosed }} closed
+            </dd>
+          </dl>
+        </mp-panel>
+
+        <mp-panel index="03" title="polls">
+          <table class="mp-table">
+            <thead>
+              <tr>
+                <th scope="col">side</th>
+                <th scope="col">stream</th>
+                <th scope="col">read up to</th>
+                <th scope="col">moved</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of r.cursors; track c.side + c.stream) {
+                <tr>
+                  <td><app-side [side]="c.side" /></td>
+                  <td class="font-mono text-xs">{{ c.stream }}</td>
+                  <td class="text-xs" [title]="timestamp(c.cursor)">
+                    <mp-time [value]="c.cursor" />
+                  </td>
+                  <td class="text-xs text-fg-muted"><mp-time [value]="c.updatedAt" /></td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="text-sm text-fg-subtle">Not polled yet.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </mp-panel>
+      </div>
+    </div>
+
+    <mp-panel index="04" title="queue">
+      <mp-load-state
+        [error]="queue.error()"
+        [loading]="queue.isLoading() && !queue.hasValue()"
+        what="queue"
+      />
+      @if (queue.hasValue()) {
+        <app-queue-table
+          [entries]="queue.body() ?? []"
+          [showRepository]="false"
+          empty="Nothing queued for this repository."
+        />
+      }
+    </mp-panel>
+
+    <mp-panel index="05" title="recent pairs">
+      <a
+        mpPanelActions
+        routerLink="/pairs"
+        [queryParams]="{ repository: key() }"
+        class="mp-link text-xs"
+        >all {{ pairs.body()?.total ?? '' }} pairs →</a
+      >
+      <mp-load-state
+        [error]="pairs.error()"
+        [loading]="pairs.isLoading() && !pairs.hasValue()"
+        what="pairs"
+      />
+      @if (pairs.hasValue()) {
+        <app-pairs-table
+          [pairs]="pairs.body()?.items ?? []"
+          [showRepository]="false"
+          empty="No pairs yet."
+        />
+      }
+    </mp-panel>
+  </div>
+}
