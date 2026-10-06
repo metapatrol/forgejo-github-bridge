@@ -34,6 +34,8 @@ type Reports interface {
 	Queue(ctx context.Context, f QueueFilter) ([]QueueReport, error)
 	// System describes the database, the bridge's tables and their upkeep.
 	System(ctx context.Context) (System, error)
+	// RateLimits lists the GitHub rate-limit windows as last saved.
+	RateLimits(ctx context.Context) ([]RateLimit, error)
 }
 
 // Leader is the instance doing the work.

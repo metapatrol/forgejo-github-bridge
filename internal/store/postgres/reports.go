@@ -396,3 +396,21 @@ func (s *Store) Queue(ctx context.Context, f store.QueueFilter) ([]store.QueueRe
 	})
 	return out, err
 }
+
+// RateLimits implements store.Reports.
+func (s *Store) RateLimits(ctx context.Context) ([]store.RateLimit, error) {
+	var out []store.RateLimit
+	err := s.read(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT resource, "limit", remaining, used, reset_at, observed_at FROM github_rate_limit ORDER BY resource`)
+		if err != nil {
+			return err
+		}
+		out, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (store.RateLimit, error) {
+			var l store.RateLimit
+			return l, row.Scan(&l.Resource, &l.Limit, &l.Remaining, &l.Used, &l.ResetAt, &l.ObservedAt)
+		})
+		return err
+	})
+	return out, err
+}

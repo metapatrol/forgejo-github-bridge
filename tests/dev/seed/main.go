@@ -55,9 +55,26 @@ func run(dsn string, lead bool) error {
 	if _, err := postgres.AcquireLeader(ctx, st.Pool(), quiet); err != nil {
 		return err
 	}
-	fmt.Println("holding the leader lock; interrupt to release it")
-	<-ctx.Done()
-	return nil
+	fmt.Println("holding the leader lock and spending the rate limit; interrupt to stop")
+	// What a working bridge does to the rate limit: a few requests every poll.
+	remaining, reset := 4321, time.Now().Add(37*time.Minute)
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+		remaining -= 7
+		if time.Now().After(reset) {
+			remaining, reset = 5000, time.Now().Add(time.Hour)
+		}
+		if err := st.SaveRateLimits(ctx, []store.RateLimit{{Resource: "core", Limit: 5000, Remaining: remaining,
+			Used: 5000 - remaining, ResetAt: reset, ObservedAt: time.Now()}}); err != nil && ctx.Err() == nil {
+			return err
+		}
+	}
 }
 
 type pair struct {
@@ -114,7 +131,11 @@ var repos = []struct {
 }
 
 func seed(ctx context.Context, st *postgres.Store) error {
-	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty`); err != nil {
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty, github_rate_limit`); err != nil {
+		return err
+	}
+	if err := st.SaveRateLimits(ctx, []store.RateLimit{{Resource: "core", Limit: 5000, Remaining: 4321, Used: 679,
+		ResetAt: time.Now().Add(37 * time.Minute), ObservedAt: time.Now()}}); err != nil {
 		return err
 	}
 	var pairs []pair

@@ -309,6 +309,22 @@ type QueueSummary struct {
 	OldestMarkedAt *time.Time `json:"oldestMarkedAt,omitempty"`
 }
 
+// RateLimit defines model for RateLimit.
+type RateLimit struct {
+	Limit int `json:"limit"`
+
+	// ObservedAt When the response these figures come from arrived.
+	ObservedAt time.Time `json:"observedAt"`
+	Remaining  int       `json:"remaining"`
+
+	// ResetAt When the window starts over.
+	ResetAt time.Time `json:"resetAt"`
+
+	// Resource GitHub's name for the budget; "core" is the REST API the bridge uses.
+	Resource string `json:"resource"`
+	Used     int    `json:"used"`
+}
+
 // Repository defines model for Repository.
 type Repository struct {
 	// Contrib The contrib fork, when configured. Absent with pull requests on
@@ -383,6 +399,10 @@ type Status struct {
 
 	// ForgejoUrl Forgejo's address for people's browsers.
 	ForgejoUrl string `json:"forgejoUrl"`
+
+	// GithubRateLimits The GitHub App installation's rate-limit windows, as the instance
+	// doing the work last saw them; empty until it has made a request.
+	GithubRateLimits []RateLimit `json:"githubRateLimits"`
 
 	// Instance The host name of the instance that answered.
 	Instance string `json:"instance"`

@@ -39,7 +39,7 @@ func open(t *testing.T) *postgres.Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(st.Close)
-	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty`); err != nil {
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty, github_rate_limit`); err != nil {
 		t.Fatal(err)
 	}
 	return st

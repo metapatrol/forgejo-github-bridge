@@ -323,3 +323,22 @@ func TestSystemDescribesTheDatabase(t *testing.T) {
 		t.Errorf("migrations = %+v", sys.Migrations)
 	}
 }
+
+func TestRateLimitsAreKept(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE github_rate_limit`); err != nil {
+		t.Fatal(err)
+	}
+	reset := time.Now().Add(30 * time.Minute).Truncate(time.Second)
+	for _, remaining := range []int{4990, 4870} {
+		if err := st.SaveRateLimits(ctx, []store.RateLimit{{Resource: "core", Limit: 5000, Remaining: remaining,
+			Used: 5000 - remaining, ResetAt: reset, ObservedAt: time.Now()}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := st.RateLimits(ctx)
+	if err != nil || len(got) != 1 || got[0].Remaining != 4870 || !got[0].ResetAt.Equal(reset) {
+		t.Errorf("rate limits = %+v, %v", got, err)
+	}
+}

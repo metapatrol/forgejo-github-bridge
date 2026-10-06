@@ -317,3 +317,7 @@ func (s *Store) DirtyStats(_ context.Context) (store.QueueStats, error) {
 	}
 	return st, nil
 }
+
+// SaveRateLimits implements store.Store; the memory store keeps nothing of
+// it, as nothing in the bridge reads it back.
+func (s *Store) SaveRateLimits(context.Context, []store.RateLimit) error { return nil }

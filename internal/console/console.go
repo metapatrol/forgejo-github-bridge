@@ -295,6 +295,16 @@ func (s *server) GetStatus(w http.ResponseWriter, r *http.Request) {
 		ForgejoUrl: s.opts.ForgejoWebURL.String(),
 	}
 	out.Leader = leaderOf(leader)
+	limits, err := s.reports.RateLimits(ctx)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	out.GithubRateLimits = make([]v1.RateLimit, 0, len(limits))
+	for _, l := range limits {
+		out.GithubRateLimits = append(out.GithubRateLimits, v1.RateLimit{Resource: l.Resource, Limit: l.Limit,
+			Remaining: l.Remaining, Used: l.Used, ResetAt: l.ResetAt, ObservedAt: l.ObservedAt})
+	}
 	writeJSON(w, out)
 }
 

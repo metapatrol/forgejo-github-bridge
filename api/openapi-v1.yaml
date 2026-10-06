@@ -65,6 +65,7 @@ paths:
           `{"op", "repository", "side", "number"}`.
         - `cursor`: a poll read further: `{"op", "repository", "side", "stream"}`.
         - `leader`: the instance holding the leader lock changed: `{"present"}`.
+        - `rateLimit`: the GitHub rate limit was saved anew: `{"op", "resource"}`.
         - `resync`: events were missed, by a slow client or a lost database
           connection; reload everything.
 
@@ -235,7 +236,7 @@ components:
 
     Status:
       type: object
-      required: [version, commit, builtAt, instance, mode, queue, forgejoUrl]
+      required: [version, commit, builtAt, instance, mode, queue, forgejoUrl, githubRateLimits]
       properties:
         version: { type: string }
         commit: { type: string }
@@ -253,6 +254,31 @@ components:
         forgejoUrl:
           type: string
           description: Forgejo's address for people's browsers.
+        githubRateLimits:
+          type: array
+          description: |
+            The GitHub App installation's rate-limit windows, as the instance
+            doing the work last saw them; empty until it has made a request.
+          items: { $ref: "#/components/schemas/RateLimit" }
+
+    RateLimit:
+      type: object
+      required: [resource, limit, remaining, used, resetAt, observedAt]
+      properties:
+        resource:
+          type: string
+          description: GitHub's name for the budget; "core" is the REST API the bridge uses.
+        limit: { type: integer }
+        remaining: { type: integer }
+        used: { type: integer }
+        resetAt:
+          type: string
+          format: date-time
+          description: When the window starts over.
+        observedAt:
+          type: string
+          format: date-time
+          description: When the response these figures come from arrived.
 
     Leader:
       type: object

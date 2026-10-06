@@ -32,6 +32,7 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forgejo"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/github"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/gitops"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store/postgres"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/ui"
@@ -169,6 +170,7 @@ func run() error {
 		case <-runCtx.Done():
 		}
 	}()
+	go saveRateLimits(runCtx, st, log)
 	go func() {
 		if err := b.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("the bridge stopped", "error", err)
@@ -188,6 +190,46 @@ func run() error {
 	// Losing the lock means another instance may already be active. Exiting
 	// is the only way to be sure this one is not doing the same work.
 	return errors.New("lost the leader lock")
+}
+
+// rateLimitSave is how often the GitHub rate limit, as the last response
+// reported it, is written for the console.
+const rateLimitSave = 15 * time.Second
+
+// saveRateLimits writes the GitHub rate limit to the database while this
+// instance does the work, so that a console on any instance can show it.
+// Only a window that changed is written.
+func saveRateLimits(ctx context.Context, st *postgres.Store, log *slog.Logger) {
+	saved := map[string]store.RateLimit{}
+	ticker := time.NewTicker(rateLimitSave)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		var changed []store.RateLimit
+		for _, rl := range telemetry.RateLimits() {
+			if last, ok := saved[rl.Resource]; ok && last.Remaining == rl.Remaining && last.Limit == rl.Limit && last.ResetAt.Equal(rl.Reset) {
+				continue
+			}
+			changed = append(changed, store.RateLimit{Resource: rl.Resource, Limit: rl.Limit, Remaining: rl.Remaining,
+				Used: rl.Used, ResetAt: rl.Reset, ObservedAt: rl.ObservedAt})
+		}
+		if len(changed) == 0 {
+			continue
+		}
+		if err := st.SaveRateLimits(ctx, changed); err != nil {
+			if ctx.Err() == nil {
+				log.Warn("saving the GitHub rate limit for the console failed", "error", err)
+			}
+			continue
+		}
+		for _, rl := range changed {
+			saved[rl.Resource] = rl
+		}
+	}
 }
 
 // forgejoClient trusts the system roots plus, when configured, the private

@@ -381,3 +381,20 @@ func (s *Store) DirtyStats(ctx context.Context) (store.QueueStats, error) {
 	}
 	return st, err
 }
+
+// SaveRateLimits implements store.Store.
+func (s *Store) SaveRateLimits(ctx context.Context, limits []store.RateLimit) error {
+	if len(limits) == 0 {
+		return nil
+	}
+	batch := &pgx.Batch{}
+	for _, l := range limits {
+		batch.Queue(`
+			INSERT INTO github_rate_limit (resource, "limit", remaining, used, reset_at, observed_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (resource) DO UPDATE SET "limit" = excluded."limit", remaining = excluded.remaining,
+				used = excluded.used, reset_at = excluded.reset_at, observed_at = excluded.observed_at`,
+			l.Resource, l.Limit, l.Remaining, l.Used, l.ResetAt, l.ObservedAt)
+	}
+	return s.pool.SendBatch(ctx, batch).Close()
+}

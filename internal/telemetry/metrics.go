@@ -9,6 +9,7 @@ package telemetry
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -166,11 +167,54 @@ func SetLeader(active bool) {
 	}
 }
 
-// ObserveGitHub reads the rate-limit header from a GitHub response.
+// RateLimit is one GitHub rate-limit window, as the last response in it
+// reported.
+type RateLimit struct {
+	// Resource is GitHub's name for the budget, "core" for the REST API.
+	Resource         string
+	Limit, Remaining int
+	Used             int
+	Reset            time.Time
+	ObservedAt       time.Time
+}
+
+var (
+	rateMu     sync.Mutex
+	rateLimits = map[string]RateLimit{}
+)
+
+// ObserveGitHub reads the rate-limit headers from a GitHub response made with
+// an installation token.
 func ObserveGitHub(resp *http.Response) {
-	if v := resp.Header.Get("X-RateLimit-Remaining"); v != "" {
-		if n, err := strconv.ParseFloat(v, 64); err == nil {
-			rateRemaining.Set(n)
-		}
+	h := resp.Header
+	remaining, err := strconv.Atoi(h.Get("X-RateLimit-Remaining"))
+	if err != nil {
+		return
 	}
+	rl := RateLimit{Resource: h.Get("X-RateLimit-Resource"), Remaining: remaining, ObservedAt: time.Now()}
+	if rl.Resource == "" {
+		rl.Resource = "core"
+	}
+	rl.Limit, _ = strconv.Atoi(h.Get("X-RateLimit-Limit"))
+	rl.Used, _ = strconv.Atoi(h.Get("X-RateLimit-Used"))
+	if reset, err := strconv.ParseInt(h.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+		rl.Reset = time.Unix(reset, 0)
+	}
+	if rl.Resource == "core" {
+		rateRemaining.Set(float64(remaining))
+	}
+	rateMu.Lock()
+	rateLimits[rl.Resource] = rl
+	rateMu.Unlock()
+}
+
+// RateLimits returns the last observation of every rate-limit window.
+func RateLimits() []RateLimit {
+	rateMu.Lock()
+	defer rateMu.Unlock()
+	out := make([]RateLimit, 0, len(rateLimits))
+	for _, rl := range rateLimits {
+		out = append(out, rl)
+	}
+	return out
 }

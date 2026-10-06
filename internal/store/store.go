@@ -182,4 +182,16 @@ type Store interface {
 	DeferDirty(ctx context.Context, d Dirty, until time.Time, reason string) error
 	// DirtyStats describes the queue.
 	DirtyStats(ctx context.Context) (QueueStats, error)
+
+	// SaveRateLimits records the GitHub rate-limit windows as last seen.
+	SaveRateLimits(ctx context.Context, limits []RateLimit) error
+}
+
+// RateLimit is one GitHub rate-limit window as the active instance last saw
+// it.
+type RateLimit struct {
+	// Resource is GitHub's name for the budget: "core" for the REST API.
+	Resource               string
+	Limit, Remaining, Used int
+	ResetAt, ObservedAt    time.Time
 }

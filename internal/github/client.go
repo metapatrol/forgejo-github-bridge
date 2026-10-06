@@ -41,14 +41,12 @@ type Client struct {
 var _ forge.Client = (*Client)(nil)
 
 // New creates a client for the App with the given ID and key. observe, when
-// not nil, sees every response; the bridge uses it for the rate-limit gauge.
+// not nil, sees every response made with an installation token; the bridge
+// reads the rate limit from them. The App's own requests, made with its JWT,
+// draw on a budget of their own and are not observed.
 func New(base *url.URL, appID int64, key *rsa.PrivateKey, httpClient *http.Client, observe func(*http.Response)) *Client {
-	opts := githubHeaders()
-	if observe != nil {
-		opts = append(opts, rest.WithObserver(observe))
-	}
 	return &Client{
-		app:     newApp(appID, key, base, httpClient, opts...),
+		app:     newApp(appID, key, base, httpClient, githubHeaders()...),
 		base:    base,
 		http:    httpClient,
 		observe: observe,

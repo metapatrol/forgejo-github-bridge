@@ -31,10 +31,13 @@ type reports struct {
 	pairFilter  store.PairFilter
 	queueFilter store.QueueFilter
 	system      store.System
+	limits      []store.RateLimit
 	err         error
 }
 
 func (r *reports) System(context.Context) (store.System, error) { return r.system, r.err }
+
+func (r *reports) RateLimits(context.Context) ([]store.RateLimit, error) { return r.limits, r.err }
 
 func (r *reports) Leader(context.Context) (store.Leader, error)           { return r.leader, r.err }
 func (r *reports) QueueSummary(context.Context) (store.QueueStats, error) { return r.stats, r.err }
@@ -109,11 +112,15 @@ func TestStatus(t *testing.T) {
 	h := newConsole(t, &reports{
 		leader: store.Leader{Present: true, Instance: "pod-0", ConnectedAt: now},
 		stats:  store.QueueStats{Depth: 3, Failing: 1, Oldest: now},
+		limits: []store.RateLimit{{Resource: "core", Limit: 5000, Remaining: 4870, Used: 130, ResetAt: now, ObservedAt: now}},
 	})
 	var s v1.Status
 	get(t, h, "/api/v1/status", &s)
 	if s.Version != "1.2.3" || s.Instance != "pod-1" || s.Mode != v1.StatusModeBridge || s.ForgejoUrl != "https://forgejo.example.com" {
 		t.Errorf("status = %+v", s)
+	}
+	if len(s.GithubRateLimits) != 1 || s.GithubRateLimits[0].Remaining != 4870 {
+		t.Errorf("rate limits = %+v", s.GithubRateLimits)
 	}
 	if s.Leader == nil || *s.Leader.Instance != "pod-0" || s.Queue.Failing != 1 || s.Queue.OldestMarkedAt == nil {
 		t.Errorf("leader %+v, queue %+v", s.Leader, s.Queue)
