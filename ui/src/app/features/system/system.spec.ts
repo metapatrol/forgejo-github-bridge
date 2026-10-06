@@ -4,7 +4,15 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideApiConfiguration } from '../../api/api-configuration';
 import { System as SystemModel } from '../../api/models/system';
-import { cacheHitRatio, interval, lastOf, roundDuration, roundSummary, System } from './system';
+import {
+  cacheHitRatio,
+  interval,
+  lastOf,
+  roundDuration,
+  roundSummary,
+  schemaLine,
+  System,
+} from './system';
 
 const system: SystemModel = {
   service: {
@@ -94,6 +102,14 @@ describe('System', () => {
     expect(roundSummary(round)).toBe('2 tables vacuumed · rebuilt dirty_due');
     expect(roundDuration(round)).toBe(2000);
     expect(roundDuration({ ...round, finishedAt: undefined })).toBeUndefined();
+    const schema = schemaLine([
+      { name: '0002_pull_requests.sql', appliedAt: '2026-10-02T00:00:00Z' },
+      { name: '0001_initial.sql', appliedAt: '2026-10-01T00:00:00Z' },
+    ]);
+    expect(schema?.newest).toBe('0002_pull_requests');
+    expect(schema?.count).toBe(2);
+    expect(schema?.tip.split('\n').length).toBe(2);
+    expect(schemaLine([])).toBeUndefined();
   });
 
   async function render(model: SystemModel): Promise<string> {
@@ -152,7 +168,9 @@ describe('System', () => {
     expect(text).toContain('99 %');
     expect(text).toContain('issue_mapping');
     expect(text).toContain('1 invalid');
-    expect(text).toContain('0001_initial.sql');
+    expect(text).toContain('0001_initial · 1 migration');
+    expect(text).not.toContain('Migrations');
+    expect(text).not.toContain('every 30 s');
     expect(text).toContain('a round every 24 h');
     expect(text).toContain('took 2.0 s');
     expect(text).toContain('2 tables vacuumed · rebuilt dirty_due');

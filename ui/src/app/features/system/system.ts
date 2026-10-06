@@ -1,25 +1,21 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  DestroyRef,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject } from '@angular/core';
 import {
   ago,
   bytes,
   count,
   MpClock,
+  MpIcon,
   MpLoadState,
   MpPageHeader,
   MpTime,
+  MpTip,
   span,
   timestamp,
 } from '@metapatrol/ng';
 import { getSystem } from '../../api/fn/status/get-system';
 import { SystemDatabase } from '../../api/models/system-database';
 import { MaintenanceRound } from '../../api/models/maintenance-round';
+import { Migration } from '../../api/models/migration';
 import { SystemTable } from '../../api/models/system-table';
 import { apiResource } from '../../core/api';
 import { percentLeft, rateTone } from '../../core/rate-limit';
@@ -68,6 +64,24 @@ export function roundDuration(r: MaintenanceRound): number | undefined {
   return r.finishedAt ? Date.parse(r.finishedAt) - Date.parse(r.startedAt) : undefined;
 }
 
+/**
+ * The schema as one line: the newest migration without .sql, how many there
+ * are, and every one with when it was applied, for a tooltip.
+ */
+export function schemaLine(
+  migrations: readonly Migration[],
+): { newest: string; count: number; tip: string } | undefined {
+  if (!migrations.length) {
+    return undefined;
+  }
+  const sorted = [...migrations].sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    newest: sorted[sorted.length - 1].name.replace(/\.sql$/, ''),
+    count: sorted.length,
+    tip: sorted.map((m) => `${m.name}  ${timestamp(m.appliedAt)}`).join('\n'),
+  };
+}
+
 /** 60 → "1 min", 21600 → "6 h", 45 → "45 s". */
 export function interval(seconds: number): string {
   if (seconds % 3600 === 0) {
@@ -81,7 +95,7 @@ export function interval(seconds: number): string {
 
 @Component({
   selector: 'app-system',
-  imports: [MpLoadState, MpPageHeader, MpTime, Meter],
+  imports: [MpIcon, MpLoadState, MpPageHeader, MpTime, MpTip, Meter],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './system.html',
 })
@@ -95,6 +109,10 @@ export class System {
   protected readonly lastOf = lastOf;
   protected readonly percentLeft = percentLeft;
   protected readonly roundSummary = roundSummary;
+  protected readonly coreNote = 'core is the REST API the bridge uses.';
+  protected readonly rateNote =
+    "The GitHub App installation's rate-limit windows. core is the REST API the bridge uses; the figures are GitHub's, from its last response.";
+  protected readonly schema = computed(() => schemaLine(this.res.body()?.migrations ?? []));
   /** The newest round, if any; it runs while it has no end. */
   protected readonly lastRound = computed(() => this.res.body()?.maintenance.rounds[0]);
   protected readonly roundRunning = computed(() => {
@@ -117,7 +135,6 @@ export class System {
   /** GitHub's rate limits come with the status, which follows rateLimit events. */
   private readonly status = inject(StatusService).status;
   protected readonly limits = computed(() => this.status.body()?.githubRateLimits ?? []);
-  protected readonly loadedAt = signal(Date.now());
 
   protected readonly cacheHit = computed(() => {
     const d = this.res.body()?.database;
@@ -135,17 +152,12 @@ export class System {
   constructor() {
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        this.reload();
+        this.res.reload();
       }
     }, SYSTEM_REFRESH_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
     // Rounds announce themselves; the other figures move slowly, and the timer has them.
     liveReload(() => ({ view: 'system' }), this.res);
-  }
-
-  protected reload(): void {
-    this.res.reload();
-    this.loadedAt.set(Date.now());
   }
 
   protected percent(v: number): string {

@@ -1,11 +1,4 @@
-<mp-page-header title="System" note="service and database">
-  <span class="flex items-center gap-3 text-xs text-fg-subtle">
-    <span>loaded <mp-time [value]="loadedAt()" /> · every 30 s</span>
-    <button type="button" class="mp-btn-ghost flex items-center gap-1.5" (click)="reload()">
-      Refresh
-    </button>
-  </span>
-</mp-page-header>
+<mp-page-header title="System" note="service and database" />
 
 <mp-load-state
   [error]="res.error()"
@@ -15,7 +8,7 @@
 
 @if (res.body(); as s) {
   <div class="flex flex-col gap-5">
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
       <!-- service -->
       <section class="mp-panel mp-panel-flush">
         <header class="mp-panel-head">
@@ -146,6 +139,17 @@
               {{ count(s.database.freezeMaxAge) }}</span
             >
           </dd>
+          <dt>schema</dt>
+          <dd>
+            @if (schema(); as sc) {
+              <span class="font-mono" [title]="sc.tip">{{ sc.newest }}</span>
+              <span class="text-xs text-fg-subtle">
+                · {{ sc.count }} {{ sc.count === 1 ? 'migration' : 'migrations' }}</span
+              >
+            } @else {
+              <span class="text-fg-muted">no migrations</span>
+            }
+          </dd>
           <dt>since</dt>
           <dd class="text-xs text-fg-muted">
             @if (s.database.statsReset; as reset) {
@@ -169,11 +173,17 @@
           </details>
         }
       </section>
+
       <!-- GitHub API -->
-      <section class="mp-panel mp-panel-flush lg:col-span-2 2xl:col-span-1">
+      <section class="mp-panel mp-panel-flush">
         <header class="mp-panel-head">
           <h2 class="mp-label"><span class="mp-label-index">03</span>GitHub API</h2>
-          <span class="font-mono text-xs text-fg-subtle">rate limits of the App installation</span>
+          <span
+            class="flex items-center gap-1.5 font-mono text-xs text-fg-subtle"
+            [mpTip]="rateNote"
+            focusable
+            >rate limits of the App installation <mp-icon name="info" class="size-3.5"
+          /></span>
         </header>
         @if (limits().length) {
           <div class="overflow-x-auto">
@@ -190,7 +200,11 @@
               <tbody>
                 @for (r of limits(); track r.resource) {
                   <tr>
-                    <td class="font-mono text-xs">{{ r.resource }}</td>
+                    <td class="font-mono text-xs">
+                      <span [mpTip]="r.resource === 'core' ? coreNote : null">{{
+                        r.resource
+                      }}</span>
+                    </td>
                     <td>
                       <app-meter
                         [value]="r.used"
@@ -199,7 +213,7 @@
                         [errorAt]="0.95"
                         [label]="r.resource + ' requests used'"
                       />
-                      <span class="font-mono text-xs text-fg-subtle"
+                      <span class="font-mono text-xs whitespace-nowrap text-fg-subtle"
                         >{{ count(r.used) }} of {{ count(r.limit) }}</span
                       >
                     </td>
@@ -222,20 +236,105 @@
               </tbody>
             </table>
           </div>
-          <p class="mp-panel-note text-xs">
-            core is the REST API the bridge uses; the figures are GitHub's, from its last response.
-          </p>
         } @else {
           <p class="px-4 py-3 text-sm text-fg-subtle">
             No requests yet: the working instance has not talked to GitHub since it started.
           </p>
         }
       </section>
+
+      <!-- maintenance: the scheduled rounds, and what PostgreSQL runs now -->
+      <section class="mp-panel mp-panel-flush">
+        <header class="mp-panel-head">
+          <h2 class="mp-label"><span class="mp-label-index">04</span>Maintenance</h2>
+          @if (roundRunning() || s.running.length) {
+            <span class="mp-status font-mono text-xs" data-status="active">running now</span>
+          }
+        </header>
+        <div class="flex flex-col gap-3 px-4 py-3 text-sm">
+          <dl class="mp-kv text-sm">
+            <dt>schedule</dt>
+            <dd>
+              @if (s.maintenance.intervalSeconds > 0) {
+                a round every {{ interval(s.maintenance.intervalSeconds) }}
+                <span class="block text-xs text-fg-subtle"
+                  >VACUUM (ANALYZE) on every table, invalid indexes rebuilt</span
+                >
+              } @else {
+                <span class="text-fg-muted">scheduled maintenance is off</span>
+              }
+            </dd>
+            <dt>last round</dt>
+            <dd>
+              @if (lastRound(); as r) {
+                @if (r.finishedAt) {
+                  <span [title]="timestamp(r.startedAt)"><mp-time [value]="r.startedAt" /></span>
+                  <span class="text-xs text-fg-subtle"> · took {{ duration(r) }}</span>
+                } @else {
+                  <span class="mp-status" data-status="active"
+                    >running since <mp-time [value]="r.startedAt"
+                  /></span>
+                }
+                <span class="block text-xs text-fg-muted">{{ roundSummary(r) }}</span>
+                @for (f of r.failures; track $index) {
+                  <span class="block font-mono text-xs break-words text-error">{{ f }}</span>
+                }
+              } @else {
+                <span class="text-fg-muted">none yet</span>
+              }
+            </dd>
+            @if (s.maintenance.intervalSeconds > 0 && s.maintenance.nextRoundAt; as next) {
+              <dt>next round</dt>
+              <dd [title]="timestamp(next)">
+                {{ resetsIn(next) === 'now' ? 'due now' : resetsIn(next) }}
+              </dd>
+            }
+            <dt>autovacuum</dt>
+            <dd>
+              <code>{{ setting('autovacuum') }}</code>
+              <span class="text-xs text-fg-subtle"> · keeps the tables between rounds</span>
+            </dd>
+          </dl>
+          @if (s.running.length) {
+            <div>
+              <p class="mp-label">PostgreSQL is running</p>
+              <ul class="mt-1 flex flex-col gap-1">
+                @for (q of s.running; track $index) {
+                  <li class="font-mono text-xs break-words text-fg-muted">{{ q }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (s.maintenance.rounds.length > 1) {
+            <details>
+              <summary class="cursor-pointer text-xs text-fg-muted">
+                {{ s.maintenance.rounds.length }} recent rounds
+              </summary>
+              <ul class="mt-2 flex flex-col divide-y divide-line">
+                @for (r of s.maintenance.rounds; track r.startedAt) {
+                  <li class="flex flex-col gap-0.5 py-2 text-xs">
+                    <span class="flex flex-wrap justify-between gap-x-3">
+                      <span [title]="timestamp(r.startedAt)"
+                        ><mp-time [value]="r.startedAt"
+                      /></span>
+                      <span class="text-fg-subtle">{{ duration(r) }}</span>
+                    </span>
+                    <span class="text-fg-muted">{{ roundSummary(r) }}</span>
+                    @for (f of r.failures; track $index) {
+                      <span class="font-mono break-words text-error">{{ f }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        </div>
+      </section>
     </div>
 
     <!-- tables, the largest first -->
     <div class="flex flex-col gap-3">
-      <h2 class="mp-label mb-0"><span class="mp-label-index">04</span>Tables</h2>
+      <h2 class="mp-label mb-0"><span class="mp-label-index">05</span>Tables</h2>
       <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         @for (t of s.tables; track t.name) {
           <section class="mp-panel mp-panel-flush" [attr.aria-label]="t.name">
@@ -350,129 +449,6 @@
           <p class="text-sm text-fg-subtle">No tables.</p>
         }
       </div>
-    </div>
-
-    <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-      <!-- migrations -->
-      <section class="mp-panel mp-panel-flush">
-        <header class="mp-panel-head">
-          <h2 class="mp-label"><span class="mp-label-index">05</span>Migrations</h2>
-          <span class="font-mono text-xs text-fg-subtle">{{ s.migrations.length }} applied</span>
-        </header>
-        <table class="mp-table w-full">
-          <thead>
-            <tr>
-              <th scope="col">name</th>
-              <th scope="col">applied</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (m of s.migrations; track m.name) {
-              <tr>
-                <td class="font-mono text-xs">{{ m.name }}</td>
-                <td
-                  class="text-xs whitespace-nowrap text-fg-muted"
-                  [title]="timestamp(m.appliedAt)"
-                >
-                  <mp-time [value]="m.appliedAt" />
-                </td>
-              </tr>
-            } @empty {
-              <tr>
-                <td colspan="2" class="text-sm text-fg-subtle">None applied.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </section>
-
-      <!-- maintenance: the scheduled rounds, and what PostgreSQL runs now -->
-      <section class="mp-panel mp-panel-flush">
-        <header class="mp-panel-head">
-          <h2 class="mp-label"><span class="mp-label-index">06</span>Maintenance</h2>
-          @if (roundRunning() || s.running.length) {
-            <span class="mp-status font-mono text-xs" data-status="active">running now</span>
-          }
-        </header>
-        <div class="flex flex-col gap-3 px-4 py-3 text-sm">
-          <dl class="mp-kv text-sm">
-            <dt>schedule</dt>
-            <dd>
-              @if (s.maintenance.intervalSeconds > 0) {
-                a round every {{ interval(s.maintenance.intervalSeconds) }}
-                <span class="block text-xs text-fg-subtle"
-                  >VACUUM (ANALYZE) on every table, invalid indexes rebuilt</span
-                >
-              } @else {
-                <span class="text-fg-muted">scheduled maintenance is off</span>
-              }
-            </dd>
-            <dt>last round</dt>
-            <dd>
-              @if (lastRound(); as r) {
-                @if (r.finishedAt) {
-                  <span [title]="timestamp(r.startedAt)"><mp-time [value]="r.startedAt" /></span>
-                  <span class="text-xs text-fg-subtle"> · took {{ duration(r) }}</span>
-                } @else {
-                  <span class="mp-status" data-status="active"
-                    >running since <mp-time [value]="r.startedAt"
-                  /></span>
-                }
-                <span class="block text-xs text-fg-muted">{{ roundSummary(r) }}</span>
-                @for (f of r.failures; track $index) {
-                  <span class="block font-mono text-xs break-words text-error">{{ f }}</span>
-                }
-              } @else {
-                <span class="text-fg-muted">none yet</span>
-              }
-            </dd>
-            @if (s.maintenance.intervalSeconds > 0 && s.maintenance.nextRoundAt; as next) {
-              <dt>next round</dt>
-              <dd [title]="timestamp(next)">
-                {{ resetsIn(next) === 'now' ? 'due now' : resetsIn(next) }}
-              </dd>
-            }
-            <dt>autovacuum</dt>
-            <dd>
-              <code>{{ setting('autovacuum') }}</code>
-              <span class="text-xs text-fg-subtle"> · keeps the tables between rounds</span>
-            </dd>
-          </dl>
-          @if (s.running.length) {
-            <div>
-              <p class="mp-label">PostgreSQL is running</p>
-              <ul class="mt-1 flex flex-col gap-1">
-                @for (q of s.running; track $index) {
-                  <li class="font-mono text-xs break-words text-fg-muted">{{ q }}</li>
-                }
-              </ul>
-            </div>
-          }
-          @if (s.maintenance.rounds.length > 1) {
-            <details>
-              <summary class="cursor-pointer text-xs text-fg-muted">
-                {{ s.maintenance.rounds.length }} recent rounds
-              </summary>
-              <ul class="mt-2 flex flex-col divide-y divide-line">
-                @for (r of s.maintenance.rounds; track r.startedAt) {
-                  <li class="flex flex-col gap-0.5 py-2 text-xs">
-                    <span class="flex flex-wrap justify-between gap-x-3">
-                      <span [title]="timestamp(r.startedAt)"
-                        ><mp-time [value]="r.startedAt"
-                      /></span>
-                      <span class="text-fg-subtle">{{ duration(r) }}</span>
-                    </span>
-                    <span class="text-fg-muted">{{ roundSummary(r) }}</span>
-                    @for (f of r.failures; track $index) {
-                      <span class="font-mono break-words text-error">{{ f }}</span>
-                    }
-                  </li>
-                }
-              </ul>
-            </details>
-          }
-        </div>
-      </section>
     </div>
   </div>
 }

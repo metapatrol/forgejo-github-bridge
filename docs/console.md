@@ -67,7 +67,7 @@ and the bridge's error messages, which name repositories and accounts.
 | Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported. One links to both sides and shows its contrib branch, imported head and comment pairs |
 | People | who opened the issues and pull requests the bridge holds, the most active first; a person's page lists what they opened. The bridge records who opened a pair, not who wrote its comments |
 | Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full |
-| System | the service (version, uptime, schedule, the instance doing the work), the GitHub rate limit, and the database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the applied migrations, the maintenance PostgreSQL runs now, and the bridge's own maintenance rounds: when the last ran, what it did, when the next is due |
+| System | the service (version, uptime, schedule, the instance doing the work), the GitHub rate limit, and the database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the schema version, the maintenance PostgreSQL runs now, and the bridge's own maintenance rounds: when the last ran, what it did, when the next is due |
 
 ![The queue: what is failing, how often, and why](./images/console-queue.png)
 
