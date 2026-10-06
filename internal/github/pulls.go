@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge"
@@ -55,6 +56,63 @@ func (c *Client) Contains(ctx context.Context, repo config.RepoRef, branch, sha 
 func (c *Client) BehindBy(ctx context.Context, repo config.RepoRef, branch, sha string) (int, error) {
 	cmp, err := c.compare(ctx, repo, branch, sha)
 	return cmp.BehindBy, err
+}
+
+// ListReviewComments implements forge.GitHubPulls.
+func (c *Client) ListReviewComments(ctx context.Context, repo config.RepoRef, number int64) ([]forge.LineComment, error) {
+	raw, err := rest.GetAll[reviewComment](ctx, c.api(repo), repoPath(repo)+"/pulls/"+strconv.FormatInt(number, 10)+"/comments",
+		url.Values{"per_page": {pageSize}})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.LineComment, len(raw))
+	for i, r := range raw {
+		out[i] = r.toForge()
+	}
+	return out, nil
+}
+
+// CreateReviewComment implements forge.GitHubPulls. GitHub answers 422 for a
+// line its diff of that commit does not have, or a commit it does not know.
+func (c *Client) CreateReviewComment(ctx context.Context, repo config.RepoRef, number int64, lc forge.LineComment) (forge.LineComment, error) {
+	var r reviewComment
+	err := c.api(repo).Do(ctx, http.MethodPost, repoPath(repo)+"/pulls/"+strconv.FormatInt(number, 10)+"/comments", nil,
+		map[string]any{"body": lc.Body, "commit_id": lc.CommitID, "path": lc.Path, "line": lc.Line, "side": lc.Side}, &r)
+	return r.toForge(), err
+}
+
+// EditReviewComment implements forge.GitHubPulls.
+func (c *Client) EditReviewComment(ctx context.Context, repo config.RepoRef, id int64, body string) error {
+	return c.api(repo).Do(ctx, http.MethodPatch, repoPath(repo)+"/pulls/comments/"+strconv.FormatInt(id, 10), nil,
+		map[string]string{"body": body}, nil)
+}
+
+// DeleteReviewComment implements forge.GitHubPulls.
+func (c *Client) DeleteReviewComment(ctx context.Context, repo config.RepoRef, id int64) error {
+	return c.api(repo).Do(ctx, http.MethodDelete, repoPath(repo)+"/pulls/comments/"+strconv.FormatInt(id, 10), nil, nil, nil)
+}
+
+type reviewComment struct {
+	ID        int64     `json:"id"`
+	Body      string    `json:"body"`
+	User      user      `json:"user"`
+	HTMLURL   string    `json:"html_url"`
+	Path      string    `json:"path"`
+	Line      int       `json:"line"`
+	Side      string    `json:"side"`
+	CommitID  string    `json:"commit_id"`
+	DiffHunk  string    `json:"diff_hunk"`
+	ReviewID  int64     `json:"pull_request_review_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (r reviewComment) toForge() forge.LineComment {
+	return forge.LineComment{
+		ID: r.ID, ReviewID: r.ReviewID, Author: r.User.Login, Body: r.Body, URL: r.HTMLURL,
+		Path: r.Path, Line: r.Line, Side: r.Side, CommitID: r.CommitID, DiffHunk: r.DiffHunk,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
 }
 
 type comparison struct {

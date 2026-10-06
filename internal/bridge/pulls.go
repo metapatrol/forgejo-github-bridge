@@ -185,6 +185,9 @@ func (b *Bridge) pairPull(ctx context.Context, r *repo, m store.IssueMapping) er
 	if err := b.syncComments(ctx, r, m, ghComments, fjComments, reviews, participants); err != nil {
 		return err
 	}
+	if err := b.syncLineComments(ctx, r, m, reviews, ghComments, participants); err != nil {
+		return err
+	}
 
 	lifecycleErr := b.lifecycle(ctx, r, m, &st, gh, fj, ghComments)
 	if err := b.store.SavePullRequest(ctx, st); err != nil {

@@ -37,7 +37,34 @@ type Review struct {
 	SubmittedAt time.Time
 }
 
-// GitHubPulls is what the bridge reads of pull requests on GitHub.
+// LineComment is a comment on a line of a pull request's diff.
+type LineComment struct {
+	ID int64
+	// ReviewID is the review it belongs to.
+	ReviewID int64
+	Author   string
+	Body     string
+	URL      string
+	// Path, Line and Side say where: Side RIGHT is a line of the file as the
+	// pull request changes it, LEFT one of the file before. CommitID is the
+	// head commit the comment was written on.
+	Path     string
+	Line     int
+	Side     string
+	CommitID string
+	// DiffHunk is the part of the diff the comment is on.
+	DiffHunk  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// The sides of a diff a line comment can be on.
+const (
+	SideRight = "RIGHT"
+	SideLeft  = "LEFT"
+)
+
+// GitHubPulls is what the bridge does with pull requests on GitHub.
 type GitHubPulls interface {
 	GetPullRequest(ctx context.Context, repo config.RepoRef, number int64) (PullRequest, error)
 	// PullRequestFiles lists the paths a pull request changes.
@@ -46,6 +73,13 @@ type GitHubPulls interface {
 	Contains(ctx context.Context, repo config.RepoRef, branch, sha string) (bool, error)
 	// BehindBy counts the commits on branch that sha does not have.
 	BehindBy(ctx context.Context, repo config.RepoRef, branch, sha string) (int, error)
+	// ListReviewComments lists the line comments of a pull request.
+	ListReviewComments(ctx context.Context, repo config.RepoRef, number int64) ([]LineComment, error)
+	// CreateReviewComment comments on the line c's CommitID, Path, Line and
+	// Side name. ErrRejected when GitHub will not place a comment there.
+	CreateReviewComment(ctx context.Context, repo config.RepoRef, number int64, c LineComment) (LineComment, error)
+	EditReviewComment(ctx context.Context, repo config.RepoRef, id int64, body string) error
+	DeleteReviewComment(ctx context.Context, repo config.RepoRef, id int64) error
 }
 
 // ForgejoPulls is what the bridge does with pull requests in Forgejo, as the
@@ -53,6 +87,8 @@ type GitHubPulls interface {
 type ForgejoPulls interface {
 	GetPullRequest(ctx context.Context, repo config.RepoRef, number int64) (PullRequest, error)
 	ListReviews(ctx context.Context, repo config.RepoRef, number int64) ([]Review, error)
+	// ListReviewLineComments lists the line comments of one review.
+	ListReviewLineComments(ctx context.Context, repo config.RepoRef, number, reviewID int64) ([]LineComment, error)
 	// AddLabels adds labels to an issue or pull request, creating those the
 	// repository does not have yet.
 	AddLabels(ctx context.Context, repo config.RepoRef, number int64, labels []string) error

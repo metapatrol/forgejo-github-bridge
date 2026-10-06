@@ -16,8 +16,32 @@ func (t *Translator) PullRequestToForgejo(pr forge.PullRequest, refs map[int64]i
 	return pr.Title, marker.Append(head+"\n\n"+text, marker.Marker{Origin: marker.OriginGitHub, Kind: marker.KindPull, ID: pr.Number})
 }
 
-// ReviewToGitHub renders a Forgejo review as a GitHub comment. Line comments
-// are not carried (phase 3); the review's verdict and summary are.
+// LineCommentToGitHub renders a Forgejo line comment as a GitHub review
+// comment on the same line.
+func (t *Translator) LineCommentToGitHub(c forge.LineComment, refs map[int64]int64, participants map[string]bool) string {
+	head := fmt.Sprintf("> %s wrote:", upperFirst(t.maintainer(c.Author)))
+	text := t.textToGitHub(c.Body, refs, participants, 0)
+	return marker.Append(head+"\n\n"+text, marker.Marker{Origin: marker.OriginForgejo, Kind: marker.KindLine, ID: c.ID})
+}
+
+// LineCommentAsCommentToGitHub renders a Forgejo line comment as a GitHub
+// conversation comment, for a line GitHub would not place it on: a commit
+// GitHub does not have, or a line its diff does not show. It names the file
+// and the line but quotes no code: a commit GitHub does not have may hold
+// code that is not public.
+func (t *Translator) LineCommentAsCommentToGitHub(c forge.LineComment, refs map[int64]int64, participants map[string]bool) string {
+	where := fmt.Sprintf("line %d of `%s`", c.Line, c.Path)
+	if c.Side == forge.SideLeft {
+		where = fmt.Sprintf("line %d of `%s` as it was before the change", c.Line, c.Path)
+	}
+	head := fmt.Sprintf("> %s wrote, on %s:", upperFirst(t.maintainer(c.Author)), where)
+	text := t.textToGitHub(c.Body, refs, participants, 0)
+	return marker.Append(head+"\n\n"+text, marker.Marker{Origin: marker.OriginForgejo, Kind: marker.KindLine, ID: c.ID})
+}
+
+// ReviewToGitHub renders a Forgejo review as a GitHub comment: its verdict
+// and summary. Its line comments are projected on their own
+// (LineCommentToGitHub).
 func (t *Translator) ReviewToGitHub(r forge.Review, refs map[int64]int64, participants map[string]bool) string {
 	var verdict string
 	switch r.State {

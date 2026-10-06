@@ -38,6 +38,9 @@ type shared struct {
 	nextID   int64
 	pulls    map[string]map[int64]*pull
 	reviews  map[string]map[int64][]forge.Review
+	// lines are line comments by repository and pull request: GitHub's
+	// review comments, or Forgejo's review line comments.
+	lines    map[string]map[int64][]*forge.LineComment
 	branches map[string]string
 	// contains and behind are what GitHub knows about its branches: which
 	// commits a branch holds, and how far a commit is behind it.
@@ -68,6 +71,9 @@ type pull struct {
 	merged   bool
 	mergeSHA string
 	files    []string
+	// shas are every head the pull request had: the commits GitHub accepts
+	// a review comment on.
+	shas []string
 }
 
 type stored struct {
@@ -89,6 +95,7 @@ func New(self string, first int64) *Forge {
 		nextID:   1000,
 		pulls:    map[string]map[int64]*pull{},
 		reviews:  map[string]map[int64][]forge.Review{},
+		lines:    map[string]map[int64][]*forge.LineComment{},
 		branches: map[string]string{},
 		contains: map[string]bool{},
 		behind:   map[string]int{},

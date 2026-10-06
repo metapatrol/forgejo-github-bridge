@@ -19,6 +19,10 @@ import (
 // longer does.
 var ErrNotFound = errors.New("not found")
 
+// ErrRejected is returned when a forge refuses a well-formed request for what
+// it asks, such as a review comment on a line the diff does not have.
+var ErrRejected = errors.New("rejected")
+
 // Issue is an issue or a pull request. The issue APIs of both forges return
 // pull requests too; IsPullRequest says which one this is.
 type Issue struct {

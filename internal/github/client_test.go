@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -90,6 +91,27 @@ func newServer(t *testing.T) (*server, *Client) {
 			t.Errorf("an edit must send only what changes, sent %v", req)
 		}
 		fmt.Fprint(w, `{"number":2,"state":"closed","user":{"login":"alice"}}`)
+	}))
+	mux.HandleFunc("POST /repos/metapatrol/foo/pulls/7/comments", s.asInstallation(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Body, CommitID, Path, Side string
+			Line                       int
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &req)
+		var m map[string]any
+		_ = json.Unmarshal(raw, &m)
+		if m["commit_id"] != "sha1" || m["path"] != "parser.go" || m["side"] != "LEFT" {
+			t.Errorf("review comment request = %s", raw)
+		}
+		if req.Line == 999 {
+			http.Error(w, `{"message":"Validation Failed","errors":[{"field":"line"}]}`, http.StatusUnprocessableEntity)
+			return
+		}
+		fmt.Fprintf(w, `{"id":55,"body":%q,"user":{"login":"bridge-app[bot]"},"path":"parser.go","line":%d,"side":"LEFT","commit_id":"sha1"}`, req.Body, req.Line)
+	}))
+	mux.HandleFunc("GET /repos/metapatrol/foo/pulls/7/comments", s.asInstallation(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[{"id":55,"body":"b","user":{"login":"alice"},"path":"parser.go","line":3,"side":"RIGHT","commit_id":"sha1","pull_request_review_id":8}]`)
 	}))
 	s.Server = httptest.NewServer(mux)
 	t.Cleanup(s.Close)
@@ -201,6 +223,24 @@ func TestNotFound(t *testing.T) {
 	_, err := c.GetIssue(context.Background(), repo, 404)
 	if !errors.Is(err, forge.ErrNotFound) {
 		t.Fatalf("want ErrNotFound, have %v", err)
+	}
+}
+
+func TestReviewComments(t *testing.T) {
+	_, c := newServer(t)
+	ctx := context.Background()
+	want := forge.LineComment{Body: "hm", CommitID: "sha1", Path: "parser.go", Line: 12, Side: forge.SideLeft}
+	got, err := c.CreateReviewComment(ctx, repo, 7, want)
+	if err != nil || got.ID != 55 || got.Line != 12 || got.Side != forge.SideLeft || got.Author != "bridge-app[bot]" {
+		t.Fatalf("created = %+v, %v", got, err)
+	}
+	want.Line = 999
+	if _, err := c.CreateReviewComment(ctx, repo, 7, want); !errors.Is(err, forge.ErrRejected) {
+		t.Errorf("a line GitHub will not take: want ErrRejected, have %v", err)
+	}
+	list, err := c.ListReviewComments(ctx, repo, 7)
+	if err != nil || len(list) != 1 || list[0].Side != forge.SideRight || list[0].ReviewID != 8 {
+		t.Errorf("list = %+v, %v", list, err)
 	}
 }
 

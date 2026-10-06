@@ -190,6 +190,28 @@ func TestPullRequestOnPostgres(t *testing.T) {
 		t.Fatalf("contrib branch at %q", sha)
 	}
 
+	// A review with a line comment GitHub takes and one it does not.
+	rv := fj.Review(fjRepo, pr.Number, "jdoe", "COMMENT", "")
+	fj.LineComment(fjRepo, pr.Number, rv.ID, "jdoe", "On the line.", "ci.yml", 3, forge.SideRight, "sha2")
+	fj.LineComment(fjRepo, pr.Number, rv.ID, "jdoe", "Off the record.", "x.go", 9, forge.SideRight, "unpublished")
+	sync()
+	sync()
+	m, _, _ := st.IssueByGitHub(ctx, ghRepo.String(), src.Number)
+	cms, err := st.Comments(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[store.CommentKind]int{}
+	for _, cm := range cms {
+		kinds[cm.KindOf()]++
+	}
+	if kinds[store.CommentKindLine] != 1 || kinds[store.CommentKindLineAsComment] != 1 {
+		t.Errorf("comment pairs by kind = %v", kinds)
+	}
+	if n := len(gh.LineComments(ghRepo, src.Number)); n != 1 {
+		t.Errorf("want one review comment on GitHub, have %d", n)
+	}
+
 	fj.MergePull(fjRepo, pr.Number, "rebased")
 	gh.Mirror(ghRepo, "develop", "rebased")
 	sync()

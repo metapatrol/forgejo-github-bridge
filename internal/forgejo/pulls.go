@@ -63,6 +63,49 @@ func (c *Client) ListReviews(ctx context.Context, repo config.RepoRef, number in
 	return out, nil
 }
 
+// ListReviewLineComments implements forge.ForgejoPulls. Forgejo reports a line
+// of the changed file as position and a line of the file before as
+// original_position; the other is zero.
+func (c *Client) ListReviewLineComments(ctx context.Context, repo config.RepoRef, number, reviewID int64) ([]forge.LineComment, error) {
+	var raw []reviewComment
+	err := c.api.Do(ctx, http.MethodGet, repoPath(repo)+"/pulls/"+strconv.FormatInt(number, 10)+
+		"/reviews/"+strconv.FormatInt(reviewID, 10)+"/comments", nil, nil, &raw)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]forge.LineComment, 0, len(raw))
+	for _, r := range raw {
+		lc := forge.LineComment{
+			ID: r.ID, ReviewID: reviewID, Author: r.User.Login, Body: r.Body, URL: r.HTMLURL,
+			Path: r.Path, CommitID: r.CommitID, DiffHunk: r.DiffHunk, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+			Line: r.Position, Side: forge.SideRight,
+		}
+		if r.Position == 0 {
+			lc.Line, lc.Side = r.OriginalPosition, forge.SideLeft
+		}
+		if lc.CommitID == "" {
+			lc.CommitID = r.OriginalCommitID
+		}
+		out = append(out, lc)
+	}
+	return out, nil
+}
+
+type reviewComment struct {
+	ID               int64     `json:"id"`
+	Body             string    `json:"body"`
+	User             user      `json:"user"`
+	HTMLURL          string    `json:"html_url"`
+	Path             string    `json:"path"`
+	CommitID         string    `json:"commit_id"`
+	OriginalCommitID string    `json:"original_commit_id"`
+	DiffHunk         string    `json:"diff_hunk"`
+	Position         int       `json:"position"`
+	OriginalPosition int       `json:"original_position"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 // AddLabels implements forge.ForgejoPulls.
 func (c *Client) AddLabels(ctx context.Context, repo config.RepoRef, number int64, labels []string) error {
 	ids := make([]int64, 0, len(labels))

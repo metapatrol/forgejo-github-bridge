@@ -34,7 +34,7 @@ func (f *Forge) OpenPull(r config.RepoRef, author, title, body, base, headSHA st
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	is := f.create(r, author, title, body, nil, true)
-	f.pullsOf(r)[is.Number] = &pull{headSHA: headSHA, headRef: "feature", base: base, files: files}
+	f.pullsOf(r)[is.Number] = &pull{headSHA: headSHA, headRef: "feature", base: base, files: files, shas: []string{headSHA}}
 	return is
 }
 
@@ -44,6 +44,7 @@ func (f *Forge) PushPull(r config.RepoRef, n int64, sha string, files ...string)
 	defer f.mu.Unlock()
 	p := f.pullsOf(r)[n]
 	p.headSHA = sha
+	p.shas = append(p.shas, sha)
 	p.files = append(p.files, files...)
 	f.repo(r)[n].UpdatedAt = f.tick()
 }
@@ -102,6 +103,152 @@ func (f *Forge) Review(r config.RepoRef, n int64, author, state, body string) fo
 	f.reviews[r.String()][n] = append(f.reviews[r.String()][n], rv)
 	f.repo(r)[n].UpdatedAt = f.clock
 	return rv
+}
+
+// LineComment adds a line comment to review reviewID, as author: in Forgejo,
+// a maintainer commenting on a line of the diff.
+func (f *Forge) LineComment(r config.RepoRef, n, reviewID int64, author, body, path string, line int, side, commit string) forge.LineComment {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextID++
+	at := f.tick()
+	lc := &forge.LineComment{ID: f.nextID, ReviewID: reviewID, Author: author, Body: body, Path: path, Line: line,
+		Side: side, CommitID: commit, CreatedAt: at, UpdatedAt: at}
+	f.linesOf(r)[n] = append(f.linesOf(r)[n], lc)
+	f.repo(r)[n].UpdatedAt = at
+	return *lc
+}
+
+// EditLineCommentAs changes a line comment's body, as its author would.
+func (f *Forge) EditLineCommentAs(id int64, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if lc := f.line(id); lc != nil {
+		lc.Body, lc.UpdatedAt = body, f.tick()
+	}
+}
+
+// DeleteLineCommentAs removes a line comment, as somebody would.
+func (f *Forge) DeleteLineCommentAs(id int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.removeLine(id)
+}
+
+// LineComments lists the line comments of a pull request.
+func (f *Forge) LineComments(r config.RepoRef, n int64) []forge.LineComment {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []forge.LineComment
+	for _, lc := range f.linesOf(r)[n] {
+		out = append(out, *lc)
+	}
+	return out
+}
+
+func (f *Forge) linesOf(r config.RepoRef) map[int64][]*forge.LineComment {
+	m, ok := f.lines[r.String()]
+	if !ok {
+		m = map[int64][]*forge.LineComment{}
+		f.lines[r.String()] = m
+	}
+	return m
+}
+
+func (f *Forge) line(id int64) *forge.LineComment {
+	for _, byPull := range f.lines {
+		for _, lcs := range byPull {
+			for _, lc := range lcs {
+				if lc.ID == id {
+					return lc
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (f *Forge) removeLine(id int64) bool {
+	for _, byPull := range f.lines {
+		for n, lcs := range byPull {
+			for i, lc := range lcs {
+				if lc.ID == id {
+					byPull[n] = append(lcs[:i:i], lcs[i+1:]...)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// ListReviewComments implements forge.GitHubPulls.
+func (f *Forge) ListReviewComments(_ context.Context, r config.RepoRef, n int64) ([]forge.LineComment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return nil, err
+	}
+	var out []forge.LineComment
+	for _, lc := range f.linesOf(r)[n] {
+		out = append(out, *lc)
+	}
+	return out, nil
+}
+
+// CreateReviewComment implements forge.GitHubPulls. Like GitHub, it places a
+// comment only on a commit the pull request had as its head.
+func (f *Forge) CreateReviewComment(_ context.Context, r config.RepoRef, n int64, c forge.LineComment) (forge.LineComment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return forge.LineComment{}, err
+	}
+	p, ok := f.pullsOf(r)[n]
+	if !ok {
+		return forge.LineComment{}, forge.ErrNotFound
+	}
+	if !slices.Contains(p.shas, c.CommitID) || c.Line <= 0 || c.Path == "" {
+		return forge.LineComment{}, fmt.Errorf("pull request review comment on %s:%d at %s: %w", c.Path, c.Line, c.CommitID, forge.ErrRejected)
+	}
+	f.Writes++
+	f.nextID++
+	at := f.tick()
+	lc := &forge.LineComment{ID: f.nextID, Author: f.self, Body: c.Body, Path: c.Path, Line: c.Line, Side: c.Side,
+		CommitID: c.CommitID, CreatedAt: at, UpdatedAt: at}
+	f.linesOf(r)[n] = append(f.linesOf(r)[n], lc)
+	f.Log = append(f.Log, fmt.Sprintf("line #%d", n))
+	return *lc, nil
+}
+
+// EditReviewComment implements forge.GitHubPulls.
+func (f *Forge) EditReviewComment(_ context.Context, _ config.RepoRef, id int64, body string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return err
+	}
+	lc := f.line(id)
+	if lc == nil {
+		return forge.ErrNotFound
+	}
+	f.Writes++
+	lc.Body, lc.UpdatedAt = body, f.tick()
+	return nil
+}
+
+// DeleteReviewComment implements forge.GitHubPulls.
+func (f *Forge) DeleteReviewComment(_ context.Context, _ config.RepoRef, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return err
+	}
+	if !f.removeLine(id) {
+		return forge.ErrNotFound
+	}
+	f.Writes++
+	return nil
 }
 
 // PushBranch moves a branch, as someone other than the bridge pushing to it.
@@ -170,6 +317,22 @@ func (f *Forge) ListReviews(_ context.Context, r config.RepoRef, n int64) ([]for
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.reviews[r.String()][n]), nil
+}
+
+// ListReviewLineComments implements forge.ForgejoPulls.
+func (f *Forge) ListReviewLineComments(_ context.Context, r config.RepoRef, n, reviewID int64) ([]forge.LineComment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.fail(); err != nil {
+		return nil, err
+	}
+	var out []forge.LineComment
+	for _, lc := range f.linesOf(r)[n] {
+		if lc.ReviewID == reviewID {
+			out = append(out, *lc)
+		}
+	}
+	return out, nil
 }
 
 // AddLabels implements forge.ForgejoPulls.

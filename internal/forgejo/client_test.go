@@ -12,10 +12,35 @@ import (
 	"time"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/rest"
 )
 
 var repo = config.RepoRef{Owner: "platform", Name: "foo"}
+
+func TestReviewLineComments(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/repos/platform/foo/pulls/7/reviews/3/comments", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[
+			{"id":11,"body":"new side","user":{"login":"jdoe"},"path":"a.go","commit_id":"sha1","position":12,"original_position":0,"diff_hunk":"@@"},
+			{"id":12,"body":"old side","user":{"login":"jdoe"},"path":"a.go","commit_id":"","original_commit_id":"sha0","position":0,"original_position":7}]`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	c := New(base, "secret", srv.Client())
+
+	got, err := c.ListReviewLineComments(context.Background(), repo, 7, 3)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("line comments = %+v, %v", got, err)
+	}
+	if got[0].Line != 12 || got[0].Side != forge.SideRight || got[0].CommitID != "sha1" || got[0].ReviewID != 3 {
+		t.Errorf("a line of the changed file = %+v", got[0])
+	}
+	if got[1].Line != 7 || got[1].Side != forge.SideLeft || got[1].CommitID != "sha0" {
+		t.Errorf("a line of the file before = %+v", got[1])
+	}
+}
 
 func TestClient(t *testing.T) {
 	var createdLabels []string

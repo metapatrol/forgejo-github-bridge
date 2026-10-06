@@ -38,10 +38,16 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("%s %s: HTTP %d: %s", e.Method, e.URL, e.Status, e.Body)
 }
 
-// Is makes a 404 or a 410 match forge.ErrNotFound, so callers above the
-// clients never look at status codes.
+// Is makes a 404 or a 410 match forge.ErrNotFound and a 422 forge.ErrRejected,
+// so callers above the clients never look at status codes.
 func (e *StatusError) Is(target error) bool {
-	return target == forge.ErrNotFound && (e.Status == http.StatusNotFound || e.Status == http.StatusGone)
+	switch target {
+	case forge.ErrNotFound:
+		return e.Status == http.StatusNotFound || e.Status == http.StatusGone
+	case forge.ErrRejected:
+		return e.Status == http.StatusUnprocessableEntity
+	}
+	return false
 }
 
 // Authorizer adds credentials to a request. It is called for every request,

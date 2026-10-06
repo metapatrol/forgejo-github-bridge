@@ -45,11 +45,23 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 	gh := newSide(store.GitHub, b.github, b.githubSelf, m.GitHubNumber, ghComments)
 	fj := newSide(store.Forgejo, b.forgej, b.forgejoSelf, m.ForgejoNumber, fjComments)
 
-	mappings, err := b.store.Comments(ctx, m.ID)
+	all, err := b.store.Comments(ctx, m.ID)
 	if err != nil {
 		return err
 	}
+	// Line comments are syncLineComments' (linecomments.go). A fallback of
+	// one is a GitHub conversation comment, so its ID is kept out of the way
+	// of the comments here.
+	var mappings []store.CommentMapping
 	mapped := map[store.Side]map[int64]bool{store.GitHub: {}, store.Forgejo: {}}
+	for _, cm := range all {
+		switch cm.KindOf() {
+		case store.CommentKindComment:
+			mappings = append(mappings, cm)
+		case store.CommentKindLineAsComment:
+			mapped[store.GitHub][cm.GitHubCommentID] = true
+		}
+	}
 	for _, cm := range mappings {
 		mapped[store.GitHub][cm.GitHubCommentID] = true
 		mapped[store.Forgejo][cm.ForgejoCommentID] = true
