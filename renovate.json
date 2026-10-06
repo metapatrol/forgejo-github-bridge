@@ -8,7 +8,9 @@
     "develop"
   ],
   "automergeStrategy": "fast-forward",
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "github-actions": {
     "enabled": false
   },
@@ -21,13 +23,33 @@
   "packageRules": [
     {
       "description": "Group Go dependency updates",
-      "matchManagers": ["gomod"],
+      "matchManagers": [
+        "gomod"
+      ],
       "groupName": "go dependencies"
     },
     {
       "description": "Automerge patch updates",
-      "matchUpdateTypes": ["patch"],
+      "matchUpdateTypes": [
+        "patch"
+      ],
       "automerge": true
+    },
+    {
+      "description": "The console's TypeScript follows what Angular supports (the @angular/compiler-cli peer range); a major waits until Angular takes it",
+      "matchFileNames": [
+        "ui/package.json"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
     }
-  ]
+  ],
+  "platformAutomerge": false,
+  "npmrc": "allow-remote=all",
+  "npmrcMerge": true
 }
