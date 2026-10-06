@@ -4,13 +4,14 @@ import { count, MpLoadState, MpNotice, MpPageHeader, MpTime } from '@metapatrol/
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
-import { byHealth, lastPoll, repoHealth } from '../../core/repos';
+import { byHealth, displayNames } from '../../core/repos';
+import { REPO_GRID, RepoTile } from '../../shared/repo-tile';
 import { autoRefresh } from '../../core/refresh';
 import { StatusService } from '../../core/status';
 
 @Component({
   selector: 'app-overview',
-  imports: [RouterLink, MpLoadState, MpNotice, MpPageHeader, MpTime],
+  imports: [RouterLink, MpLoadState, MpNotice, MpPageHeader, MpTime, RepoTile],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview.html',
 })
@@ -19,10 +20,11 @@ export class Overview {
   protected readonly repos = apiResource(listRepositories, () => ({}));
   protected readonly count = count;
   protected readonly repoPath = repoPath;
-  protected readonly health = repoHealth;
-  protected readonly lastPoll = lastPoll;
+  protected readonly grid = REPO_GRID;
   /** Problems first. */
   protected readonly sorted = computed(() => byHealth(this.repos.body() ?? []));
+  /** Repository names for the tiles: without the owner when they share one. */
+  protected readonly name = computed(() => displayNames(this.repos.body() ?? []));
 
   constructor() {
     autoRefresh(this.repos);

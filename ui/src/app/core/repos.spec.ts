@@ -1,5 +1,5 @@
 import { Repository } from '../api/models/repository';
-import { byHealth, lastPoll, repoHealth } from './repos';
+import { byHealth, displayNames, lastPoll, repoHealth } from './repos';
 
 function repo(key: string, depth: number, failing: number, cursors: string[] = []): Repository {
   return {
@@ -46,5 +46,17 @@ describe('repos', () => {
       '2026-10-06T11:00:00Z',
     );
     expect(lastPoll(repo('o/x', 0, 0))).toBeUndefined();
+  });
+});
+
+describe('displayNames', () => {
+  it('drops the owner when every repository has the same one', () => {
+    const repos = [repo('metapatrol/a', 0, 0), repo('metapatrol/b', 0, 0)];
+    expect(repos.map(displayNames(repos))).toEqual(['a', 'b']);
+  });
+
+  it('keeps it when owners differ', () => {
+    const repos = [repo('metapatrol/a', 0, 0), repo('other/b', 0, 0)];
+    expect(repos.map(displayNames(repos))).toEqual(['metapatrol/a', 'other/b']);
   });
 });

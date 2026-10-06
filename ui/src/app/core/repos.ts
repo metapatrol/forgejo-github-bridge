@@ -33,3 +33,15 @@ export function byHealth(repos: readonly Repository[]): Repository[] {
     (a, b) => repoHealth(a).rank - repoHealth(b).rank || a.key.localeCompare(b.key),
   );
 }
+
+/**
+ * How to name repositories where space is short: without the owner when they
+ * all share one, as owner/name otherwise.
+ */
+export function displayNames(repos: readonly Repository[]): (r: Repository) => string {
+  const owners = new Set(repos.map((r) => r.key.split('/')[0]));
+  if (owners.size !== 1) {
+    return (r) => r.key;
+  }
+  return (r) => r.key.slice(r.key.indexOf('/') + 1);
+}
