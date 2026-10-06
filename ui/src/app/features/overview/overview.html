@@ -14,14 +14,6 @@
         <a routerLink="/system" class="mp-link">See the system →</a>
       </mp-notice>
     }
-    @if (s.queue.failing > 0) {
-      <mp-notice tone="warn">
-        {{ s.queue.failing }} queued {{ s.queue.failing === 1 ? 'entry' : 'entries' }} failed
-        {{ s.queue.failing === 1 ? 'its' : 'their' }} last attempt and
-        {{ s.queue.failing === 1 ? 'waits' : 'wait' }} for a retry.
-        <a routerLink="/queue" [queryParams]="{ failing: true }" class="mp-link">See why →</a>
-      </mp-notice>
-    }
 
     <!-- GitHub, issues, pull requests, queue: four tiles, 4 · 2×2 · 1 across -->
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

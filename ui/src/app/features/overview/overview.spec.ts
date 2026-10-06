@@ -58,6 +58,12 @@ describe('Overview', () => {
     expect(el.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('679');
   });
 
+  it('leaves failing entries to the queue tile, without a notice', async () => {
+    const el = await render(working);
+    expect(el.querySelector('mp-notice')).toBeNull();
+    expect(el.textContent).toContain('1 failing');
+  });
+
   it('says so before the first request', async () => {
     const text = (await render({ ...working, githubRateLimits: [] })).textContent ?? '';
     expect(text).toContain('no requests yet');
