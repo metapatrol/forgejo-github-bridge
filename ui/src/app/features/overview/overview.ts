@@ -4,6 +4,7 @@ import { count, MpLoadState, MpNotice, MpPageHeader, MpTime } from '@metapatrol/
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
+import { byHealth, lastPoll, repoHealth } from '../../core/repos';
 import { autoRefresh } from '../../core/refresh';
 import { StatusService } from '../../core/status';
 
@@ -18,6 +19,10 @@ export class Overview {
   protected readonly repos = apiResource(listRepositories, () => ({}));
   protected readonly count = count;
   protected readonly repoPath = repoPath;
+  protected readonly health = repoHealth;
+  protected readonly lastPoll = lastPoll;
+  /** Problems first. */
+  protected readonly sorted = computed(() => byHealth(this.repos.body() ?? []));
 
   constructor() {
     autoRefresh(this.repos);

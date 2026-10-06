@@ -99,41 +99,50 @@
         [loading]="repos.isLoading() && !repos.hasValue()"
         what="repositories"
       />
-      <ul class="grid grid-cols-1 lg:grid-cols-2">
-        @for (r of repos.body() ?? []; track r.key) {
-          <li
-            class="border-t border-line first:border-t-0 lg:odd:border-r lg:[&:nth-child(2)]:border-t-0"
-          >
+      <ul>
+        @for (r of sorted(); track r.key) {
+          <li class="border-b border-line last:border-b-0">
             <a
               [routerLink]="['/repositories', ...repoPath(r.key)]"
-              class="flex flex-col gap-2 px-4 py-3 text-fg no-underline hover:bg-surface-2"
+              class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 px-4 py-3 text-fg no-underline hover:bg-surface-2 sm:grid-cols-[auto_minmax(0,1fr)_9rem_6rem]"
             >
-              <span class="flex items-baseline justify-between gap-2">
-                <span class="truncate font-mono text-sm">{{ r.key }}</span>
-                @if (r.queue.failing > 0) {
-                  <span class="mp-status text-xs" data-status="error"
-                    >{{ r.queue.failing }} failing</span
-                  >
-                } @else if (r.queue.depth > 0) {
-                  <span class="mp-status text-xs" data-status="active"
-                    >{{ r.queue.depth }} queued</span
-                  >
+              <span
+                class="mp-status row-span-3 self-start pt-1"
+                [attr.data-status]="health(r).status"
+                aria-hidden="true"
+              ></span>
+              <span class="truncate font-mono text-sm">{{ r.key }}</span>
+              <span
+                class="col-start-2 row-start-4 font-mono text-xs sm:col-start-3 sm:row-start-1 sm:text-right"
+                [class.text-error]="health(r).status === 'error'"
+                [class.text-fg-muted]="health(r).status !== 'error'"
+                >{{ health(r).text }}</span
+              >
+              <span
+                class="col-start-2 row-start-5 text-xs text-fg-subtle sm:col-start-4 sm:row-start-1 sm:text-right"
+              >
+                @if (lastPoll(r); as at) {
+                  polled <mp-time [value]="at" />
                 } @else {
-                  <span class="mp-status text-xs" data-status="success">in step</span>
+                  not polled
                 }
               </span>
-              <span class="font-mono text-xs text-fg-subtle">↔ {{ r.forgejo }}</span>
-              <span class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-fg-muted">
+              <span class="col-start-2 truncate font-mono text-xs text-fg-subtle"
+                >↔ {{ r.forgejo }}</span
+              >
+              <span
+                class="col-start-2 flex flex-wrap gap-x-4 font-mono text-xs text-fg-muted sm:col-span-3"
+              >
                 <span
                   >issues {{ r.counts.issuesOpen }} open · {{ r.counts.issuesClosed }} closed</span
                 >
                 @if (r.pullRequests) {
                   <span
-                    >pulls {{ r.counts.pullsOpen }} open · {{ r.counts.pullsMerged }} merged ·
+                    >PRs {{ r.counts.pullsOpen }} open · {{ r.counts.pullsMerged }} merged ·
                     {{ r.counts.pullsClosed }} closed</span
                   >
                 } @else {
-                  <span class="text-fg-subtle">pull requests off</span>
+                  <span class="text-fg-subtle">PRs off</span>
                 }
               </span>
             </a>
