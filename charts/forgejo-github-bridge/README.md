@@ -41,6 +41,10 @@ shortens a failover and nothing else.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
+| console.enabled | bool | `false` | Serve the console on a port and a Service (`<release>-console`) of its own. It has no sign-in: who may reach it is decided in front of it, by a port-forward or an authenticating proxy. Treat access to it like read access to the bridged repositories' issue lists, internal ones included. |
+| console.networkPolicyFrom | list | `[]` | With `networkPolicy.enabled`: the peers allowed to reach the console, as NetworkPolicy `from` entries, e.g. the authenticating proxy's pods. Empty lets nothing in; a port-forward still works. |
+| console.port | int | `8090` | The console's port. |
+| console.service.type | string | `"ClusterIP"` |  |
 | database.existingSecret | string | `""` | The Secret holding the PostgreSQL connection string. Required. |
 | database.existingSecretKey | string | `"uri"` | The key inside that Secret. Configurable because the Secret is usually somebody else's. CloudNativePG, for example, writes the connection string of its app user under "uri". |
 | database.maxConnections | int | `5` | The size of the connection pool. At least 2: the leader lock holds one connection for as long as the instance is active. |
@@ -67,7 +71,7 @@ shortens a failover and nothing else.
 | logging.level | string | `"info"` | debug, info, warn or error. |
 | messages | object | `{}` | What the bridge says on GitHub and in Forgejo, as Go templates. Only the messages to change need to be given; the rest keep their defaults. A name that does not exist, or a template that does not render, stops the bridge at startup rather than on a contributor's pull request.  Names: unsupportedBase, rebaseRequest, upToDate, merged, integrated, closedUpstream (said on GitHub); headFrozen, touchesCI (said in Forgejo). Fields: {{.Base}} {{.Targets}} {{.Behind}} {{.Commit}} {{.ShortCommit}} {{.Branch}} {{.Paths}} {{.Contributor}}. See the README for the defaults.    rebaseRequest: >-     Hi @{{.Contributor}}, `{{.Base}}` has moved on by {{.Behind}} commit(s).     Would you mind rebasing onto it? Thank you! |
 | nameOverride | string | `""` |  |
-| networkPolicy.enabled | bool | `false` | Restrict ingress to the probe and metrics port, from the namespaces below. The bridge accepts no other connection. |
+| networkPolicy.enabled | bool | `false` | Restrict ingress to the probe and metrics port, from the namespaces below, and to the console's port from `console.networkPolicyFrom`. The bridge accepts no other connection. |
 | networkPolicy.metricsNamespaceSelector | object | `{"kubernetes.io/metadata.name":"monitoring"}` | Namespace labels allowed to scrape metrics. The kubelet's probes are not subject to NetworkPolicy. |
 | nodeSelector | object | `{}` |  |
 | podAnnotations | object | `{}` |  |

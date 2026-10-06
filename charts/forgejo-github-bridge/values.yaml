@@ -129,6 +129,23 @@ port: 8080
 service:
   type: ClusterIP
 
+# The read-only console (docs/console.md): what the bridge holds, its pairs and
+# its queue, from the database. Every replica serves it.
+console:
+  # -- Serve the console on a port and a Service (`<release>-console`) of its
+  # own. It has no sign-in: who may reach it is decided in front of it, by a
+  # port-forward or an authenticating proxy. Treat access to it like read
+  # access to the bridged repositories' issue lists, internal ones included.
+  enabled: false
+  # -- The console's port.
+  port: 8090
+  service:
+    type: ClusterIP
+  # -- With `networkPolicy.enabled`: the peers allowed to reach the console,
+  # as NetworkPolicy `from` entries, e.g. the authenticating proxy's pods.
+  # Empty lets nothing in; a port-forward still works.
+  networkPolicyFrom: []
+
 resources:
   requests:
     cpu: 10m
@@ -149,7 +166,8 @@ serviceMonitor:
 
 networkPolicy:
   # -- Restrict ingress to the probe and metrics port, from the namespaces
-  # below. The bridge accepts no other connection.
+  # below, and to the console's port from `console.networkPolicyFrom`. The
+  # bridge accepts no other connection.
   enabled: false
   # -- Namespace labels allowed to scrape metrics. The kubelet's probes are
   # not subject to NetworkPolicy.

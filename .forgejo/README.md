@@ -6,7 +6,7 @@ repository applies to the others.
 
 | workflow | runs on | does |
 |---|---|---|
-| `ci.yml` | pull requests, and pushes to develop | secret scan, lint, unit tests with the race detector, integration tests against PostgreSQL, chart lint, render and docs |
+| `ci.yml` | pull requests, and pushes to develop | secret scan, lint (with the generated API checked against its specification), unit tests with the race detector, integration tests against PostgreSQL, chart lint, render and docs, the console's lint, tests and build |
 | `main.yml` | pushes to main | the checks again, then the image from the commit, then semantic-release |
 | `release.yml` | a `v*` tag, and `workflow_dispatch` | validate the tag, test, the tagged image, the Forgejo release, binaries, both charts, docs rebuild |
 
@@ -15,7 +15,7 @@ repository applies to the others.
 A cheap check gates an expensive one:
 
     ci.yml       secret-scan ─┐
-                 lint ────────┴─> test, integration, helm
+                 lint ────────┴─> test, integration, helm, ui
 
     main.yml     config, secret-scan, lint ─> verify ─┬─> image
                                                      └─> semantic-release
@@ -81,15 +81,18 @@ that cannot pull it fails the `integration` job and nothing else.
 | `ZOT_URL` | variable | the registry, e.g. `https://zot.metapatrol.local` | the image jobs, `release.chart` |
 | `ZOT_USERNAME` | variable | registry login | the same |
 | `ZOT_TOKEN` | secret | registry password or token | the same |
-| `AUTOMATION_TOKEN` | secret | Forgejo access token | `main.semantic-release`, `release.notes`, `release.binaries`, `release.chart`, `release.docs` |
+| `AUTOMATION_TOKEN` | secret | Forgejo access token | `main.semantic-release`, `release.notes`, `release.binaries`, `release.chart`, `release.docs`; and as `NPM_TOKEN` for the console's `@metapatrol` packages in `ci.ui`, the image jobs and `release.binaries` |
+| `PLATFORM_CA` | variable or secret | the forge's CA, PEM | npm in the same jobs, when the image does not trust the forge already |
 
 Without the registry values `main.yml` skips the image jobs rather than failing;
 `release.yml` fails, because asking for a release that cannot be published should
 not pass quietly.
 
 `AUTOMATION_TOKEN` needs repository write (releases, assets, the changelog commit
-and tag), `write:package` for the generic package registry, and the right to
-dispatch workflows.
+and tag), `write:package` for the generic package registry (which includes
+reading the `@metapatrol` npm packages), and the right to dispatch workflows.
+Both are organisation-level here, shared with the other projects that build a
+console.
 
 **Nothing may be called `FORGEJO_TOKEN`.** The runner injects a variable of that
 name holding its own ephemeral token, and it wins over a job env of the same name:

@@ -25,6 +25,7 @@ services:
       - /var/cache/forgejo-github-bridge
     environment:
       BRIDGE_CONFIG: /etc/forgejo-github-bridge/config.yaml
+      BRIDGE_CONSOLE_ADDR: ":8090"
       BRIDGE_DATABASE_URL: postgres://bridge:${DB_PASSWORD:?set DB_PASSWORD in .env}@postgres:5432/bridge?sslmode=disable
       BRIDGE_GITHUB_APP_ID: ${GITHUB_APP_ID:?set GITHUB_APP_ID in .env}
       BRIDGE_GITHUB_PRIVATE_KEY_FILE: /run/secrets/github-app.pem
@@ -39,6 +40,9 @@ services:
     ports:
       # Health and metrics; nothing the internet needs to reach.
       - "127.0.0.1:${BRIDGE_PORT:-8080}:8080"
+      # The read-only console (docs/console.md), on this host only: it has no
+      # sign-in of its own.
+      - "127.0.0.1:${BRIDGE_CONSOLE_PORT:-8090}:8090"
 
   postgres:
     image: postgres:18

@@ -5,3 +5,10 @@ App is installed on the GitHub repository, and the Forgejo account behind
 {{ .Values.forgejo.existingSecret }} may write issues in the Forgejo repository.
 
   kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "bridge.fullname" . }} -f
+{{- if .Values.console.enabled }}
+
+The read-only console has no sign-in of its own. To open it from here:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "bridge.fullname" . }}-console {{ .Values.console.port | int }}
+  # http://127.0.0.1:{{ .Values.console.port | int }}/
+{{- end }}

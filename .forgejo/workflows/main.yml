@@ -17,6 +17,7 @@ on:
 env:
   GIT_SSL_NO_VERIFY: "true"
   GO_VERSION: "1.27"
+  NODE_VERSION: "24"
   # From the runner, not hardcoded: the workflows are meant to be copied between
   # repositories in this org without an edit.
   FORGEJO_BASE_URL: ${{ github.server_url }}
@@ -138,6 +139,9 @@ jobs:
       ZOT_URL: ${{ vars.ZOT_URL }}
       ZOT_USERNAME: ${{ vars.ZOT_USERNAME }}
       ZOT_TOKEN: ${{ secrets.ZOT_TOKEN }}
+      # The console's @metapatrol packages, read during the image build.
+      NPM_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+      PLATFORM_CA: ${{ vars.PLATFORM_CA || secrets.PLATFORM_CA }}
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v6
       # A secret that was never set expands to an empty string rather than
@@ -146,7 +150,7 @@ jobs:
       - name: Check the secrets this job needs
         run: |
           missing=""
-          for name in ZOT_URL ZOT_USERNAME ZOT_TOKEN; do
+          for name in ZOT_URL ZOT_USERNAME ZOT_TOKEN NPM_TOKEN; do
             eval "value=\$$name"
             [ -n "$value" ] || missing="$missing $name"
           done
@@ -174,7 +178,21 @@ jobs:
           # from it, so a cluster tracking a branch runs the commit it tracks.
           SHORT_SHA=$(echo "$COMMIT_SHA" | cut -c1-12)
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          podman --storage-driver=vfs build --tls-verify=false \
+          # Build secrets for the console's @metapatrol packages (Dockerfile).
+          umask 077
+          printf '%s' "$NPM_TOKEN" > /tmp/npm_token
+          printf '%s' "$PLATFORM_CA" > /tmp/platform_ca
+          # The build does not inherit the job container's name resolution,
+          # and the packages come from the forge: resolve it here and hand the
+          # address in.
+          FORGE_HOST=$(sed -nE 's#^@metapatrol:registry=https?://([^/:]+).*#\1#p' ui/.npmrc)
+          FORGE_IP=$(getent hosts "$FORGE_HOST" | awk '{print $1; exit}')
+          : "${FORGE_IP:?cannot resolve $FORGE_HOST}"
+          podman --storage-driver=vfs build --tls-verify=false --network host \
+            --add-host "$FORGE_HOST:$FORGE_IP" \
+            --secret id=npm_token,src=/tmp/npm_token \
+            --secret id=platform_ca,src=/tmp/platform_ca \
+            --build-arg NODE_IMAGE="$REGISTRY/library/node:$NODE_VERSION-alpine" \
             --build-arg GO_IMAGE="$REGISTRY/library/golang:$GO_VERSION-alpine" \
             --build-arg RUNTIME_IMAGE="$REGISTRY/library/alpine:3.24" \
             --build-arg VERSION="$COMMIT" \
@@ -184,6 +202,7 @@ jobs:
             -t "$IMAGE:$COMMIT_SHA" \
             -t "$IMAGE:$SHORT_SHA" \
             -f Dockerfile .
+          rm -f /tmp/npm_token /tmp/platform_ca
           podman login --username "$ZOT_USERNAME" --password "$ZOT_TOKEN" --tls-verify=false "$REGISTRY"
           for tag in latest "$COMMIT_SHA" "$SHORT_SHA"; do
             podman --storage-driver=vfs push --tls-verify=false "$IMAGE:$tag"

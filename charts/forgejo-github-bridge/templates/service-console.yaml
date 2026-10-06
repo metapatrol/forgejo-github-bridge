@@ -1,0 +1,21 @@
+{{- if .Values.console.enabled }}
+{{- /*
+  A Service of its own, so that an ingress or proxy can be pointed at the
+  console without also reaching probes and metrics.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "bridge.fullname" . }}-console
+  labels:
+    {{- include "bridge.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.console.service.type }}
+  selector:
+    {{- include "bridge.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: console
+      port: {{ .Values.console.port | int }}
+      targetPort: console
+      protocol: TCP
+{{- end }}

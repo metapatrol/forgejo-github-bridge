@@ -35,6 +35,7 @@ env:
   # name — requests then go out as the bot, and cross-repository calls quietly
   # fail. See .forgejo/README.md.
   GO_VERSION: "1.27"
+  NODE_VERSION: "24"
   FORGEJO_BASE_URL: ${{ github.server_url }}
   FORGEJO_REPO: ${{ github.repository }}
   FORGEJO_ORG: ${{ github.repository_owner }}
@@ -76,6 +77,9 @@ jobs:
       ZOT_URL: ${{ vars.ZOT_URL }}
       ZOT_USERNAME: ${{ vars.ZOT_USERNAME }}
       ZOT_TOKEN: ${{ secrets.ZOT_TOKEN }}
+      # The console's @metapatrol packages, read during the image build.
+      NPM_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+      PLATFORM_CA: ${{ vars.PLATFORM_CA || secrets.PLATFORM_CA }}
     steps:
       # Shallow: VERSION comes from the tag, not from `git describe`.
       - uses: https://data.forgejo.org/actions/checkout@v6
@@ -84,7 +88,7 @@ jobs:
       - name: Check the secrets this job needs
         run: |
           missing=""
-          for name in ZOT_URL ZOT_USERNAME ZOT_TOKEN; do
+          for name in ZOT_URL ZOT_USERNAME ZOT_TOKEN NPM_TOKEN; do
             eval "value=\$$name"
             [ -n "$value" ] || missing="$missing $name"
           done
@@ -112,7 +116,21 @@ jobs:
           SHORT_SHA=$(echo "$COMMIT_SHA" | cut -c1-12)
           VERSION="${TAG#v}"
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          podman --storage-driver=vfs build --tls-verify=false \
+          # Build secrets for the console's @metapatrol packages (Dockerfile).
+          umask 077
+          printf '%s' "$NPM_TOKEN" > /tmp/npm_token
+          printf '%s' "$PLATFORM_CA" > /tmp/platform_ca
+          # The build does not inherit the job container's name resolution,
+          # and the packages come from the forge: resolve it here and hand the
+          # address in.
+          FORGE_HOST=$(sed -nE 's#^@metapatrol:registry=https?://([^/:]+).*#\1#p' ui/.npmrc)
+          FORGE_IP=$(getent hosts "$FORGE_HOST" | awk '{print $1; exit}')
+          : "${FORGE_IP:?cannot resolve $FORGE_HOST}"
+          podman --storage-driver=vfs build --tls-verify=false --network host \
+            --add-host "$FORGE_HOST:$FORGE_IP" \
+            --secret id=npm_token,src=/tmp/npm_token \
+            --secret id=platform_ca,src=/tmp/platform_ca \
+            --build-arg NODE_IMAGE="$REGISTRY/library/node:$NODE_VERSION-alpine" \
             --build-arg GO_IMAGE="$REGISTRY/library/golang:$GO_VERSION-alpine" \
             --build-arg RUNTIME_IMAGE="$REGISTRY/library/alpine:3.24" \
             --build-arg VERSION="$VERSION" \
@@ -122,6 +140,7 @@ jobs:
             -t "$IMAGE:$SHORT_SHA" \
             -t "$IMAGE:latest" \
             -f Dockerfile .
+          rm -f /tmp/npm_token /tmp/platform_ca
           podman login --username "$ZOT_USERNAME" --password "$ZOT_TOKEN" --tls-verify=false "$REGISTRY"
           for tag in "$VERSION" "$SHORT_SHA" latest; do
             podman --storage-driver=vfs push --tls-verify=false "$IMAGE:$tag"
@@ -176,6 +195,21 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: false
+      - uses: https://data.forgejo.org/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # The binary embeds the console, so the console is built first.
+      - name: Build the console
+        env:
+          NPM_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+          PLATFORM_CA: ${{ vars.PLATFORM_CA || secrets.PLATFORM_CA }}
+        run: |
+          set -eu
+          if [ -n "$PLATFORM_CA" ]; then
+            printf '%s\n' "$PLATFORM_CA" > /tmp/platform_ca.pem
+            export NODE_EXTRA_CA_CERTS=/tmp/platform_ca.pem
+          fi
+          make ui-install ui-build
       - name: Build, upload and attach
         env:
           CGO_ENABLED: "0"

@@ -2,3 +2,9 @@ bin
 .git
 charts
 docs
+# Local installs and build output of the console would otherwise overwrite
+# what the image build installs and produces itself.
+ui/node_modules
+ui/.angular
+ui/src/app/api
+internal/ui/dist/console

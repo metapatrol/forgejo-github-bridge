@@ -23,4 +23,11 @@ spec:
       ports:
         - port: http
           protocol: TCP
+    {{- if and .Values.console.enabled .Values.console.networkPolicyFrom }}
+    - from:
+        {{- toYaml .Values.console.networkPolicyFrom | nindent 8 }}
+      ports:
+        - port: console
+          protocol: TCP
+    {{- end }}
 {{- end }}

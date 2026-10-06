@@ -148,6 +148,9 @@ userMapping:
   then fails, or does nothing, and says so only in a log nobody is reading.
 */ -}}
 {{- define "bridge.validate" -}}
+{{- if and .Values.console.enabled (eq (.Values.console.port | int) (.Values.port | int)) -}}
+{{- fail "console.port must differ from port: the console has a listener of its own" -}}
+{{- end -}}
 {{- if not .Values.database.existingSecret -}}
 {{- fail "database.existingSecret is required: the Secret holding the PostgreSQL DSN, e.g. CloudNativePG's <cluster>-app" -}}
 {{- end -}}

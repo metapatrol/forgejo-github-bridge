@@ -43,9 +43,18 @@ spec:
             - name: http
               containerPort: {{ .Values.port | int }}
               protocol: TCP
+            {{- if .Values.console.enabled }}
+            - name: console
+              containerPort: {{ .Values.console.port | int }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: BRIDGE_LISTEN_ADDR
               value: ":{{ .Values.port | int }}"
+            {{- if .Values.console.enabled }}
+            - name: BRIDGE_CONSOLE_ADDR
+              value: ":{{ .Values.console.port | int }}"
+            {{- end }}
             - name: BRIDGE_CONFIG
               value: /etc/forgejo-github-bridge/config/config.yaml
             - name: BRIDGE_LOG_FORMAT

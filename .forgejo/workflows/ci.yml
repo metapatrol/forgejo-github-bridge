@@ -8,7 +8,7 @@
 # The cheap checks gate the expensive ones:
 #
 #   secret-scan ─┐
-#   lint ────────┴─> test, integration, helm
+#   lint ────────┴─> test, integration, helm, ui
 #
 # secret-scan downloads a binary and greps the tree; lint is a static pass. The
 # jobs behind them compile a toolchain or start a database first, which is
@@ -32,6 +32,7 @@ env:
   # The instance uses a private CA the runner may not carry.
   GIT_SSL_NO_VERIFY: "true"
   GO_VERSION: "1.27"
+  NODE_VERSION: "24"
   # setup-go's own cache stays off, here and in the other two workflows. The
   # runner points GOPROXY at the in-cluster ci-cache, so the archive the action
   # saves and restores per job only duplicates it.
@@ -70,6 +71,13 @@ jobs:
       - run: $(go env GOPATH)/bin/golangci-lint run ./...
         env:
           GOFLAGS: "-mod=mod"
+      # The console's Go server is generated from api/openapi-v1.yaml and
+      # committed; a specification changed without regenerating fails here.
+      - name: The generated API matches its specification
+        run: |
+          VERSION=$(grep '^OAPI_CODEGEN_VERSION' Makefile | cut -d= -f2 | tr -d ' ')
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@"$VERSION"
+          make generate-check
 
   test:
     needs: [secret-scan, lint]
@@ -161,3 +169,37 @@ jobs:
             fi
           done
           [ $FAIL -eq 0 ] || exit 1
+
+  # The console is compiled into the binary, so a UI that does not lint, test
+  # or build is a binary that cannot be released. Its API client is generated
+  # from api/openapi-v1.yaml by each of these steps.
+  ui:
+    needs: [secret-scan, lint]
+    runs-on: docker
+    env:
+      # @metapatrol/* come from the forge's npm registry (ui/.npmrc), read with
+      # the automation token; ui/.npmrc expects it as NPM_TOKEN.
+      NPM_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
+      PLATFORM_CA: ${{ vars.PLATFORM_CA || secrets.PLATFORM_CA }}
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v6
+      - uses: https://data.forgejo.org/actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # An unset secret expands to an empty string, and npm then asks
+      # anonymously and gets a 404, which reads as a missing package rather
+      # than a missing token.
+      - name: Check the token for the console's packages
+        run: |
+          [ -n "$NPM_TOKEN" ] || { echo "ERROR: AUTOMATION_TOKEN is not set (see .forgejo/README.md)"; exit 1; }
+          echo "token present"
+      - name: Trust the platform CA
+        run: |
+          [ -n "$PLATFORM_CA" ] || { echo "PLATFORM_CA is not set - relying on the system trust store"; exit 0; }
+          printf '%s\n' "$PLATFORM_CA" > /tmp/platform_ca.pem
+          echo "NODE_EXTRA_CA_CERTS=/tmp/platform_ca.pem" >> "$GITHUB_ENV"
+      - run: make lint-api
+      - run: make ui-install
+      - run: make ui-lint
+      - run: make ui-test
+      - run: make ui-build
