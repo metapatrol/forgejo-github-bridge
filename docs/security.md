@@ -96,6 +96,17 @@ Merges through Forgejo's web interface publish the merging account's primary
 e-mail as the committer. Maintainers set it to an address of their GitHub
 account ([Installation](./installation.md#4-per-maintainer)).
 
+### The console
+
+The [console](console.md) is off by default. When on, it has no sign-in of
+its own: it belongs behind a port-forward or an authenticating proxy, and
+with the chart's NetworkPolicy only the peers in `console.networkPolicyFrom`
+reach it. It reads the database and nothing else, refuses every method but
+`GET` and `HEAD`, and shows no bodies, comments or credentials; a pair's title
+is the one GitHub shows. What it does show — the numbers of queued internal
+issues, error messages naming repositories and accounts — is for maintainers,
+not for the public.
+
 ## What the bridge deliberately does not do
 
 - Accept webhooks or any inbound connection from the internet.

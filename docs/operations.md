@@ -91,6 +91,10 @@ Structured, one event per line (`json` by default). The ones that matter:
 
 ## When something is stuck
 
+With the [console](console.md) turned on, its queue view answers the first
+question below without a database client: what is failing, how often, and the
+last error in full.
+
 `forgejo_github_bridge_dirty_failing` above zero, or a user reports that
 something did not cross.
 

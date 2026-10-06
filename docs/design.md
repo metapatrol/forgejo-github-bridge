@@ -29,7 +29,7 @@ it; this one explains why it works that way.
 20. [Non-goals](#20-non-goals)
 21. [Prior art](#21-prior-art)
 22. [Architectural principle](#22-architectural-principle)
-23. [Inspection API and console (proposal)](#23-inspection-api-and-console-proposal)
+23. [Inspection API and console](#23-inspection-api-and-console)
 
 ---
 
@@ -618,10 +618,12 @@ Status: implemented; end-to-end tested against GitHub and Forgejo 16.
 
 ### Phase 4: inspection (optional)
 
-- read-only REST API: pairs, queue, failures, activity
-- optional web console on top of it
+- read-only REST API: status, repositories, pairs, queue
+- web console on top of it, embedded into the binary
+- a console-only mode for a read-only database role
 
-See §23. Not started; a proposal with open questions.
+Status: implemented (§23). Not yet: an activity record, sign-in through
+Forgejo.
 
 ---
 
@@ -652,36 +654,44 @@ See §23. Not started; a proposal with open questions.
 
 ---
 
-## 23. Inspection API and console (proposal)
+## 23. Inspection API and console
 
-Today the bridge is observed through metrics, logs and, when something is
+Without it the bridge is observed through metrics, logs and, when something is
 stuck, a query against its database. That answers "is it healthy", not "what
-happened to alice's pull request" or "why is this one not on GitHub". Phase 4
-adds a read-only view for maintainers and operators. Both parts are optional,
-off by default, and change nothing about what the bridge does.
+happened to alice's pull request" or "why is this one not on GitHub". The
+console is a read-only view for maintainers and operators. It is optional, off
+by default, and changes nothing about what the bridge does. How to run it:
+[console](console.md).
 
 ### Read-only REST API
 
-Served by the bridge itself, on its own listener, cluster-internal like
-everything else it serves. Described in OpenAPI, which is the source of truth
-for both the server and any client.
+Served by the bridge itself, on a listener of its own (`BRIDGE_CONSOLE_ADDR`),
+so that who may reach it is decided apart from probes and metrics. Described in
+OpenAPI ([api/openapi-v1.yaml](../api/openapi-v1.yaml)), which is the source of
+truth for both the server and the console's client; the server serves the very
+file it was generated from.
 
 | Endpoint | Answers |
 |---|---|
-| `GET /api/v1/repositories` | the configured pairs, with counts of bridged issues and pull requests, open and failing |
-| `GET /api/v1/repositories/{repo}/pairs` | the pairs of one repository, filterable by kind and state: both numbers, links to both sides, origin, synced state |
-| `GET /api/v1/repositories/{repo}/pairs/{github-number}` | one pair in full: its comment mappings, and for a pull request the contrib branch, imported head, frozen, touches-ci, rebase request, outcome |
+| `GET /api/v1/status` | this instance, the instance holding the leader lock and since when, the queue |
+| `GET /api/v1/repositories` | the configured pairs, with counts of issues and pull requests by state, queued and failing work, and every poll cursor |
+| `GET /api/v1/pairs` | pairs, filterable by repository, kind, state, origin and a search over title and numbers: both numbers, links to both sides, origin, state, title |
+| `GET /api/v1/pairs/{id}` | one pair in full: its comment pairs, its queue entry, and for a pull request the contrib branch, imported head, frozen, touches-ci, rebase request, outcome |
 | `GET /api/v1/queue` | what is queued: due when, how many attempts, the last error |
-| `GET /api/v1/activity` | what the bridge did, newest first: every write, with side, kind, action and both numbers |
-| `GET /api/v1/status` | leader or waiting, poll cursors and last successful polls, rate-limit budget, build |
 
-Activity needs one addition: a bounded table recording each write the bridge
-makes (today they are only counted in `changes_total`). Everything else reads
-existing state.
+Everything comes from the database; no request reaches GitHub or Forgejo. The
+API costs no rate limit, and no path leads from it to a credential. The
+queries run in read-only transactions, and a process in console mode
+(below) opens a session in which PostgreSQL refuses every write.
 
-What the API never contains: tokens, keys or the DSN; titles, bodies or
-comments of Forgejo issues that are not public. It returns numbers and links,
-and the text of what is public anyway.
+The one addition to the state is a pair's title and author
+(`issue_mapping.title`, `.author`), recorded when the pair is reconciled. The
+title is the one GitHub shows: a Forgejo issue whose publish label was removed
+keeps the title it had in public, because its new one never left Forgejo.
+
+What the API never contains: tokens, keys or the DSN; bodies or comments;
+titles of Forgejo issues that are not public. It returns numbers, links, the
+public title, and the bridge's own error messages.
 
 **Read-only, deliberately.** Actions such as "retry now", "unfreeze this
 branch" or "forget this pair" are tempting and are left out: each is a way to
@@ -691,19 +701,33 @@ credential. If one proves necessary, it gets its own design.
 
 ### Console
 
-An optional web UI on top of the API, for the questions people actually ask:
-where is this contribution, what is stuck and why, what did the bridge do
-today. Shipped as a separate image, so a deployment that does not want a UI
-does not carry one.
+A single-page application (Angular, Tailwind, the metapatrol brand's
+components) over the API, embedded into the binary: one image, one release, one
+version, and a console that always matches the API it reads. A binary built
+without the application serves the API alone. The application is the
+`metapatrol/ng` shell, like the other metapatrol projects' consoles.
 
-### Open questions
+The same binary runs as a console only (`BRIDGE_MODE=console`): no polling, no
+leader lock, no credential but the database's, which may be a role that can
+only read. A deployment that wants the console somewhere the bridge's tokens
+are not can have it.
 
-- **Authentication.** Cluster-internal is not enough for a UI people open in a
-  browser. Behind an existing single sign-on, or an authenticating gateway in
-  front of it.
-- **Console technology.** A single-page application in its own image, or
-  server-rendered pages from the bridge itself, for no second image and no
-  build toolchain.
-- **Activity retention.** How long, and whether it lives in the bridge's
-  database or goes to a log store instead.
+### Decisions on the open questions
 
+- **Authentication.** None in the bridge. Cluster-internal is not enough for a
+  UI people open in a browser, so it belongs behind a port-forward or an
+  authenticating proxy; the chart's NetworkPolicy admits only the peers
+  named in `console.networkPolicyFrom`. A sign-in of its own — Forgejo as the
+  OpenID provider, showing each person the pairs of the repositories they can
+  read — is the natural next step, and the reason the API takes no shortcut
+  that would make it hard.
+- **Console technology.** An SPA embedded in the binary, rather than a
+  separate image (one more thing to version and deploy) or server-rendered
+  pages (a second UI idiom next to the other metapatrol consoles). The cost is
+  a Node toolchain in the build, paid once in CI.
+- **Activity.** Not in v1. A record of every write the bridge makes needs a
+  table, a retention and a reason to read it that the queue and the logs do
+  not already give; it waits for that reason. Rate-limit budget and the time
+  of the last successful poll live in the leader's memory and in the metrics,
+  not in the database, so a console on another instance cannot show them; the
+  dashboard does.

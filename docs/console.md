@@ -1,0 +1,128 @@
+# Console
+
+A read-only web console over what the bridge holds: the bridged repositories,
+every pair of issues and pull requests with links to both sides, and the
+queue, with the last error of whatever is stuck. It answers the questions the
+metrics cannot: *where is alice's pull request*, *why is this issue not on
+GitHub*, *what is the bridge retrying, and why*.
+
+It is optional, off by default, and changes nothing.
+
+![The overview: the instance doing the work, the queue and every repository](./images/console-overview.png)
+
+**Contents**
+
+- [Turning it on](#turning-it-on)
+- [Opening it](#opening-it)
+- [What it shows](#what-it-shows)
+- [The API](#the-api)
+- [A console of its own](#a-console-of-its-own)
+- [What it never does](#what-it-never-does)
+
+## Turning it on
+
+With the chart:
+
+```yaml
+console:
+  enabled: true
+```
+
+That adds a listener on port 8090 to every bridge pod, and a Service
+`<release>-console` for it. Probes and metrics stay on their own port, so who
+may reach the console is decided apart from them.
+
+Without the chart, set `BRIDGE_CONSOLE_ADDR`, for example to `:8090`. It must
+differ from `BRIDGE_LISTEN_ADDR`.
+
+Every replica serves the console, the one waiting for the leader lock too:
+what it shows is in the database.
+
+## Opening it
+
+The console has no sign-in of its own. Who may open it is decided in front of
+it:
+
+```bash
+kubectl -n <namespace> port-forward svc/<release>-console 8090
+# http://127.0.0.1:8090/
+```
+
+or an ingress with an authenticating proxy in front of the `-console` Service:
+oauth2-proxy, the ingress controller's own authentication, or whatever your
+single sign-on offers. With `networkPolicy.enabled`, list that proxy's pods in
+`console.networkPolicyFrom`; nothing else is let in.
+
+Treat access to the console like read access to the bridged repositories'
+issue lists. It shows the numbers of internal Forgejo issues that are queued,
+and the bridge's error messages, which name repositories and accounts.
+
+## What it shows
+
+| View | |
+|---|---|
+| Overview | the instance doing the work and since when, the queue and how much of it is failing, and every repository with its counts |
+| Repositories | each pair's configuration, its pair counts, how far each poll has read on each side, its queue and its newest pairs |
+| Pairs | every issue and pull request pair, newest first; searchable by title or number, filterable by repository, kind, state and origin. A pair links to both sides and shows its comment pairs; a pull request its contrib branch, imported head, whether it touches CI, is frozen, has a rebase request open, and whether its outcome was reported |
+| Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full |
+
+![The queue: what is failing, how often, and why](./images/console-queue.png)
+
+Overview and queue refresh every 15 seconds; the switch at the top pauses it.
+A pair's title is the one GitHub shows, recorded when the bridge last
+reconciled it; a pair the bridge has not reconciled since an upgrade shows its
+numbers until it does.
+
+## The API
+
+The console is a single-page application over a small JSON API, which can be
+read on its own:
+
+| Endpoint | |
+|---|---|
+| `GET /api/v1/status` | this instance, the instance holding the leader lock, the queue |
+| `GET /api/v1/repositories` | the configured pairs with counts, queue and poll cursors |
+| `GET /api/v1/pairs` | pairs, filtered by `repository`, `kind`, `state`, `origin` and `q`, paged by `limit` and `offset` |
+| `GET /api/v1/pairs/{id}` | one pair with its comment pairs |
+| `GET /api/v1/queue` | queued entries, by `repository`, optionally `failing` only |
+| `GET /api/v1/openapi.yaml` | the specification all of the above is generated from |
+
+[api/openapi-v1.yaml](../api/openapi-v1.yaml) is the contract: the server and
+the console's client are both generated from it.
+
+## A console of its own
+
+`BRIDGE_MODE=console` runs the binary as a console and nothing else: no
+polling, no leader lock, no GitHub App, no Forgejo tokens. It needs the
+database, the repository file and `BRIDGE_FORGEJO_URL` (or
+`BRIDGE_FORGEJO_WEB_URL`) for its links, and listens on `:8090` unless
+`BRIDGE_CONSOLE_ADDR` says otherwise.
+
+Its session is read-only: PostgreSQL refuses any write it would attempt. It
+does not migrate, so it can use a role that may only read:
+
+```sql
+CREATE ROLE bridge_console LOGIN PASSWORD '…';
+GRANT CONNECT ON DATABASE bridge TO bridge_console;
+GRANT USAGE ON SCHEMA public TO bridge_console;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO bridge_console;
+ALTER DEFAULT PRIVILEGES FOR ROLE bridge IN SCHEMA public GRANT SELECT ON TABLES TO bridge_console;
+```
+
+It refuses to start on a database a bridge of its version has not migrated
+yet. With a role that is not the bridge's own, PostgreSQL may hide which host
+holds the leader lock; the console then says only that one does.
+
+## What it never does
+
+- **Ask GitHub or Forgejo anything.** Everything comes from the bridge's
+  database, so the console costs no rate limit, and nothing leads from it to
+  the bridge's credentials.
+- **Change anything.** There is no "retry now", "unfreeze" or "forget this
+  pair": each would change the bridge's state around the reconciler's rules,
+  and an endpoint that can do that has to be protected like a credential.
+  Every other method than `GET` and `HEAD` is refused, and the queries run in
+  read-only transactions.
+- **Show what is not public.** No bodies or comments, no tokens, no DSN. A
+  pair's title is GitHub's; a Forgejo issue whose publish label was removed
+  keeps the title it had in public.

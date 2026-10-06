@@ -30,11 +30,16 @@ internal/forge/fake           in-memory GitHub and Forgejo for tests
 internal/marker             the hidden provenance line
 internal/config             environment and repository file
 internal/telemetry          Prometheus metrics
+internal/console            the console's API handlers, over store.Reports
+internal/ui                 serves the embedded console build
+api/openapi-v1.yaml         the console API's contract; api/v1 is generated
+ui/                         the console: Angular, Tailwind, @metapatrol/ng
 charts/forgejo-github-bridge
 charts/forgejo-github-bridge-grafana-dashboard
                             the dashboard; dashboards/generate.py writes its JSON
 tests/integration           against real PostgreSQL
 tests/chart                 the dashboard against the metrics the bridge publishes
+tests/dev                   seed data and configuration for `make console-dev`
 ```
 
 The reconciler knows only `internal/forge`'s types. The two clients
@@ -100,6 +105,29 @@ helm upgrade forgejo-github-bridge charts/forgejo-github-bridge -n forgejo-githu
   --set image.tag=dev --set image.pullPolicy=Never
 ```
 
+### The console
+
+The console (`ui/`) needs Node.js from `ui/.nvmrc` and, for the
+`@metapatrol` packages, a Forgejo token with `read:package` scope as
+`NPM_TOKEN` (`ui/.npmrc`). If the forge's CA is not in Node's trust store,
+point `NODE_EXTRA_CA_CERTS` at it.
+
+```bash
+make ui-install            # npm ci
+make console-dev           # a seeded PostgreSQL, the console API on 127.0.0.1:8090
+make ui-dev                # in a second shell: the UI with live reload, http://localhost:4200
+make dev-stop              # removes the database
+```
+
+`make console-dev` fills a database of its own with three repositories'
+worth of pairs, comments, cursors and failing queue entries
+(`tests/dev/seed`), holds the leader lock, and runs the binary in console
+mode. It serves whatever `make ui-build` last built; `make ui-dev` serves the
+sources and reloads on every change.
+
+A Go build without `make ui-build` first embeds no UI: the console then
+serves its API alone and says so.
+
 ## Changing things
 
 - **A migration** is a new numbered file in
@@ -114,6 +142,10 @@ helm upgrade forgejo-github-bridge charts/forgejo-github-bridge -n forgejo-githu
 - **A new endpoint** of either forge goes into its client, translated into
   `internal/forge`'s types, and into `forge/fake` with the behaviour the
   reconciler relies on.
+- **The console API** changes in `api/openapi-v1.yaml` first; `make
+  generate` regenerates the Go server (committed, and checked by CI), and the
+  console's build regenerates its client. `make lint-api` lints the
+  specification.
 - **Anything that reads text from GitHub** treats it as data. It never names
   a repository, URL, ref or command.
 

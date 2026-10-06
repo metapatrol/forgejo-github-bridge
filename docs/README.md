@@ -17,6 +17,7 @@ issues and pull requests from the public on GitHub.
 |---|---|
 | [Maintainers](maintainers.md) | day to day in Forgejo: imported issues, publishing, internal comments, approving CI, reviewing, merging and closing |
 | [Operations](operations.md) | health, metrics and alerts, logs, what to do when something is stuck, upgrades, credential rotation, recovery |
+| [Console](console.md) | the optional read-only web console: every pair, the queue and why something is stuck |
 | [Grafana dashboard](../charts/forgejo-github-bridge-grafana-dashboard/README.md) | the dashboard chart, and what each row shows |
 
 ## Understanding it

@@ -34,6 +34,8 @@ repository file changes.
 | `BRIDGE_POLL_INTERVAL` | `60s` | `poll.interval` | at least 10 s |
 | `BRIDGE_FULL_RESYNC` | `6h` | `poll.fullResync` | at least 1 min |
 | `BRIDGE_LISTEN_ADDR` | `:8080` | `port` | `/healthz`, `/readyz`, `/metrics` |
+| `BRIDGE_CONSOLE_ADDR` | — (`:8090` in console mode) | `console.enabled`, `console.port` | the read-only [console](console.md); empty turns it off. Must differ from `BRIDGE_LISTEN_ADDR` |
+| `BRIDGE_MODE` | `bridge` | — | `console` serves the console alone: it then needs only `BRIDGE_DATABASE_URL`, `BRIDGE_CONFIG` and `BRIDGE_FORGEJO_URL` ([console](console.md#a-console-of-its-own)) |
 | `BRIDGE_LOG_FORMAT` | `json` | `logging.format` | or `text` |
 | `BRIDGE_LOG_LEVEL` | `info` | `logging.level` | `debug`, `info`, `warn`, `error` |
 

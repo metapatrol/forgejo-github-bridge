@@ -32,6 +32,11 @@ DSNs removed.
   make integration-test   # needs Docker
   ```
 
+  Changes to the console (`ui/`) also run `make ui-lint ui-test ui-build`,
+  which need Node.js and a token for the `@metapatrol` packages
+  ([development](docs/development.md#the-console)). A change to
+  `api/openapi-v1.yaml` is followed by `make generate`.
+
 - Keep the comment style of the surrounding code: comments explain *why*.
 - If you change CI configuration (`.forgejo/`, `.github/`), say why in the
   description. Such pull requests are labelled and read with particular care

@@ -101,6 +101,8 @@ flowchart LR
 - Idempotent reconciliation: every failure is retried, nothing is lost across
   restarts or outages, and a lost database can be rebuilt.
 - Prometheus metrics and a ready-made Grafana dashboard.
+- An optional read-only console: every pair with links to both sides, and
+  the queue with the reason anything is stuck.
 - Everything the bridge says in its own voice is a template you can reword.
 
 ## Quick start
@@ -114,7 +116,7 @@ organisation.
    its private key in a Secret.
 2. **Create a Forgejo account** for the bridge with write access to the
    repository, and store its token in a Secret. For pull requests, a second,
-   read-only account and a fork owned by it.
+   read-only account; the bridge forks the repository for it.
 3. **Run it**, with Docker Compose from [samples/compose](samples/compose/):
 
    ```bash
@@ -140,6 +142,7 @@ including the checks to run before the first real contribution.
 | [Configuration](docs/configuration.md) | every setting, the repository file and the message templates |
 | [Maintainers](docs/maintainers.md) | day to day in Forgejo: publishing, approving CI, merging, closing |
 | [Operations](docs/operations.md) | metrics, alerts, troubleshooting, upgrades, recovery |
+| [Console](docs/console.md) | the optional read-only web console |
 | [Architecture](docs/architecture.md) | how it works inside |
 | [Security](docs/security.md) | what a contributor cannot make it do, and the rules that keep it so |
 | [FAQ](docs/faq.md) | why polling, why a second account, why a fork, and more |

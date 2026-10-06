@@ -241,6 +241,9 @@ helm upgrade --install forgejo-github-bridge \
 
 Every value is listed in the [chart's README](../charts/forgejo-github-bridge/README.md).
 
+To also get the read-only [console](console.md), add `console.enabled: true`
+and open it with a port-forward or behind your authenticating proxy.
+
 ### With Docker Compose
 
 [samples/compose/](../samples/compose/) has a complete setup: the bridge and a

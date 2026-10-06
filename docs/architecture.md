@@ -40,7 +40,9 @@ flowchart TB
 ```
 
 - **One process.** The binary `forgejo-github-bridge` polls, queues and
-  reconciles. It runs in the private network and only connects out.
+  reconciles. It runs in the private network and only connects out. It
+  listens for probes and metrics, and, when turned on, for the read-only
+  [console](console.md), on a port of its own.
 - **PostgreSQL** holds which item on one side corresponds to which on the
   other, how far each poll has read, and the queue of work.
 - **Forgejo's push mirror** is what moves code to GitHub. The bridge never
