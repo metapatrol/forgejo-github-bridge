@@ -171,6 +171,7 @@ func run() error {
 		}
 	}()
 	go saveRateLimits(runCtx, st, log)
+	go postgres.Maintain(runCtx, st.Pool(), cfg.MaintenanceInterval, log)
 	go func() {
 		if err := b.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("the bridge stopped", "error", err)
@@ -290,7 +291,8 @@ func serveConsole(ctx context.Context, cfg *config.Config, st *postgres.Store, e
 	}
 	h := console.New(st, console.Options{
 		Info: console.Info{Version: version, Commit: commit, BuiltAt: builtAt, Instance: host, Mode: cfg.Mode,
-			StartedAt: startedAt, PollInterval: cfg.PollInterval, FullResync: cfg.FullResync},
+			StartedAt: startedAt, PollInterval: cfg.PollInterval, FullResync: cfg.FullResync,
+			MaintenanceInterval: cfg.MaintenanceInterval},
 		Repositories:  cfg.Repositories,
 		ForgejoWebURL: cfg.ForgejoBrowserURL(),
 		UI:            files,

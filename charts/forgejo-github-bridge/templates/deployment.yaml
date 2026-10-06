@@ -72,6 +72,8 @@ spec:
                   key: {{ .Values.database.existingSecretKey }}
             - name: BRIDGE_DATABASE_MAX_CONNS
               value: {{ .Values.database.maxConnections | int | quote }}
+            - name: BRIDGE_DB_MAINTENANCE_INTERVAL
+              value: {{ .Values.database.maintenanceInterval | toString | quote }}
             - name: BRIDGE_GITHUB_APP_ID
               value: {{ include "bridge.appID" . | quote }}
             - name: BRIDGE_GITHUB_PRIVATE_KEY_FILE

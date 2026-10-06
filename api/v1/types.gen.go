@@ -173,6 +173,37 @@ type Leader struct {
 	Present  bool    `json:"present"`
 }
 
+// Maintenance The bridge's own database maintenance: every interval, the active
+// instance vacuums and analyzes every table, drops what interrupted
+// index rebuilds left and rebuilds invalid indexes.
+type Maintenance struct {
+	// IntervalSeconds Time between two rounds, as this instance is configured; 0 when they are off.
+	IntervalSeconds int `json:"intervalSeconds"`
+
+	// NextRoundAt When the next round is due; absent when maintenance is off.
+	NextRoundAt *time.Time `json:"nextRoundAt,omitempty"`
+
+	// Rounds The newest rounds first, at most 20.
+	Rounds []MaintenanceRound `json:"rounds"`
+}
+
+// MaintenanceRound defines model for MaintenanceRound.
+type MaintenanceRound struct {
+	// Dropped Leftovers of interrupted rebuilds dropped.
+	Dropped  []string `json:"dropped"`
+	Failures []string `json:"failures"`
+
+	// FinishedAt Absent while the round runs.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Rebuilt Invalid indexes rebuilt.
+	Rebuilt   []string  `json:"rebuilt"`
+	StartedAt time.Time `json:"startedAt"`
+
+	// Tables Tables vacuumed and analyzed.
+	Tables []string `json:"tables"`
+}
+
 // Migration defines model for Migration.
 type Migration struct {
 	AppliedAt time.Time `json:"appliedAt"`
@@ -439,8 +470,13 @@ type StatusMode string
 
 // System defines model for System.
 type System struct {
-	Database   SystemDatabase `json:"database"`
-	Migrations []Migration    `json:"migrations"`
+	Database SystemDatabase `json:"database"`
+
+	// Maintenance The bridge's own database maintenance: every interval, the active
+	// instance vacuums and analyzes every table, drops what interrupted
+	// index rebuilds left and rebuilds invalid indexes.
+	Maintenance Maintenance `json:"maintenance"`
+	Migrations  []Migration `json:"migrations"`
 
 	// Running Maintenance statements PostgreSQL runs now, autovacuum included.
 	Running []string `json:"running"`

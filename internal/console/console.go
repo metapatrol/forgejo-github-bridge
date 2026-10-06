@@ -39,6 +39,8 @@ type Info struct {
 	StartedAt time.Time
 	// PollInterval and FullResync are the bridge's schedule.
 	PollInterval, FullResync time.Duration
+	// MaintenanceInterval is the time between database maintenance rounds.
+	MaintenanceInterval time.Duration
 }
 
 // Options configure a console.
@@ -276,6 +278,25 @@ func (s *server) GetSystem(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, m := range sys.Migrations {
 		out.Migrations = append(out.Migrations, v1.Migration{Name: m.Name, AppliedAt: m.AppliedAt})
+	}
+	out.Maintenance = v1.Maintenance{IntervalSeconds: int(info.MaintenanceInterval / time.Second),
+		Rounds: make([]v1.MaintenanceRound, 0, len(sys.Rounds))}
+	var lastFinished time.Time
+	for _, m := range sys.Rounds {
+		out.Maintenance.Rounds = append(out.Maintenance.Rounds, v1.MaintenanceRound{StartedAt: m.StartedAt,
+			FinishedAt: timePtr(m.FinishedAt), Tables: m.Tables, Rebuilt: m.Rebuilt, Dropped: m.Dropped, Failures: m.Failures})
+		if m.FinishedAt.After(lastFinished) {
+			lastFinished = m.FinishedAt
+		}
+	}
+	if info.MaintenanceInterval > 0 {
+		// As Maintain decides it: an interval after the last round, or soon
+		// after the active instance starts when there was none.
+		next := time.Now()
+		if !lastFinished.IsZero() {
+			next = lastFinished.Add(info.MaintenanceInterval)
+		}
+		out.Maintenance.NextRoundAt = &next
 	}
 	writeJSON(w, out)
 }

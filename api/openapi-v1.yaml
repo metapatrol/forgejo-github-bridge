@@ -66,6 +66,7 @@ paths:
         - `cursor`: a poll read further: `{"op", "repository", "side", "stream"}`.
         - `leader`: the instance holding the leader lock changed: `{"present"}`.
         - `rateLimit`: the GitHub rate limit was saved anew: `{"op", "resource"}`.
+        - `maintenance`: a database maintenance round started or ended: `{"op", "id", "finished"}`.
         - `resync`: events were missed, by a slow client or a lost database
           connection; reload everything.
 
@@ -573,8 +574,9 @@ components:
 
     System:
       type: object
-      required: [service, database, tables, migrations, running]
+      required: [service, database, tables, migrations, running, maintenance]
       properties:
+        maintenance: { $ref: "#/components/schemas/Maintenance" }
         service: { $ref: "#/components/schemas/Service" }
         database: { $ref: "#/components/schemas/SystemDatabase" }
         tables:
@@ -587,6 +589,51 @@ components:
         running:
           type: array
           description: Maintenance statements PostgreSQL runs now, autovacuum included.
+          items: { type: string }
+
+    Maintenance:
+      type: object
+      description: |
+        The bridge's own database maintenance: every interval, the active
+        instance vacuums and analyzes every table, drops what interrupted
+        index rebuilds left and rebuilds invalid indexes.
+      required: [intervalSeconds, rounds]
+      properties:
+        intervalSeconds:
+          type: integer
+          description: Time between two rounds, as this instance is configured; 0 when they are off.
+        nextRoundAt:
+          type: string
+          format: date-time
+          description: When the next round is due; absent when maintenance is off.
+        rounds:
+          type: array
+          description: The newest rounds first, at most 20.
+          items: { $ref: "#/components/schemas/MaintenanceRound" }
+
+    MaintenanceRound:
+      type: object
+      required: [startedAt, tables, rebuilt, dropped, failures]
+      properties:
+        startedAt: { type: string, format: date-time }
+        finishedAt:
+          type: string
+          format: date-time
+          description: Absent while the round runs.
+        tables:
+          type: array
+          description: Tables vacuumed and analyzed.
+          items: { type: string }
+        rebuilt:
+          type: array
+          description: Invalid indexes rebuilt.
+          items: { type: string }
+        dropped:
+          type: array
+          description: Leftovers of interrupted rebuilds dropped.
+          items: { type: string }
+        failures:
+          type: array
           items: { type: string }
 
     Service:

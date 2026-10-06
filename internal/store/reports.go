@@ -160,6 +160,16 @@ type System struct {
 	// Running lists the maintenance statements PostgreSQL runs now,
 	// autovacuum included.
 	Running []string
+	// Rounds are the bridge's own maintenance rounds, the newest first.
+	Rounds []MaintenanceRound
+}
+
+// MaintenanceRound is one database maintenance round of the bridge.
+type MaintenanceRound struct {
+	StartedAt time.Time
+	// FinishedAt is zero while the round runs.
+	FinishedAt                         time.Time
+	Tables, Rebuilt, Dropped, Failures []string
 }
 
 // SystemDatabase describes the database and the connections to it.

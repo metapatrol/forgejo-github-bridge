@@ -162,6 +162,10 @@ type Config struct {
 	// polls cannot.
 	FullResync time.Duration
 
+	// MaintenanceInterval is the time between two database maintenance
+	// rounds; zero turns them off.
+	MaintenanceInterval time.Duration
+
 	Repositories []Repository
 	// UserMapping maps Forgejo logins to GitHub logins. It is used for mentions
 	// and attribution only; it grants nothing.
@@ -315,6 +319,13 @@ func load(getenv func(string) string) (*Config, error) {
 
 	cfg.PollInterval = duration(env, "POLL_INTERVAL", "60s", 10*time.Second, &errs)
 	cfg.FullResync = duration(env, "FULL_RESYNC", "6h", time.Minute, &errs)
+	// Zero turns maintenance off; anything else is at least an hour, since a
+	// round vacuums every table.
+	if raw := env("DB_MAINTENANCE_INTERVAL", "24h"); raw == "0" {
+		cfg.MaintenanceInterval = 0
+	} else {
+		cfg.MaintenanceInterval = duration(env, "DB_MAINTENANCE_INTERVAL", "24h", time.Hour, &errs)
+	}
 
 	if path := env("CONFIG", ""); path == "" {
 		errs = append(errs, fmt.Errorf("%sCONFIG must name the repository configuration file", EnvPrefix))

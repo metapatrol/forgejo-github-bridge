@@ -340,6 +340,7 @@ console-dev: dev-seed
 	BRIDGE_CONFIG=tests/dev/config.yaml \
 	BRIDGE_FORGEJO_URL=https://forgejo.example.com \
 	BRIDGE_LISTEN_ADDR=127.0.0.1:8091 BRIDGE_CONSOLE_ADDR=$(DEV_CONSOLE_ADDR) \
+	BRIDGE_DB_MAINTENANCE_INTERVAL=24h \
 	go run ./cmd/$(BINARY)
 
 ui-dev:

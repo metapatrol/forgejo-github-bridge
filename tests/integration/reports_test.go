@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -364,5 +365,49 @@ func TestAuthorsAndTheirPairs(t *testing.T) {
 	pairs, total, err := st.Pairs(ctx, store.PairFilter{Author: "alice"})
 	if err != nil || total != 1 || pairs[0].Author != "alice" {
 		t.Errorf("alice's pairs = %+v of %d, %v", pairs, total, err)
+	}
+}
+
+func TestAMaintenanceRoundVacuumsEveryTable(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE maintenance_round`); err != nil {
+		t.Fatal(err)
+	}
+	if err := postgres.RunMaintenance(ctx, st.Pool(), quiet); err != nil {
+		t.Fatal(err)
+	}
+	sys, err := st.System(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sys.Rounds) != 1 {
+		t.Fatalf("rounds = %+v", sys.Rounds)
+	}
+	r := sys.Rounds[0]
+	if r.FinishedAt.IsZero() || len(r.Failures) != 0 || !slices.Contains(r.Tables, "dirty") || !slices.Contains(r.Tables, "maintenance_round") {
+		t.Errorf("round = %+v", r)
+	}
+	for _, tb := range sys.Tables {
+		if tb.Name == "issue_mapping" && tb.LastVacuum.IsZero() {
+			t.Errorf("issue_mapping was not vacuumed: %+v", tb)
+		}
+	}
+
+	// A round already running elsewhere: this one does nothing.
+	conn, err := st.Pool().Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, int64(0x464742524d41494e)); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, int64(0x464742524d41494e)) }()
+	if err := postgres.RunMaintenance(ctx, st.Pool(), quiet); err != nil {
+		t.Fatal(err)
+	}
+	if sys, _ := st.System(ctx); len(sys.Rounds) != 1 {
+		t.Errorf("a second round ran beside the first: %d rounds", len(sys.Rounds))
 	}
 }

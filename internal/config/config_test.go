@@ -224,3 +224,15 @@ func TestModeRefusals(t *testing.T) {
 		})
 	}
 }
+
+func TestMaintenanceInterval(t *testing.T) {
+	for raw, want := range map[string]time.Duration{"": 24 * time.Hour, "0": 0, "12h": 12 * time.Hour} {
+		cfg, err := load(env(t, minimal, map[string]string{"BRIDGE_DB_MAINTENANCE_INTERVAL": raw}))
+		if err != nil || cfg.MaintenanceInterval != want {
+			t.Errorf("%q: %s, %v", raw, cfg.MaintenanceInterval, err)
+		}
+	}
+	if _, err := load(env(t, minimal, map[string]string{"BRIDGE_DB_MAINTENANCE_INTERVAL": "5m"})); err == nil {
+		t.Error("a round every five minutes was accepted")
+	}
+}

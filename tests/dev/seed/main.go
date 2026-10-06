@@ -48,6 +48,10 @@ func run(dsn string, lead bool) error {
 	if err := seed(ctx, st); err != nil {
 		return err
 	}
+	// One maintenance round, so that the system page has one to show.
+	if err := postgres.RunMaintenance(ctx, st.Pool(), quiet); err != nil {
+		return err
+	}
 	fmt.Println("seeded")
 	if !lead {
 		return nil
@@ -131,7 +135,7 @@ var repos = []struct {
 }
 
 func seed(ctx context.Context, st *postgres.Store) error {
-	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty, github_rate_limit`); err != nil {
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty, github_rate_limit, maintenance_round`); err != nil {
 		return err
 	}
 	if err := st.SaveRateLimits(ctx, []store.RateLimit{{Resource: "core", Limit: 5000, Remaining: 4321, Used: 679,

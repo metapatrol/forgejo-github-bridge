@@ -739,6 +739,14 @@ are not can have it.
 - **Activity.** Not in v1. A record of every write the bridge makes needs a
   table, a retention and a reason to read it that the queue and the logs do
   not already give; it waits for that reason.
+- **Database maintenance.** Scheduled, not triggered. Every
+  `BRIDGE_DB_MAINTENANCE_INTERVAL` (24 h) the active instance runs a round,
+  engram's: `VACUUM (ANALYZE)` of every table, leftovers of interrupted index
+  rebuilds dropped, invalid indexes rebuilt; an advisory lock keeps two from
+  running at once, and `maintenance_round` records them for the system page.
+  Autovacuum keeps the bridge's small tables well on its own; the round is the
+  backstop. A button to start one would be the console's first write, and
+  the console has no sign-in to protect it with.
 - **The GitHub rate limit.** It lives in the active instance's memory, read
   from every response made with the installation token. That instance writes
   it to the database every 15 seconds when it changed (`github_rate_limit`),

@@ -81,6 +81,24 @@ func (s *Store) System(ctx context.Context) (store.System, error) {
 		if out.Running, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
 			return fmt.Errorf("reading what maintenance runs: %w", err)
 		}
+
+		rows, err = tx.Query(ctx, `
+			SELECT started_at, finished_at, tables, rebuilt, dropped, failures
+			FROM maintenance_round ORDER BY id DESC`)
+		if err != nil {
+			return err
+		}
+		if out.Rounds, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (store.MaintenanceRound, error) {
+			var m store.MaintenanceRound
+			var finished *time.Time
+			err := row.Scan(&m.StartedAt, &finished, &m.Tables, &m.Rebuilt, &m.Dropped, &m.Failures)
+			if finished != nil {
+				m.FinishedAt = *finished
+			}
+			return m, err
+		}); err != nil {
+			return fmt.Errorf("reading the maintenance rounds: %w", err)
+		}
 		return nil
 	})
 	return out, err

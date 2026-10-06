@@ -47,6 +47,7 @@ shortens a failover and nothing else.
 | console.service.type | string | `"ClusterIP"` |  |
 | database.existingSecret | string | `""` | The Secret holding the PostgreSQL connection string. Required. |
 | database.existingSecretKey | string | `"uri"` | The key inside that Secret. Configurable because the Secret is usually somebody else's. CloudNativePG, for example, writes the connection string of its app user under "uri". |
+| database.maintenanceInterval | string | `"24h"` | Time between the bridge's database maintenance rounds (VACUUM ANALYZE of every table, invalid indexes rebuilt), run by the active instance. "0" turns them off; otherwise at least 1h. Autovacuum keeps the tables on its own; the round is the backstop. |
 | database.maxConnections | int | `5` | The size of the connection pool. At least 2: the leader lock holds one connection for as long as the instance is active. |
 | env | list | `[]` | Extra environment variables for the container. |
 | forgejo.caSecret | string | `""` | The Secret holding the CA certificate Forgejo's own certificate is issued by, for an instance behind a private CA. Empty trusts the system roots only. |

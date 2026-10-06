@@ -30,6 +30,11 @@ database:
   # -- The size of the connection pool. At least 2: the leader lock holds one
   # connection for as long as the instance is active.
   maxConnections: 5
+  # -- Time between the bridge's database maintenance rounds (VACUUM ANALYZE of
+  # every table, invalid indexes rebuilt), run by the active instance. "0"
+  # turns them off; otherwise at least 1h. Autovacuum keeps the tables on its
+  # own; the round is the backstop.
+  maintenanceInterval: 24h
 
 github:
   # -- The GitHub App's ID. Required. The App's name is not configured: the
