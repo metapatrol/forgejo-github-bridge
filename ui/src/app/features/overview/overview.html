@@ -123,21 +123,21 @@
       </ul>
     </section>
 
-    <section class="flex flex-col gap-3" aria-labelledby="people-heading">
+    <section class="flex flex-col gap-3" aria-labelledby="contributors-heading">
       <header class="flex items-baseline justify-between gap-3">
-        <h2 id="people-heading" class="mp-label mb-0">People</h2>
-        <a routerLink="/people" class="mp-link text-xs">all people →</a>
+        <h2 id="contributors-heading" class="mp-label mb-0">Contributors</h2>
+        <a routerLink="/contributors" class="mp-link text-xs">all contributors →</a>
       </header>
       <mp-load-state
         [error]="authors.error()"
         [loading]="authors.isLoading() && !authors.hasValue()"
-        what="people"
+        what="contributors"
       />
       <ul class="flex flex-wrap gap-2">
         @for (a of topAuthors(); track a.side + a.login) {
           <li>
             <a
-              [routerLink]="personLink(a.side, a.login)"
+              [routerLink]="contributorLink(a.side, a.login)"
               [class]="tileLink + ' flex items-baseline gap-2 px-3 py-1.5 text-sm'"
               [title]="a.login + ' on ' + sideName(a.side)"
             >

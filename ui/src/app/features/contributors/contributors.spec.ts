@@ -5,8 +5,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideApiConfiguration } from '../../api/api-configuration';
 import { Author } from '../../api/models/author';
-import { People } from './people';
-import { Person } from './person';
+import { Contributors } from './contributors';
+import { ContributorDetail } from './contributor';
 
 const authors: Author[] = [
   {
@@ -32,10 +32,10 @@ function setup() {
   return TestBed.inject(HttpTestingController);
 }
 
-describe('People', () => {
+describe('Contributors', () => {
   it('lists everyone, linked to their pages', async () => {
     const http = setup();
-    const fixture = TestBed.createComponent(People);
+    const fixture = TestBed.createComponent(Contributors);
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
     http.expectOne('/api/v1/authors').flush(authors);
@@ -43,15 +43,15 @@ describe('People', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     const hrefs = Array.from(el.querySelectorAll('tbody a')).map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/people/github/alice', '/people/forgejo/jdoe']);
+    expect(hrefs).toEqual(['/contributors/github/alice', '/contributors/forgejo/jdoe']);
     expect(el.textContent).toContain('Forgejo');
   });
 });
 
-describe('Person', () => {
+describe('ContributorDetail', () => {
   it('shows the counts and their issues and pull requests, filtered by them', async () => {
     const http = setup();
-    const fixture = TestBed.createComponent(Person);
+    const fixture = TestBed.createComponent(ContributorDetail);
     fixture.componentRef.setInput('side', 'github');
     fixture.componentRef.setInput('login', 'alice');
     fixture.detectChanges();
@@ -77,7 +77,7 @@ describe('Person', () => {
 
   it('has no pull requests from Forgejo', async () => {
     const http = setup();
-    const fixture = TestBed.createComponent(Person);
+    const fixture = TestBed.createComponent(ContributorDetail);
     fixture.componentRef.setInput('side', 'forgejo');
     fixture.componentRef.setInput('login', 'jdoe');
     fixture.detectChanges();

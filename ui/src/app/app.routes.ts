@@ -53,15 +53,19 @@ export const routes: Routes = [
     loadComponent: () => import('./features/pairs/pair-redirect').then((m) => m.PairRedirect),
   },
   {
-    path: 'people',
-    title: title('People'),
-    loadComponent: () => import('./features/people/people').then((m) => m.People),
+    path: 'contributors',
+    title: title('Contributors'),
+    loadComponent: () => import('./features/contributors/contributors').then((m) => m.Contributors),
   },
   {
-    path: 'people/:side/:login',
-    title: title('Person'),
-    loadComponent: () => import('./features/people/person').then((m) => m.Person),
+    path: 'contributors/:side/:login',
+    title: title('Contributor'),
+    loadComponent: () =>
+      import('./features/contributors/contributor').then((m) => m.ContributorDetail),
   },
+  // Contributors were called people at first.
+  { path: 'people', pathMatch: 'full', redirectTo: 'contributors' },
+  { path: 'people/:side/:login', redirectTo: 'contributors/:side/:login' },
   {
     path: 'queue',
     title: title('Queue'),

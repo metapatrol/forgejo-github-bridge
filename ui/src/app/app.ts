@@ -21,7 +21,7 @@ export class App {
           { path: '/', label: 'Overview', icon: 'layout-dashboard', exact: true },
           { path: '/issues', label: 'Issues', icon: 'circle-dot' },
           { path: '/pulls', label: 'Pull requests', icon: 'git-pull-request' },
-          { path: '/people', label: 'People', icon: 'users' },
+          { path: '/contributors', label: 'Contributors', icon: 'users' },
         ],
       },
       {

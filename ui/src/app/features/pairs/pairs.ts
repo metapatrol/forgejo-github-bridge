@@ -18,7 +18,7 @@ import { liveReload } from '../../core/events';
 import { Pager } from '../../shared/pager';
 import { FilterOption, PairFilters } from '../../shared/pair-filters';
 import { PairsTable } from '../../shared/pairs-table';
-import { personLink } from '../../shared/author';
+import { contributorLink } from '../../shared/author';
 
 const LIMIT = 50;
 
@@ -69,7 +69,7 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
           <span
             class="inline-flex items-center gap-1 rounded-full border border-line bg-surface-2 py-0.5 pr-1 pl-2.5"
           >
-            <a [routerLink]="personLink()" class="mp-link font-mono">{{ author() }}</a>
+            <a [routerLink]="contributorLink()" class="mp-link font-mono">{{ author() }}</a>
             <span class="text-fg-subtle">· {{ originName() }}</span>
             <button
               type="button"
@@ -167,8 +167,8 @@ export class Pairs {
   protected readonly originName = computed(() =>
     this.authorSide() === 'github' ? 'GitHub' : 'Forgejo',
   );
-  protected readonly personLink = computed(() =>
-    personLink(this.authorSide(), this.author() ?? ''),
+  protected readonly contributorLink = computed(() =>
+    contributorLink(this.authorSide(), this.author() ?? ''),
   );
 
   protected clearAuthor(): void {

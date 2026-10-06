@@ -8,11 +8,11 @@ import { SideLabel } from '../../shared/badges';
 
 /** Everyone who opened a pair, the most active first. */
 @Component({
-  selector: 'app-people',
+  selector: 'app-contributors',
   imports: [MpLoadState, MpPageHeader, MpTime, Author, SideLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <mp-page-header title="People" [note]="authors.body()?.length?.toString()" />
+    <mp-page-header title="Contributors" [note]="authors.body()?.length?.toString()" />
     <p class="mb-4 max-w-3xl text-sm text-fg-muted">
       Who opened the issues and pull requests the bridge holds: GitHub logins for what came from
       GitHub, Forgejo logins for issues published from Forgejo. The bridge does not record who wrote
@@ -22,7 +22,7 @@ import { SideLabel } from '../../shared/badges';
       <mp-load-state
         [error]="authors.error()"
         [loading]="authors.isLoading() && !authors.hasValue()"
-        what="people"
+        what="contributors"
       />
       @if (authors.hasValue()) {
         <div class="max-w-full overflow-x-auto">
@@ -59,10 +59,10 @@ import { SideLabel } from '../../shared/badges';
     </section>
   `,
 })
-export class People {
+export class Contributors {
   protected readonly authors = apiResource(listAuthors, () => ({}));
 
   constructor() {
-    liveReload(() => ({ view: 'people' }), this.authors);
+    liveReload(() => ({ view: 'contributors' }), this.authors);
   }
 }

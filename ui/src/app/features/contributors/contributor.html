@@ -1,20 +1,20 @@
-<mp-page-header section="people" link="/people" [title]="login()" mono />
+<mp-page-header section="contributors" link="/contributors" [title]="login()" mono />
 
 <mp-load-state
   [error]="authors.error()"
   [loading]="authors.isLoading() && !authors.hasValue()"
-  what="people"
+  what="contributors"
 />
 @if (unknown()) {
   <p class="mb-4 text-sm text-fg-muted">
     The bridge holds nothing opened by {{ login() }} on {{ sideName(side()) }}.
-    <a routerLink="/people" class="mp-link">Everyone</a>.
+    <a routerLink="/contributors" class="mp-link">All contributors</a>.
   </p>
 }
 
 <div class="flex flex-col gap-5">
-  @if (person(); as a) {
-    <mp-panel index="01" title="person">
+  @if (contributor(); as a) {
+    <mp-panel index="01" title="contributor">
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
         <dt class="text-fg-muted">login</dt>
         <dd class="font-mono">{{ a.login }}</dd>

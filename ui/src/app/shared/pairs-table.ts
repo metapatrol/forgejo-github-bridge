@@ -123,7 +123,7 @@ export class PairsTable {
   /** Off where the list is of one repository already. */
   readonly showRepository = input(true);
   readonly empty = input('Nothing here.');
-  /** Off where the list is of one person already. */
+  /** Off where the list is of one contributor already. */
   readonly showAuthor = input(true);
 
   protected link(p: Pair): (string | number)[] {

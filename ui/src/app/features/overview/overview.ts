@@ -11,7 +11,7 @@ import {
 } from '@metapatrol/ng';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { listAuthors } from '../../api/fn/pairs/list-authors';
-import { personLink } from '../../shared/author';
+import { contributorLink } from '../../shared/author';
 import { sideName } from '../../core/history';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
@@ -24,7 +24,7 @@ import { until } from '../../core/format';
 import { Meter } from '../../shared/meter';
 import { StatusService } from '../../core/status';
 
-/** How many people the overview names. */
+/** How many contributors the overview names. */
 const TOP_AUTHORS = 8;
 
 @Component({
@@ -39,7 +39,7 @@ export class Overview {
   protected readonly authors = apiResource(listAuthors, () => ({}));
   /** The most active, as the API orders them. */
   protected readonly topAuthors = computed(() => (this.authors.body() ?? []).slice(0, TOP_AUTHORS));
-  protected readonly personLink = personLink;
+  protected readonly contributorLink = contributorLink;
   protected readonly sideName = sideName;
   protected readonly count = count;
   protected readonly repoPath = repoPath;

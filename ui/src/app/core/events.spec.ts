@@ -34,8 +34,8 @@ describe('concerns', () => {
     { view: 'pairs', kind: 'issue' },
     { view: 'pair', id: 7 },
     { view: 'queue' },
-    { view: 'people' },
-    { view: 'person', login: 'alice', side: 'github' },
+    { view: 'contributors' },
+    { view: 'contributor', login: 'alice', side: 'github' },
     { view: 'system' },
   ];
 
@@ -103,14 +103,14 @@ describe('concerns', () => {
     }
   });
 
-  it('reloads the people for pairs, and a person for pairs and the queue', () => {
-    expect(concerns(pair(), { view: 'people' })).toBe(true);
-    expect(concerns(queue(), { view: 'people' })).toBe(false);
-    expect(concerns(cursor(), { view: 'people' })).toBe(false);
-    const person: Scope = { view: 'person', login: 'alice', side: 'github' };
-    expect(concerns(pair(), person)).toBe(true);
-    expect(concerns(queue(), person)).toBe(true);
-    expect(concerns(leader, person)).toBe(false);
+  it('reloads the contributors for pairs, and a contributor for pairs and the queue', () => {
+    expect(concerns(pair(), { view: 'contributors' })).toBe(true);
+    expect(concerns(queue(), { view: 'contributors' })).toBe(false);
+    expect(concerns(cursor(), { view: 'contributors' })).toBe(false);
+    const one: Scope = { view: 'contributor', login: 'alice', side: 'github' };
+    expect(concerns(pair(), one)).toBe(true);
+    expect(concerns(queue(), one)).toBe(true);
+    expect(concerns(leader, one)).toBe(false);
   });
 
   it('reloads the system page when a maintenance round starts or ends, and only then', () => {

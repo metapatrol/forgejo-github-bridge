@@ -19,14 +19,14 @@ import { PairsTable } from '../../shared/pairs-table';
 
 const RECENT = 10;
 
-/** One person: what the bridge holds from them. */
+/** One contributor: what the bridge holds from them. */
 @Component({
-  selector: 'app-person',
+  selector: 'app-contributor',
   imports: [RouterLink, MpLoadState, MpPageHeader, MpPanel, MpPanelActions, MpTime, PairsTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './person.html',
+  templateUrl: './contributor.html',
 })
-export class Person {
+export class ContributorDetail {
   /** From the route. */
   readonly side = input.required<Side>();
   readonly login = input.required<string>();
@@ -34,10 +34,10 @@ export class Person {
   protected readonly timestamp = timestamp;
 
   protected readonly authors = apiResource(listAuthors, () => ({}));
-  protected readonly person = computed(() =>
+  protected readonly contributor = computed(() =>
     this.authors.body()?.find((a) => a.side === this.side() && a.login === this.login()),
   );
-  protected readonly unknown = computed(() => this.authors.hasValue() && !this.person());
+  protected readonly unknown = computed(() => this.authors.hasValue() && !this.contributor());
 
   protected readonly issues = apiResource(listPairs, () => ({
     kind: 'issue' as const,
@@ -61,7 +61,7 @@ export class Person {
 
   constructor() {
     liveReload(
-      () => ({ view: 'person', login: this.login(), side: this.side() }),
+      () => ({ view: 'contributor', login: this.login(), side: this.side() }),
       this.authors,
       this.issues,
       this.pulls,

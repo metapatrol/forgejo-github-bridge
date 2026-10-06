@@ -48,8 +48,8 @@ function repository(name: string, failing = 0): Repository {
   };
 }
 
-const people: Author[] = Array.from({ length: 10 }, (_, i) => ({
-  login: `person-${i}`,
+const contributors: Author[] = Array.from({ length: 10 }, (_, i) => ({
+  login: `contributor-${i}`,
   side: i === 9 ? 'forgejo' : 'github',
   issues: 10 - i,
   pulls: i % 3,
@@ -160,13 +160,13 @@ describe('Overview', () => {
     expect(el.querySelectorAll('app-repo-tile').length).toBe(1);
   });
 
-  it('names the eight most active people, linking to their pages', async () => {
-    const el = await render(working, [], undefined, people);
+  it('names the eight most active contributors, linking to their pages', async () => {
+    const el = await render(working, [], undefined, contributors);
     const links = Array.from(
-      el.querySelectorAll('section[aria-labelledby="people-heading"] ul a'),
+      el.querySelectorAll('section[aria-labelledby="contributors-heading"] ul a'),
     ).map((a) => a.getAttribute('href'));
     expect(links.length).toBe(8);
-    expect(links[0]).toBe('/people/github/person-0');
-    expect(el.textContent).toContain('all people →');
+    expect(links[0]).toBe('/contributors/github/contributor-0');
+    expect(el.textContent).toContain('all contributors →');
   });
 });
