@@ -1,14 +1,14 @@
 <mp-app-shell project="forgejo-github-bridge" home="/" [nav]="groups()">
-  <!-- the bridge's health in one word, the live updates' included; folded, only its dot -->
+  <!-- the console's own state in one word; folded, only its dot -->
   <ng-template mpShellStatus let-collapsed>
     <a
-      routerLink="/"
+      routerLink="/system"
       class="mp-status no-underline hover:underline"
-      [attr.data-status]="status.health().status"
+      [attr.data-status]="status.connection().status"
       aria-live="polite"
-      [title]="status.health().detail || status.health().text"
+      [title]="status.connection().detail || status.connection().text"
     >
-      <span [class.sr-only]="collapsed">{{ status.health().text }}</span>
+      <span [class.sr-only]="collapsed">{{ status.connection().text }}</span>
     </a>
   </ng-template>
 

@@ -14,14 +14,16 @@ const base: Status = {
   instance: 'bridge-0',
   mode: 'bridge',
   forgejoUrl: 'https://forgejo.example.com',
-  leader: { present: true, instance: 'bridge-0' },
-  queue: { depth: 0, failing: 0 },
+  // The bridge's own state does not show in the console's.
+  leader: { present: false },
+  queue: { depth: 4, failing: 2 },
   githubRateLimits: [],
 };
 
 describe('StatusService', () => {
   let http: HttpTestingController;
   let service: StatusService;
+  let events: EventsService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -33,55 +35,40 @@ describe('StatusService', () => {
     });
     http = TestBed.inject(HttpTestingController);
     service = TestBed.inject(StatusService);
+    events = TestBed.inject(EventsService);
   });
 
-  async function answer(status: Status) {
+  async function answer(respond: (r: ReturnType<HttpTestingController['expectOne']>) => void) {
     TestBed.inject(ApplicationRef).tick();
-    http.expectOne('/api/v1/status').flush(status);
+    respond(http.expectOne('/api/v1/status'));
     await TestBed.inject(ApplicationRef).whenStable();
-    return service.health();
+    return service.connection();
   }
 
-  it('is bridging when a leader works and nothing fails', async () => {
-    expect((await answer(base)).text).toBe('bridging');
+  it('is connecting until the stream is open', async () => {
+    const c = await answer((r) => r.flush(base));
+    expect(c.text).toBe('connecting…');
   });
 
-  it('says so when nothing holds the leader lock', async () => {
-    const h = await answer({ ...base, leader: { present: false } });
-    expect(h.text).toBe('no leader');
-    expect(h.status).toBe('error');
+  it('is connected with the API answering and the stream open', async () => {
+    events.state.set('live');
+    const c = await answer((r) => r.flush(base));
+    expect(c.text).toBe('connected');
+    expect(c.status).toBe('success');
   });
 
-  it('warns when the GitHub rate limit is nearly used up', async () => {
-    const h = await answer({
-      ...base,
-      queue: { depth: 4, failing: 2 },
-      githubRateLimits: [
-        {
-          resource: 'core',
-          limit: 5000,
-          remaining: 120,
-          used: 4880,
-          resetAt: '2099-01-01T00:00:00Z',
-          observedAt: '2026-10-06T00:00:00Z',
-        },
-      ],
-    });
-    expect(h.text).toBe('GitHub 2.4 % left');
-    expect(h.status).toBe('warning');
+  it('warns while the stream reconnects', async () => {
+    events.state.set('reconnecting');
+    const c = await answer((r) => r.flush(base));
+    expect(c.text).toBe('reconnecting…');
+    expect(c.status).toBe('warning');
+    expect(c.detail).toBe('Live updates are interrupted; what is shown may not be current.');
   });
 
-  it('puts interrupted live updates first', async () => {
-    TestBed.inject(EventsService).state.set('reconnecting');
-    const h = await answer({ ...base, leader: { present: false } });
-    expect(h.text).toBe('reconnecting…');
-    expect(h.status).toBe('warning');
-    expect(h.detail).toContain('may not be current');
-  });
-
-  it('counts what fails', async () => {
-    const h = await answer({ ...base, queue: { depth: 4, failing: 2 } });
-    expect(h.text).toBe('2 failing');
-    expect(h.status).toBe('warning');
+  it('is unreachable when the API does not answer', async () => {
+    events.state.set('live');
+    const c = await answer((r) => r.flush('down', { status: 503, statusText: 'Unavailable' }));
+    expect(c.text).toBe('unreachable');
+    expect(c.status).toBe('error');
   });
 });
