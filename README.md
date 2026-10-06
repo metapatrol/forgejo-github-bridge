@@ -90,7 +90,8 @@ flowchart LR
   requests come from an account without write access.
 - New commits follow; a branch someone else pushed to is never overwritten.
 - Changes to CI configuration are labelled and flagged.
-- Reviews and comments reach the contributor; the merge is reported back —
+- Reviews and comments reach the contributor, line comments on their lines;
+  the merge is reported back —
   as *merged* when it was a fast-forward, with the commit when it was rebased.
 - Optionally, a friendly request to rebase when the pull request falls behind.
 
@@ -158,9 +159,9 @@ including the checks to run before the first real contribution.
 
 The bridge is in the 0.x series. Issues and pull requests are complete and
 tested end to end against GitHub and Forgejo 16, and the read-only
-[console](docs/console.md) shows what the bridge holds. Next on the
-[roadmap](docs/design.md#19-phases): CI status on GitHub and line-level review
-comments.
+[console](docs/console.md) shows what the bridge holds. Maintainers' line
+comments reach the contributor on their lines. Next on the
+[roadmap](docs/design.md#19-phases): CI status on GitHub.
 
 ## Contributing
 

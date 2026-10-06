@@ -353,7 +353,17 @@ The `pr/*` branches belong to the bridge. If a branch's current head differs fro
 
 ### Conversation
 
-Conversation comments on the pull request flow in both directions, with the same rules as issues (§10). Forgejo review summaries are projected as comments (phase 2). Line-level review comments are projected as GitHub review comments in phase 3.
+Conversation comments on the pull request flow in both directions, with the same rules as issues (§10). Forgejo review summaries — the verdict and the review's own text — are projected as comments.
+
+### Line comments
+
+A maintainer's comment on a line of the Forgejo diff is projected onto the GitHub pull request as a review comment on the same line: the same commit, path, line and side. The commit is one GitHub has, because the bridge pushes the GitHub head into `pr/<n>` unchanged; a line of the changed file is GitHub's side `RIGHT`, a line of the file before the change `LEFT`, which is how Forgejo reports them too (`position`, `original_position`). Every line comment is projected on its own, under the review summary, which keeps being a conversation comment.
+
+GitHub refuses a review comment on a commit it does not have — somebody else pushed to `pr/<n>` (§11, a frozen head) — or on a line its diff of that commit does not show. The line comment then becomes a conversation comment naming the file and the line. It quotes no code: a commit GitHub does not have may hold code that was never published.
+
+The rules are the conversation comments' (§10, §14): a line comment that is not the bridge's own and not marked internal is a source with exactly one projection, which follows its edits, is written again when somebody deletes it, and is withdrawn when its source is deleted or turned internal. A projection carries a marker of kind `line`, so a projection written but not recorded is adopted rather than written twice. The pair is recorded in `comment_mapping` with its kind: GitHub numbers review comments apart from conversation comments, so a GitHub ID is unique only within its kind (`line`, or `comment` and `line_as_comment` together).
+
+Only that direction. A contributor's line comment on GitHub stays on GitHub; Forgejo's API takes a line comment only as part of a review the bridge would have to submit as itself, which reads as the bridge reviewing. Contributors who want an answer in Forgejo write in the conversation.
 
 ### Merge
 
@@ -613,7 +623,7 @@ Status: implemented; end-to-end tested against GitHub and Forgejo 16.
 ### Phase 3: refinement
 
 - CI status → GitHub commit status on the PR head
-- line-level review comments
+- line-level review comments, Forgejo → GitHub (§11, *Line comments*): implemented
 - optional Forgejo webhook as a hint to reconcile sooner
 
 ### Phase 4: inspection (optional)

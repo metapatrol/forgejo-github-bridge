@@ -123,7 +123,7 @@ later.
 | Table | Holds |
 |---|---|
 | `issue_mapping` | pairs: repository, kind (`issue` or `pull`), GitHub number, Forgejo number, which side it originated on, the open/closed state both sides had after the last reconcile |
-| `comment_mapping` | comment pairs of a mapped issue or pull request; Forgejo reviews are stored under their negated ID, since Forgejo numbers reviews and comments separately |
+| `comment_mapping` | comment pairs of a mapped issue or pull request, by kind: `comment` for conversation comments and review summaries (Forgejo reviews are stored under their negated ID, since Forgejo numbers reviews and comments separately), `line` for a Forgejo line comment and its GitHub review comment, `line_as_comment` for one GitHub would not place on its line. GitHub numbers review comments apart from conversation comments, so a GitHub ID is unique within its kind |
 | `pull_request_state` | per pull request pair: contrib branch, the head the bridge last pushed, open/merged/closed, whether the branch is frozen, whether it touches CI, the rebase comment and whether it currently asks for a rebase, whether the outcome was reported |
 | `poll_cursor` | per repository, side and stream (issues, comments) |
 | `dirty` | the queue |

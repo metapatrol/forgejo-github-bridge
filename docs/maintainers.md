@@ -137,8 +137,16 @@ Every new push needs a new approval. That is the point.
 
 Comment in the Forgejo pull request as usual; it appears on GitHub under your
 name. Submitted reviews appear on GitHub as a comment: "requested changes",
-"approved these changes" or "reviewed", with the review's text. Line comments
-stay in Forgejo for now.
+"approved these changes" or "reviewed", with the review's text.
+
+Line comments of a submitted review appear on GitHub on the same line of the
+same commit, as review comments the contributor can answer in place. Edit
+one, and the GitHub copy follows; delete it, or start it with `/internal`,
+and it is withdrawn. Where GitHub will not place a comment on its line — on
+a commit it does not have, because somebody pushed to `pr/<n>` — it arrives
+in the conversation instead, naming the file and the line but quoting no
+code. Line comments contributors write on GitHub stay there; answer them in
+the conversation.
 
 ### Pushing to the contrib branch
 
@@ -194,8 +202,9 @@ On GitHub, the bridge is the App's bot account. From the contributor's side:
 
 - Their issue gets answers from the maintainers, quoted with the maintainer's
   GitHub account, or "a maintainer".
-- Their pull request gets the maintainers' comments and reviews, perhaps a
-  friendly request to rebase, and finally a thank-you: marked merged, or
-  closed with the commit their work landed as.
+- Their pull request gets the maintainers' comments and reviews, with review
+  comments on the lines they are about, perhaps a friendly request to
+  rebase, and finally a thank-you: marked merged, or closed with the commit
+  their work landed as.
 - They never see Forgejo, its addresses, its private issues or anyone's
   internal comments.
