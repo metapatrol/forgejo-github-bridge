@@ -223,7 +223,7 @@ func scanPair(row pgx.Row) (store.PairReport, error) {
 		r.Pull = p
 	}
 	if dSide != nil {
-		q := &store.QueueReport{MarkedAt: *dMarked, NotBefore: *dNotBefore, Attempts: *dAttempts, PairID: r.ID}
+		q := &store.QueueReport{MarkedAt: *dMarked, NotBefore: *dNotBefore, Attempts: *dAttempts, PairID: r.ID, Kind: r.Kind}
 		q.Repository, q.Side, q.Number = r.Repository, store.Side(*dSide), *dNumber
 		if dError != nil {
 			q.LastError = *dError
@@ -360,10 +360,10 @@ func (s *Store) Queue(ctx context.Context, f store.QueueFilter) ([]store.QueueRe
 	var out []store.QueueReport
 	err := s.read(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			SELECT d.repository, d.side, d.number, d.marked_at, d.not_before, d.attempts, d.last_error, m.id
+			SELECT d.repository, d.side, d.number, d.marked_at, d.not_before, d.attempts, d.last_error, m.id, m.kind
 			FROM dirty d
 			LEFT JOIN LATERAL (
-				SELECT id FROM issue_mapping m
+				SELECT id, kind FROM issue_mapping m
 				WHERE m.repository = d.repository
 				  AND ((d.side = 'github' AND m.github_number = d.number) OR (d.side = 'forgejo' AND m.forgejo_number = d.number))
 				LIMIT 1
@@ -379,7 +379,8 @@ func (s *Store) Queue(ctx context.Context, f store.QueueFilter) ([]store.QueueRe
 			var side string
 			var lastError *string
 			var pair *int64
-			if err := rows.Scan(&q.Repository, &side, &q.Number, &q.MarkedAt, &q.NotBefore, &q.Attempts, &lastError, &pair); err != nil {
+			var kind *string
+			if err := rows.Scan(&q.Repository, &side, &q.Number, &q.MarkedAt, &q.NotBefore, &q.Attempts, &lastError, &pair, &kind); err != nil {
 				return err
 			}
 			q.Side = store.Side(side)
@@ -387,7 +388,7 @@ func (s *Store) Queue(ctx context.Context, f store.QueueFilter) ([]store.QueueRe
 				q.LastError = *lastError
 			}
 			if pair != nil {
-				q.PairID = *pair
+				q.PairID, q.Kind = *pair, store.Kind(*kind)
 			}
 			out = append(out, q)
 		}

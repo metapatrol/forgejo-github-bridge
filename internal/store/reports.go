@@ -127,6 +127,7 @@ type QueueReport struct {
 	Attempts  int
 	LastError string
 	// PairID is the pair the entry belongs to; zero for an issue that is not
-	// paired yet.
+	// paired yet. Kind is that pair's.
 	PairID int64
+	Kind   Kind
 }

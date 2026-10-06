@@ -434,6 +434,8 @@ components:
           type: integer
           format: int64
           description: The pair it belongs to, if it is one.
+        kind:
+          $ref: "#/components/schemas/PairKind"
         markedAt:
           type: string
           format: date-time

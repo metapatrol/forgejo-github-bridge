@@ -171,7 +171,7 @@ func TestReportsListTheQueueFailingFirst(t *testing.T) {
 	if err != nil || len(q) != 3 {
 		t.Fatalf("queue = %+v, %v", q, err)
 	}
-	if q[0].Attempts != 1 || q[0].PairID != issue.ID {
+	if q[0].Attempts != 1 || q[0].PairID != issue.ID || q[0].Kind != store.KindIssue {
 		t.Errorf("first = %+v", q[0])
 	}
 	for _, e := range q[1:] {

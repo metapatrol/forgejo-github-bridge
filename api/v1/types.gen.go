@@ -257,8 +257,9 @@ type PullRequest struct {
 // QueueEntry defines model for QueueEntry.
 type QueueEntry struct {
 	// Attempts Failed attempts since it last succeeded.
-	Attempts  int     `json:"attempts"`
-	LastError *string `json:"lastError,omitempty"`
+	Attempts  int       `json:"attempts"`
+	Kind      *PairKind `json:"kind,omitempty"`
+	LastError *string   `json:"lastError,omitempty"`
 
 	// MarkedAt When it was last marked as changed.
 	MarkedAt time.Time `json:"markedAt"`

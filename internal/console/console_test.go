@@ -67,7 +67,7 @@ var (
 	issuePair = store.PairReport{
 		IssueMapping: store.IssueMapping{ID: 1, Repository: "metapatrol/foo", Kind: store.KindIssue, GitHubNumber: 7, ForgejoNumber: 71, Origin: store.GitHub, Title: "Crash", Author: "alice"},
 		State:        store.StateOpen, Comments: 2, CreatedAt: now, UpdatedAt: now,
-		Queued: &store.QueueReport{DirtyKey: store.DirtyKey{Repository: "metapatrol/foo", Side: store.GitHub, Number: 7}, Attempts: 3, LastError: "HTTP 403", PairID: 1, MarkedAt: now, NotBefore: now},
+		Queued: &store.QueueReport{DirtyKey: store.DirtyKey{Repository: "metapatrol/foo", Side: store.GitHub, Number: 7}, Attempts: 3, LastError: "HTTP 403", PairID: 1, Kind: store.KindIssue, MarkedAt: now, NotBefore: now},
 	}
 	pullPair = store.PairReport{
 		IssueMapping: store.IssueMapping{ID: 2, Repository: "metapatrol/foo", Kind: store.KindPull, GitHubNumber: 8, ForgejoNumber: 72, Origin: store.GitHub},
@@ -158,7 +158,7 @@ func TestPairsAreLinkedOnBothSides(t *testing.T) {
 	if issue.GithubUrl != "https://github.com/metapatrol/foo/issues/7" || issue.ForgejoUrl != "https://forgejo.example.com/platform/foo/issues/71" {
 		t.Errorf("issue links = %s, %s", issue.GithubUrl, issue.ForgejoUrl)
 	}
-	if issue.Queued == nil || *issue.Queued.LastError != "HTTP 403" || issue.Queued.Url != "https://github.com/metapatrol/foo/issues/7" {
+	if issue.Queued == nil || *issue.Queued.LastError != "HTTP 403" || issue.Queued.Url != "https://github.com/metapatrol/foo/issues/7" || *issue.Queued.Kind != v1.Issue {
 		t.Errorf("queued = %+v", issue.Queued)
 	}
 	if pull.GithubUrl != "https://github.com/metapatrol/foo/pull/8" || pull.ForgejoUrl != "https://forgejo.example.com/platform/foo/pulls/72" {

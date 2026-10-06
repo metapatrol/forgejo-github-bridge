@@ -354,17 +354,26 @@ func (s *server) queueEntry(e store.QueueReport) v1.QueueEntry {
 	out := v1.QueueEntry{
 		Repository: e.Repository, Side: v1.Side(e.Side), Number: e.Number,
 		MarkedAt: e.MarkedAt, NotBefore: e.NotBefore, Attempts: e.Attempts,
-		Url: s.issueURL(e.Repository, e.Side, store.KindIssue, e.Number),
+		Url: s.issueURL(e.Repository, e.Side, kindOr(e.Kind), e.Number),
 	}
 	if e.LastError != "" {
 		msg := e.LastError
 		out.LastError = &msg
 	}
 	if e.PairID != 0 {
-		id := e.PairID
-		out.PairId = &id
+		id, kind := e.PairID, v1.PairKind(e.Kind)
+		out.PairId, out.Kind = &id, &kind
 	}
 	return out
+}
+
+// kindOr is a queue entry's kind, an issue when its pair is unknown: both
+// forges redirect an issue link to the pull request it is.
+func kindOr(k store.Kind) store.Kind {
+	if k == "" {
+		return store.KindIssue
+	}
+	return k
 }
 
 func (s *server) pair(p store.PairReport) v1.Pair {
