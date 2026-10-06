@@ -90,12 +90,20 @@ read on its own:
 |---|---|
 | `GET /api/v1/status` | this instance, the instance holding the leader lock, the queue |
 | `GET /api/v1/repositories` | the configured pairs with counts, queue and poll cursors |
-| `GET /api/v1/pairs` | pairs, filtered by `repository`, `kind`, `state`, `origin` and `q`, paged by `limit` and `offset` |
+| `GET /api/v1/pairs` | pairs, filtered by `repository`, `kind`, `state`, `origin`, `author` and `q` |
 | `GET /api/v1/pairs/{id}` | one pair with its comment pairs |
-| `GET /api/v1/queue` | queued entries, by `repository`, optionally `failing` only |
+| `GET /api/v1/queue` | queued entries, by `repository`, `q`, optionally `failing` only |
 | `GET /api/v1/system` | the service, the database, its tables and their upkeep |
 | `GET /api/v1/events` | changes as Server-Sent Events: which pair, queue entry or cursor changed, never its content |
 | `GET /api/v1/openapi.yaml` | the specification all of the above is generated from |
+
+Every list (`/repositories`, `/pairs`, `/queue`, `/authors`) is searched with
+`q`, sorted with `sort` (a column, descending with a leading `-`) and paged
+with `limit` and `cursor`, the conventions of mcp-gateway's inspect API.
+Without `limit` a list comes whole; with it, each answer has a `nextCursor`
+to read on from. A cursor names the row a page ended with rather than an
+offset, so rows added meanwhile neither repeat nor skip, and it is only
+accepted with the filters, `q` and `sort` it was handed out for.
 
 [api/openapi-v1.yaml](../api/openapi-v1.yaml) is the contract: the server and
 the console's client are both generated from it.

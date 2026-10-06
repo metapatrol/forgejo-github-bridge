@@ -23,21 +23,24 @@ type Reports interface {
 	// anything; a configured repository without pairs, cursors or queue
 	// entries is absent.
 	RepositorySummaries(ctx context.Context) (map[string]RepositorySummary, error)
-	// Pairs lists pairs, newest first, and counts all that match.
-	Pairs(ctx context.Context, f PairFilter) ([]PairReport, int, error)
+	// Pairs lists a page of pairs, newest first, counts all that match, and
+	// says where the next page starts; nil when there is none.
+	Pairs(ctx context.Context, f PairFilter) ([]PairReport, int, *Position, error)
 	// Pair returns one pair. ErrNotFound if there is none.
 	Pair(ctx context.Context, id int64) (PairReport, error)
 	// CommentPairs lists the comment pairs of a pair.
 	CommentPairs(ctx context.Context, id int64) ([]CommentReport, error)
-	// Queue lists queued entries, failing ones first, then by when they are
-	// due.
-	Queue(ctx context.Context, f QueueFilter) ([]QueueReport, error)
+	// Queue lists a page of queued entries, failing ones first, then by when
+	// they are due, counts all that match, and says where the next page
+	// starts.
+	Queue(ctx context.Context, f QueueFilter) ([]QueueReport, int, *Position, error)
 	// System describes the database, the bridge's tables and their upkeep.
 	System(ctx context.Context) (System, error)
 	// RateLimits lists the GitHub rate-limit windows as last saved.
 	RateLimits(ctx context.Context) ([]RateLimit, error)
-	// Authors lists who opened pairs, the most active first.
-	Authors(ctx context.Context) ([]Author, error)
+	// Authors lists a page of who opened pairs, the most active first, counts
+	// all that match, and says where the next page starts.
+	Authors(ctx context.Context, f AuthorFilter) ([]Author, int, *Position, error)
 }
 
 // Author is someone who opened pairs: a GitHub login for pairs that came
@@ -102,10 +105,24 @@ type PairFilter struct {
 	Author string
 	// Query matches the title, case-insensitively, or a number on either
 	// side.
-	Query  string
-	Limit  int
-	Offset int
+	Query string
+	Page
 }
+
+// Page is how a list is sorted and cut.
+type Page struct {
+	// Sort is a column, descending with a leading "-"; empty for the list's
+	// default. An unknown column is ErrInvalid.
+	Sort string
+	// Limit is the page size; zero for every row.
+	Limit int
+	// After, when set, is where the page starts: the position of the last
+	// row of the page before.
+	After *Position
+}
+
+// ErrInvalid is returned for a sort or a position a list does not know.
+var ErrInvalid = errors.New("invalid")
 
 // PairReport is a pair as the console shows it.
 type PairReport struct {
@@ -136,6 +153,17 @@ type CommentReport struct {
 type QueueFilter struct {
 	Repository  string
 	FailingOnly bool
+	// Query matches the repository or the last error, case-insensitively,
+	// or the number.
+	Query string
+	Page
+}
+
+// AuthorFilter narrows the list of authors.
+type AuthorFilter struct {
+	// Query matches the login, case-insensitively.
+	Query string
+	Page
 }
 
 // QueueReport is a queued entry.

@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/api"
@@ -198,12 +199,21 @@ func (s *server) StreamEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListAuthors implements v1.ServerInterface.
-func (s *server) ListAuthors(w http.ResponseWriter, r *http.Request) {
+func (s *server) ListAuthors(w http.ResponseWriter, r *http.Request, p v1.ListAuthorsParams) {
+	if p.Q != nil && len(*p.Q) > 200 {
+		writeError(w, http.StatusBadRequest, "q is longer than 200 characters")
+		return
+	}
+	pg, err := newPaging(p.Limit, p.Cursor, string(deref(p.Sort)), filter("q", p.Q))
+	if err != nil {
+		s.pageError(w, r, err)
+		return
+	}
 	ctx, cancel := ctxFor(r)
 	defer cancel()
-	authors, err := s.reports.Authors(ctx)
+	authors, total, next, err := s.reports.Authors(ctx, store.AuthorFilter{Query: deref(p.Q), Page: pg.page})
 	if err != nil {
-		s.fail(w, r, err)
+		s.pageError(w, r, err)
 		return
 	}
 	out := make([]v1.Author, 0, len(authors))
@@ -218,7 +228,7 @@ func (s *server) ListAuthors(w http.ResponseWriter, r *http.Request) {
 		author.ProfileUrl = &profile
 		out = append(out, author)
 	}
-	writeJSON(w, out)
+	writeJSON(w, v1.AuthorPage{Items: out, Total: total, NextCursor: pg.next(next)})
 }
 
 // GetSystem implements v1.ServerInterface.
@@ -362,7 +372,13 @@ func queueSummary(q store.QueueStats) v1.QueueSummary {
 }
 
 // ListRepositories implements v1.ServerInterface.
-func (s *server) ListRepositories(w http.ResponseWriter, r *http.Request) {
+func (s *server) ListRepositories(w http.ResponseWriter, r *http.Request, p v1.ListRepositoriesParams) {
+	q, sort := deref(p.Q), string(deref(p.Sort))
+	pg, err := newPaging(p.Limit, p.Cursor, sort, filter("q", p.Q))
+	if err != nil {
+		s.pageError(w, r, err)
+		return
+	}
 	ctx, cancel := ctxFor(r)
 	defer cancel()
 	sums, err := s.reports.RepositorySummaries(ctx)
@@ -371,7 +387,12 @@ func (s *server) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]v1.Repository, 0, len(s.opts.Repositories))
+	needle := strings.ToLower(strings.TrimSpace(q))
 	for _, cfg := range s.opts.Repositories {
+		if needle != "" && !strings.Contains(strings.ToLower(cfg.GitHub.String()), needle) &&
+			!strings.Contains(strings.ToLower(cfg.Forgejo.String()), needle) {
+			continue
+		}
 		sum := sums[cfg.Key()]
 		repo := v1.Repository{
 			Key: cfg.Key(), Github: cfg.GitHub.String(), Forgejo: cfg.Forgejo.String(),
@@ -404,12 +425,56 @@ func (s *server) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, repo)
 	}
-	writeJSON(w, out)
+	items, next, err := pageInMemory(out, func(r v1.Repository) string { return r.Key }, repositoryColumns, "health", pg)
+	if err != nil {
+		s.pageError(w, r, err)
+		return
+	}
+	writeJSON(w, v1.RepositoryPage{Items: items, Total: len(out), NextCursor: pg.next(next)})
+}
+
+// repositoryColumns are what repositories sort by. health puts the ones
+// with failing work first, then the ones with queued work.
+var repositoryColumns = map[string]func(v1.Repository) store.SortValue{
+	"health": func(r v1.Repository) store.SortValue {
+		switch {
+		case r.Queue.Failing > 0:
+			return store.SortValueOf(0)
+		case r.Queue.Depth > 0:
+			return store.SortValueOf(1)
+		}
+		return store.SortValueOf(2)
+	},
+	"name":    func(r v1.Repository) store.SortValue { return store.SortValueOf(strings.ToLower(r.Github)) },
+	"forgejo": func(r v1.Repository) store.SortValue { return store.SortValueOf(strings.ToLower(r.Forgejo)) },
+	"issues":  func(r v1.Repository) store.SortValue { return store.SortValueOf(r.Counts.IssuesOpen) },
+	"pulls":   func(r v1.Repository) store.SortValue { return store.SortValueOf(r.Counts.PullsOpen) },
+	"queue":   func(r v1.Repository) store.SortValue { return store.SortValueOf(r.Queue.Depth) },
+	"polled": func(r v1.Repository) store.SortValue {
+		var latest time.Time
+		for _, c := range r.Cursors {
+			if c.UpdatedAt.After(latest) {
+				latest = c.UpdatedAt
+			}
+		}
+		if latest.IsZero() {
+			return store.SortValue{}
+		}
+		return store.SortValueOf(latest)
+	},
+}
+
+// deref is a pointer's value, or the zero value for nil.
+func deref[T any](p *T) (v T) {
+	if p != nil {
+		v = *p
+	}
+	return
 }
 
 // ListPairs implements v1.ServerInterface.
 func (s *server) ListPairs(w http.ResponseWriter, r *http.Request, p v1.ListPairsParams) {
-	f := store.PairFilter{Limit: 50}
+	var f store.PairFilter
 	if p.Repository != nil {
 		f.Repository = *p.Repository
 	}
@@ -450,36 +515,29 @@ func (s *server) ListPairs(w http.ResponseWriter, r *http.Request, p v1.ListPair
 		}
 		f.Query = *p.Q
 	}
-	if p.Limit != nil {
-		if *p.Limit < 1 || *p.Limit > 200 {
-			writeError(w, http.StatusBadRequest, "limit must be between 1 and 200")
-			return
-		}
-		f.Limit = *p.Limit
+	pg, err := newPaging(p.Limit, p.Cursor, string(deref(p.Sort)), filter("repository", p.Repository),
+		filter("kind", p.Kind), filter("state", p.State), filter("origin", p.Origin), filter("author", p.Author), filter("q", p.Q))
+	if err != nil {
+		s.pageError(w, r, err)
+		return
 	}
-	if p.Offset != nil {
-		if *p.Offset < 0 {
-			writeError(w, http.StatusBadRequest, "offset must not be negative")
-			return
-		}
-		f.Offset = *p.Offset
-	}
+	f.Page = pg.page
 
 	ctx, cancel := ctxFor(r)
 	defer cancel()
-	pairs, total, err := s.reports.Pairs(ctx, f)
+	pairs, total, next, err := s.reports.Pairs(ctx, f)
 	if err != nil {
-		s.fail(w, r, err)
+		s.pageError(w, r, err)
 		return
 	}
-	out := v1.PairPage{Items: make([]v1.Pair, 0, len(pairs)), Total: total}
+	out := v1.PairPage{Items: make([]v1.Pair, 0, len(pairs)), Total: total, NextCursor: pg.next(next)}
 	for _, pr := range pairs {
 		out.Items = append(out.Items, s.pair(pr))
 	}
 	writeJSON(w, out)
 }
 
-func validSide(s v1.Side) bool { return s == v1.Github || s == v1.Forgejo }
+func validSide(s v1.Side) bool { return s == v1.SideGithub || s == v1.SideForgejo }
 
 // GetPair implements v1.ServerInterface.
 func (s *server) GetPair(w http.ResponseWriter, r *http.Request, id int64) {
@@ -527,16 +585,30 @@ func (s *server) ListQueue(w http.ResponseWriter, r *http.Request, p v1.ListQueu
 	if p.Failing != nil {
 		f.FailingOnly = *p.Failing
 	}
-	ctx, cancel := ctxFor(r)
-	defer cancel()
-	entries, err := s.reports.Queue(ctx, f)
+	if p.Q != nil {
+		if len(*p.Q) > 200 {
+			writeError(w, http.StatusBadRequest, "q is longer than 200 characters")
+			return
+		}
+		f.Query = *p.Q
+	}
+	pg, err := newPaging(p.Limit, p.Cursor, string(deref(p.Sort)),
+		filter("repository", p.Repository), filter("failing", p.Failing), filter("q", p.Q))
 	if err != nil {
-		s.fail(w, r, err)
+		s.pageError(w, r, err)
 		return
 	}
-	out := make([]v1.QueueEntry, 0, len(entries))
+	f.Page = pg.page
+	ctx, cancel := ctxFor(r)
+	defer cancel()
+	entries, total, next, err := s.reports.Queue(ctx, f)
+	if err != nil {
+		s.pageError(w, r, err)
+		return
+	}
+	out := v1.QueuePage{Items: make([]v1.QueueEntry, 0, len(entries)), Total: total, NextCursor: pg.next(next)}
 	for _, e := range entries {
-		out = append(out, s.queueEntry(e))
+		out.Items = append(out.Items, s.queueEntry(e))
 	}
 	writeJSON(w, out)
 }

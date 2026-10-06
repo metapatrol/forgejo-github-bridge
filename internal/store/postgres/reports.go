@@ -19,10 +19,6 @@ var _ store.Reports = (*Store)(nil)
 // by the host name. Leader reads it back.
 const applicationPrefix = "forgejo-github-bridge@"
 
-// queueLimit bounds a queue listing. A queue this long is a problem the
-// dashboard shows; the console need not list every entry of it.
-const queueLimit = 500
-
 // read runs fn in a read-only transaction: the console reads, and PostgreSQL
 // rather than convention makes sure of it.
 func (s *Store) read(ctx context.Context, fn func(tx pgx.Tx) error) error {
@@ -233,14 +229,28 @@ func scanPair(row pgx.Row) (store.PairReport, error) {
 	return r, nil
 }
 
+// pairColumns are what pairs sort by; the default is the newest first.
+var pairColumns = map[string]string{
+	"created":    "m.created_at",
+	"updated":    "m.updated_at",
+	"title":      "lower(m.title)",
+	"repository": "m.repository",
+	"author":     "lower(nullif(m.author, ''))",
+	"github":     "m.github_number",
+	"forgejo":    "m.forgejo_number",
+	"state":      pairState,
+	"comments":   "(SELECT count(*) FROM comment_mapping c WHERE c.issue_mapping_id = m.id)",
+}
+
 // Pairs implements store.Reports.
-func (s *Store) Pairs(ctx context.Context, f store.PairFilter) ([]store.PairReport, int, error) {
+func (s *Store) Pairs(ctx context.Context, f store.PairFilter) ([]store.PairReport, int, *store.Position, error) {
+	keys, err := sortKeys(f.Sort, "-created", pairColumns, []string{"m.id"})
+	if err != nil {
+		return nil, 0, nil, err
+	}
 	var where []string
 	var args []any
-	arg := func(v any) string {
-		args = append(args, v)
-		return "$" + strconv.Itoa(len(args))
-	}
+	arg := placeholders(&args)
 	if f.Repository != "" {
 		where = append(where, "m.repository = "+arg(f.Repository))
 	}
@@ -264,41 +274,87 @@ func (s *Store) Pairs(ctx context.Context, f store.PairFilter) ([]store.PairRepo
 		}
 		where = append(where, cond)
 	}
-	clause := ""
-	if len(where) > 0 {
-		clause = " WHERE " + strings.Join(where, " AND ")
+	const from = ` FROM issue_mapping m LEFT JOIN pull_request_state p ON p.issue_mapping_id = m.id`
+	countQuery, countArgs := `SELECT count(*)`+from+clause(where), len(args)
+	if f.After != nil {
+		cond, err := keys.after(f.After, arg)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		where = append(where, cond)
 	}
-	limit, offset := f.Limit, f.Offset
-	if limit <= 0 {
-		limit = 50
+	limit := ""
+	if f.Limit > 0 {
+		limit = " LIMIT " + arg(f.Limit+1)
 	}
 
 	var out []store.PairReport
+	var positions []store.Position
 	var total int
-	err := s.read(ctx, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM issue_mapping m
-			LEFT JOIN pull_request_state p ON p.issue_mapping_id = m.id`+clause, args...).Scan(&total); err != nil {
+	err = s.read(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, countQuery, args[:countArgs]...).Scan(&total); err != nil {
 			return err
 		}
-		rows, err := tx.Query(ctx, pairSelect+clause+
-			" ORDER BY m.created_at DESC, m.id DESC LIMIT "+arg(limit)+" OFFSET "+arg(offset), args...)
+		rows, err := tx.Query(ctx, `SELECT m.id, `+keys.selectKeys()+from+clause(where)+keys.orderBy()+limit, args...)
 		if err != nil {
 			return err
 		}
-		defer rows.Close()
+		var ids []int64
 		for rows.Next() {
-			r, err := scanPair(rows)
+			values, err := rows.Values()
 			if err != nil {
+				rows.Close()
 				return err
 			}
-			out = append(out, r)
+			ids = append(ids, values[0].(int64))
+			positions = append(positions, position(values[1:]))
 		}
-		return rows.Err()
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		// The page's pairs in full, in the page's order.
+		full, err := tx.Query(ctx, pairSelect+` WHERE m.id = ANY($1)`, ids)
+		if err != nil {
+			return err
+		}
+		byID := map[int64]store.PairReport{}
+		for full.Next() {
+			r, err := scanPair(full)
+			if err != nil {
+				full.Close()
+				return err
+			}
+			byID[r.ID] = r
+		}
+		full.Close()
+		for _, id := range ids {
+			out = append(out, byID[id])
+		}
+		return full.Err()
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("listing pairs: %w", err)
+		return nil, 0, nil, fmt.Errorf("listing pairs: %w", err)
 	}
-	return out, total, nil
+	out, next := cut(out, positions, f.Limit)
+	return out, total, next, nil
+}
+
+// cut trims a page read with one row too many, and says where the next page
+// starts; nil when this was the last.
+func cut[T any](rows []T, positions []store.Position, limit int) ([]T, *store.Position) {
+	if limit <= 0 || len(rows) <= limit {
+		return rows, nil
+	}
+	return rows[:limit], &positions[limit-1]
+}
+
+// clause joins conditions into a WHERE clause; empty for none.
+func clause(where []string) string {
+	if len(where) == 0 {
+		return ""
+	}
+	return " WHERE " + strings.Join(where, " AND ")
 }
 
 // likeEscape makes a search term match literally in an ILIKE pattern.
@@ -345,59 +401,100 @@ func (s *Store) CommentPairs(ctx context.Context, id int64) ([]store.CommentRepo
 	return out, err
 }
 
+// queueColumns are what the queue sorts by. The default, due, is failing
+// entries first, then by when they are due: one text key, so that it sorts
+// as one column.
+var queueColumns = map[string]string{
+	"due":        `((CASE WHEN d.attempts > 0 THEN '0' ELSE '1' END) || to_char(d.not_before AT TIME ZONE 'UTC', 'YYYYMMDDHH24MISSUS'))`,
+	"marked":     "d.marked_at",
+	"next":       "d.not_before",
+	"attempts":   "d.attempts",
+	"repository": "d.repository",
+	"number":     "d.number",
+	"error":      "d.last_error",
+}
+
 // Queue implements store.Reports.
-func (s *Store) Queue(ctx context.Context, f store.QueueFilter) ([]store.QueueReport, error) {
+func (s *Store) Queue(ctx context.Context, f store.QueueFilter) ([]store.QueueReport, int, *store.Position, error) {
+	keys, err := sortKeys(f.Sort, "due", queueColumns, []string{"d.repository", "d.side", "d.number"})
+	if err != nil {
+		return nil, 0, nil, err
+	}
 	var where []string
 	var args []any
+	arg := placeholders(&args)
 	if f.Repository != "" {
-		args = append(args, f.Repository)
-		where = append(where, "d.repository = $1")
+		where = append(where, "d.repository = "+arg(f.Repository))
 	}
 	if f.FailingOnly {
 		where = append(where, "d.attempts > 0")
 	}
-	clause := ""
-	if len(where) > 0 {
-		clause = " WHERE " + strings.Join(where, " AND ")
+	if q := strings.TrimSpace(f.Query); q != "" {
+		like := arg("%" + likeEscape(q) + "%")
+		cond := "(d.repository ILIKE " + like + " OR d.last_error ILIKE " + like
+		if n, err := strconv.ParseInt(strings.TrimPrefix(q, "#"), 10, 64); err == nil {
+			cond += " OR d.number = " + arg(n)
+		}
+		where = append(where, cond+")")
 	}
+	countQuery, countArgs := `SELECT count(*) FROM dirty d`+clause(where), len(args)
+	if f.After != nil {
+		cond, err := keys.after(f.After, arg)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		where = append(where, cond)
+	}
+	limit := ""
+	if f.Limit > 0 {
+		limit = " LIMIT " + arg(f.Limit+1)
+	}
+
 	var out []store.QueueReport
-	err := s.read(ctx, func(tx pgx.Tx) error {
+	var positions []store.Position
+	var total int
+	err = s.read(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, countQuery, args[:countArgs]...).Scan(&total); err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, `
-			SELECT d.repository, d.side, d.number, d.marked_at, d.not_before, d.attempts, d.last_error, m.id, m.kind
+			SELECT d.repository, d.side, d.number, d.marked_at, d.not_before, d.attempts, d.last_error, m.id, m.kind,
+			       `+keys.selectKeys()+`
 			FROM dirty d
 			LEFT JOIN LATERAL (
 				SELECT id, kind FROM issue_mapping m
 				WHERE m.repository = d.repository
 				  AND ((d.side = 'github' AND m.github_number = d.number) OR (d.side = 'forgejo' AND m.forgejo_number = d.number))
 				LIMIT 1
-			) m ON true`+clause+`
-			ORDER BY (d.attempts > 0) DESC, d.not_before, d.repository, d.side, d.number
-			LIMIT `+strconv.Itoa(queueLimit), args...)
+			) m ON true`+clause(where)+keys.orderBy()+limit, args...)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var q store.QueueReport
-			var side string
-			var lastError *string
-			var pair *int64
-			var kind *string
-			if err := rows.Scan(&q.Repository, &side, &q.Number, &q.MarkedAt, &q.NotBefore, &q.Attempts, &lastError, &pair, &kind); err != nil {
+			values, err := rows.Values()
+			if err != nil {
 				return err
 			}
-			q.Side = store.Side(side)
-			if lastError != nil {
-				q.LastError = *lastError
+			q := store.QueueReport{Attempts: int(values[5].(int32))}
+			q.Repository, q.Side, q.Number = values[0].(string), store.Side(values[1].(string)), values[2].(int64)
+			q.MarkedAt, q.NotBefore = values[3].(time.Time), values[4].(time.Time)
+			if e, ok := values[6].(string); ok {
+				q.LastError = e
 			}
-			if pair != nil {
-				q.PairID, q.Kind = *pair, store.Kind(*kind)
+			if id, ok := values[7].(int64); ok {
+				q.PairID, q.Kind = id, store.Kind(values[8].(string))
 			}
 			out = append(out, q)
+			positions = append(positions, position(values[9:]))
 		}
 		return rows.Err()
 	})
-	return out, err
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("listing the queue: %w", err)
+	}
+	out, next := cut(out, positions, f.Limit)
+	return out, total, next, nil
 }
 
 // RateLimits implements store.Reports.
@@ -418,27 +515,73 @@ func (s *Store) RateLimits(ctx context.Context) ([]store.RateLimit, error) {
 	return out, err
 }
 
+// authorColumns are what authors sort by; the default is the most active
+// first.
+var authorColumns = map[string]string{
+	"pairs":  "a.pairs",
+	"issues": "a.issues",
+	"pulls":  "a.pulls",
+	"last":   "a.last",
+	"login":  "lower(a.author)",
+}
+
 // Authors implements store.Reports.
-func (s *Store) Authors(ctx context.Context) ([]store.Author, error) {
+func (s *Store) Authors(ctx context.Context, f store.AuthorFilter) ([]store.Author, int, *store.Position, error) {
+	keys, err := sortKeys(f.Sort, "-pairs", authorColumns, []string{"a.author", "a.origin"})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	var args []any
+	arg := placeholders(&args)
+	search := ""
+	if q := strings.TrimSpace(f.Query); q != "" {
+		search = " AND author ILIKE " + arg("%"+likeEscape(q)+"%")
+	}
+	authors := `(SELECT author, origin, count(*) FILTER (WHERE kind = 'issue') AS issues,
+		       count(*) FILTER (WHERE kind = 'pull') AS pulls, count(*) AS pairs, max(created_at) AS last
+		FROM issue_mapping WHERE author <> ''` + search + `
+		GROUP BY author, origin) a`
+	countArgs := len(args)
+	var where []string
+	if f.After != nil {
+		cond, err := keys.after(f.After, arg)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		where = append(where, cond)
+	}
+	limit := ""
+	if f.Limit > 0 {
+		limit = " LIMIT " + arg(f.Limit+1)
+	}
+
 	var out []store.Author
-	err := s.read(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `
-			SELECT author, origin, count(*) FILTER (WHERE kind = 'issue'), count(*) FILTER (WHERE kind = 'pull'),
-			       max(created_at)
-			FROM issue_mapping WHERE author <> ''
-			GROUP BY author, origin
-			ORDER BY count(*) DESC, max(created_at) DESC, author`)
+	var positions []store.Position
+	var total int
+	err = s.read(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM `+authors, args[:countArgs]...).Scan(&total); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `SELECT a.author, a.origin, a.issues, a.pulls, a.last, `+keys.selectKeys()+
+			` FROM `+authors+clause(where)+keys.orderBy()+limit, args...)
 		if err != nil {
 			return err
 		}
-		out, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (store.Author, error) {
-			var a store.Author
-			var side string
-			err := row.Scan(&a.Login, &side, &a.Issues, &a.Pulls, &a.Last)
-			a.Side = store.Side(side)
-			return a, err
-		})
-		return err
+		defer rows.Close()
+		for rows.Next() {
+			values, err := rows.Values()
+			if err != nil {
+				return err
+			}
+			out = append(out, store.Author{Login: values[0].(string), Side: store.Side(values[1].(string)),
+				Issues: int(values[2].(int64)), Pulls: int(values[3].(int64)), Last: values[4].(time.Time)})
+			positions = append(positions, position(values[5:]))
+		}
+		return rows.Err()
 	})
-	return out, err
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("listing authors: %w", err)
+	}
+	out, next := cut(out, positions, f.Limit)
+	return out, total, next, nil
 }

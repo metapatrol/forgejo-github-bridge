@@ -9,16 +9,16 @@ import (
 
 // Defines values for CursorStream.
 const (
-	Comments CursorStream = "comments"
-	Issues   CursorStream = "issues"
+	CursorStreamComments CursorStream = "comments"
+	CursorStreamIssues   CursorStream = "issues"
 )
 
 // Valid indicates whether the value is a known member of the CursorStream enum.
 func (e CursorStream) Valid() bool {
 	switch e {
-	case Comments:
+	case CursorStreamComments:
 		return true
-	case Issues:
+	case CursorStreamIssues:
 		return true
 	default:
 		return false
@@ -84,16 +84,16 @@ func (e ServiceMode) Valid() bool {
 
 // Defines values for Side.
 const (
-	Forgejo Side = "forgejo"
-	Github  Side = "github"
+	SideForgejo Side = "forgejo"
+	SideGithub  Side = "github"
 )
 
 // Valid indicates whether the value is a known member of the Side enum.
 func (e Side) Valid() bool {
 	switch e {
-	case Forgejo:
+	case SideForgejo:
 		return true
-	case Github:
+	case SideGithub:
 		return true
 	default:
 		return false
@@ -118,6 +118,222 @@ func (e StatusMode) Valid() bool {
 	}
 }
 
+// Defines values for ListAuthorsParamsSort.
+const (
+	ListAuthorsParamsSortIssues      ListAuthorsParamsSort = "issues"
+	ListAuthorsParamsSortLast        ListAuthorsParamsSort = "last"
+	ListAuthorsParamsSortLogin       ListAuthorsParamsSort = "login"
+	ListAuthorsParamsSortMinusIssues ListAuthorsParamsSort = "-issues"
+	ListAuthorsParamsSortMinusLast   ListAuthorsParamsSort = "-last"
+	ListAuthorsParamsSortMinusLogin  ListAuthorsParamsSort = "-login"
+	ListAuthorsParamsSortMinusPairs  ListAuthorsParamsSort = "-pairs"
+	ListAuthorsParamsSortMinusPulls  ListAuthorsParamsSort = "-pulls"
+	ListAuthorsParamsSortPairs       ListAuthorsParamsSort = "pairs"
+	ListAuthorsParamsSortPulls       ListAuthorsParamsSort = "pulls"
+)
+
+// Valid indicates whether the value is a known member of the ListAuthorsParamsSort enum.
+func (e ListAuthorsParamsSort) Valid() bool {
+	switch e {
+	case ListAuthorsParamsSortIssues:
+		return true
+	case ListAuthorsParamsSortLast:
+		return true
+	case ListAuthorsParamsSortLogin:
+		return true
+	case ListAuthorsParamsSortMinusIssues:
+		return true
+	case ListAuthorsParamsSortMinusLast:
+		return true
+	case ListAuthorsParamsSortMinusLogin:
+		return true
+	case ListAuthorsParamsSortMinusPairs:
+		return true
+	case ListAuthorsParamsSortMinusPulls:
+		return true
+	case ListAuthorsParamsSortPairs:
+		return true
+	case ListAuthorsParamsSortPulls:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPairsParamsSort.
+const (
+	ListPairsParamsSortAuthor          ListPairsParamsSort = "author"
+	ListPairsParamsSortComments        ListPairsParamsSort = "comments"
+	ListPairsParamsSortCreated         ListPairsParamsSort = "created"
+	ListPairsParamsSortForgejo         ListPairsParamsSort = "forgejo"
+	ListPairsParamsSortGithub          ListPairsParamsSort = "github"
+	ListPairsParamsSortMinusAuthor     ListPairsParamsSort = "-author"
+	ListPairsParamsSortMinusComments   ListPairsParamsSort = "-comments"
+	ListPairsParamsSortMinusCreated    ListPairsParamsSort = "-created"
+	ListPairsParamsSortMinusForgejo    ListPairsParamsSort = "-forgejo"
+	ListPairsParamsSortMinusGithub     ListPairsParamsSort = "-github"
+	ListPairsParamsSortMinusRepository ListPairsParamsSort = "-repository"
+	ListPairsParamsSortMinusState      ListPairsParamsSort = "-state"
+	ListPairsParamsSortMinusTitle      ListPairsParamsSort = "-title"
+	ListPairsParamsSortMinusUpdated    ListPairsParamsSort = "-updated"
+	ListPairsParamsSortRepository      ListPairsParamsSort = "repository"
+	ListPairsParamsSortState           ListPairsParamsSort = "state"
+	ListPairsParamsSortTitle           ListPairsParamsSort = "title"
+	ListPairsParamsSortUpdated         ListPairsParamsSort = "updated"
+)
+
+// Valid indicates whether the value is a known member of the ListPairsParamsSort enum.
+func (e ListPairsParamsSort) Valid() bool {
+	switch e {
+	case ListPairsParamsSortAuthor:
+		return true
+	case ListPairsParamsSortComments:
+		return true
+	case ListPairsParamsSortCreated:
+		return true
+	case ListPairsParamsSortForgejo:
+		return true
+	case ListPairsParamsSortGithub:
+		return true
+	case ListPairsParamsSortMinusAuthor:
+		return true
+	case ListPairsParamsSortMinusComments:
+		return true
+	case ListPairsParamsSortMinusCreated:
+		return true
+	case ListPairsParamsSortMinusForgejo:
+		return true
+	case ListPairsParamsSortMinusGithub:
+		return true
+	case ListPairsParamsSortMinusRepository:
+		return true
+	case ListPairsParamsSortMinusState:
+		return true
+	case ListPairsParamsSortMinusTitle:
+		return true
+	case ListPairsParamsSortMinusUpdated:
+		return true
+	case ListPairsParamsSortRepository:
+		return true
+	case ListPairsParamsSortState:
+		return true
+	case ListPairsParamsSortTitle:
+		return true
+	case ListPairsParamsSortUpdated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListQueueParamsSort.
+const (
+	ListQueueParamsSortAttempts        ListQueueParamsSort = "attempts"
+	ListQueueParamsSortDue             ListQueueParamsSort = "due"
+	ListQueueParamsSortError           ListQueueParamsSort = "error"
+	ListQueueParamsSortMarked          ListQueueParamsSort = "marked"
+	ListQueueParamsSortMinusAttempts   ListQueueParamsSort = "-attempts"
+	ListQueueParamsSortMinusDue        ListQueueParamsSort = "-due"
+	ListQueueParamsSortMinusError      ListQueueParamsSort = "-error"
+	ListQueueParamsSortMinusMarked     ListQueueParamsSort = "-marked"
+	ListQueueParamsSortMinusNext       ListQueueParamsSort = "-next"
+	ListQueueParamsSortMinusNumber     ListQueueParamsSort = "-number"
+	ListQueueParamsSortMinusRepository ListQueueParamsSort = "-repository"
+	ListQueueParamsSortNext            ListQueueParamsSort = "next"
+	ListQueueParamsSortNumber          ListQueueParamsSort = "number"
+	ListQueueParamsSortRepository      ListQueueParamsSort = "repository"
+)
+
+// Valid indicates whether the value is a known member of the ListQueueParamsSort enum.
+func (e ListQueueParamsSort) Valid() bool {
+	switch e {
+	case ListQueueParamsSortAttempts:
+		return true
+	case ListQueueParamsSortDue:
+		return true
+	case ListQueueParamsSortError:
+		return true
+	case ListQueueParamsSortMarked:
+		return true
+	case ListQueueParamsSortMinusAttempts:
+		return true
+	case ListQueueParamsSortMinusDue:
+		return true
+	case ListQueueParamsSortMinusError:
+		return true
+	case ListQueueParamsSortMinusMarked:
+		return true
+	case ListQueueParamsSortMinusNext:
+		return true
+	case ListQueueParamsSortMinusNumber:
+		return true
+	case ListQueueParamsSortMinusRepository:
+		return true
+	case ListQueueParamsSortNext:
+		return true
+	case ListQueueParamsSortNumber:
+		return true
+	case ListQueueParamsSortRepository:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListRepositoriesParamsSort.
+const (
+	Forgejo      ListRepositoriesParamsSort = "forgejo"
+	Health       ListRepositoriesParamsSort = "health"
+	Issues       ListRepositoriesParamsSort = "issues"
+	MinusForgejo ListRepositoriesParamsSort = "-forgejo"
+	MinusHealth  ListRepositoriesParamsSort = "-health"
+	MinusIssues  ListRepositoriesParamsSort = "-issues"
+	MinusName    ListRepositoriesParamsSort = "-name"
+	MinusPolled  ListRepositoriesParamsSort = "-polled"
+	MinusPulls   ListRepositoriesParamsSort = "-pulls"
+	MinusQueue   ListRepositoriesParamsSort = "-queue"
+	Name         ListRepositoriesParamsSort = "name"
+	Polled       ListRepositoriesParamsSort = "polled"
+	Pulls        ListRepositoriesParamsSort = "pulls"
+	Queue        ListRepositoriesParamsSort = "queue"
+)
+
+// Valid indicates whether the value is a known member of the ListRepositoriesParamsSort enum.
+func (e ListRepositoriesParamsSort) Valid() bool {
+	switch e {
+	case Forgejo:
+		return true
+	case Health:
+		return true
+	case Issues:
+		return true
+	case MinusForgejo:
+		return true
+	case MinusHealth:
+		return true
+	case MinusIssues:
+		return true
+	case MinusName:
+		return true
+	case MinusPolled:
+		return true
+	case MinusPulls:
+		return true
+	case MinusQueue:
+		return true
+	case Name:
+		return true
+	case Polled:
+		return true
+	case Pulls:
+		return true
+	case Queue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Author defines model for Author.
 type Author struct {
 	Issues int `json:"issues"`
@@ -130,6 +346,17 @@ type Author struct {
 	ProfileUrl *string `json:"profileUrl,omitempty"`
 	Pulls      int     `json:"pulls"`
 	Side       Side    `json:"side"`
+}
+
+// AuthorPage defines model for AuthorPage.
+type AuthorPage struct {
+	Items []Author `json:"items"`
+
+	// NextCursor Where the next page starts, for `cursor`. Absent on the last page.
+	NextCursor *string `json:"nextCursor,omitempty"`
+
+	// Total How many authors match, on all pages together.
+	Total int `json:"total"`
 }
 
 // CommentPair defines model for CommentPair.
@@ -291,7 +518,10 @@ type PairKind string
 type PairPage struct {
 	Items []Pair `json:"items"`
 
-	// Total How many pairs match, across all pages.
+	// NextCursor Where the next page starts, for `cursor`. Absent on the last page.
+	NextCursor *string `json:"nextCursor,omitempty"`
+
+	// Total How many pairs match, on all pages together.
 	Total int `json:"total"`
 }
 
@@ -350,6 +580,17 @@ type QueueEntry struct {
 	Url        string `json:"url"`
 }
 
+// QueuePage defines model for QueuePage.
+type QueuePage struct {
+	Items []QueueEntry `json:"items"`
+
+	// NextCursor Where the next page starts, for `cursor`. Absent on the last page.
+	NextCursor *string `json:"nextCursor,omitempty"`
+
+	// Total How many entries match, on all pages together.
+	Total int `json:"total"`
+}
+
 // QueueSummary defines model for QueueSummary.
 type QueueSummary struct {
 	Depth          int        `json:"depth"`
@@ -397,6 +638,17 @@ type Repository struct {
 	Queue          QueueSummary `json:"queue"`
 	RebaseRequests bool         `json:"rebaseRequests"`
 	TargetBranches []string     `json:"targetBranches"`
+}
+
+// RepositoryPage defines model for RepositoryPage.
+type RepositoryPage struct {
+	Items []Repository `json:"items"`
+
+	// NextCursor Where the next page starts, for `cursor`. Absent on the last page.
+	NextCursor *string `json:"nextCursor,omitempty"`
+
+	// Total How many repositories match, on all pages together.
+	Total int `json:"total"`
 }
 
 // Service defines model for Service.
@@ -556,6 +808,46 @@ type SystemTable struct {
 	VacuumThreshold int64 `json:"vacuumThreshold"`
 }
 
+// PageCursor defines model for PageCursor.
+type PageCursor = string
+
+// PageLimit defines model for PageLimit.
+type PageLimit = int
+
+// BadRequest defines model for BadRequest.
+type BadRequest = Error
+
+// ListAuthorsParams defines parameters for ListAuthors.
+type ListAuthorsParams struct {
+	// Limit Return at most this many items, and a `nextCursor` to read on from
+	// when there are more. Left out, every item comes in one answer.
+	Limit *PageLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Read on after the last item of a previous answer: its `nextCursor`,
+	// passed as is together with the same filters, `q`, `sort` and
+	// `limit`. A cursor names the item it follows, not a position, so
+	// items added or removed in the meantime neither repeat nor skip the
+	// ones after it.
+	//
+	// Each page is read when it is asked for; the pages together are no
+	// snapshot, and a cursor never expires. Sorted by a value that can
+	// change between two pages, such as a count or a time, an item whose
+	// value changed may cross from one page to the next and be seen twice
+	// or not at all.
+	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Q Keep only the authors whose login contains this text, ignoring case.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sort The column to sort by, descending with a leading `-`. `pairs` is
+	// what they opened in all, `last` the newest of it. Ties are
+	// ordered by login. Default `-pairs`, the most active first.
+	Sort *ListAuthorsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// ListAuthorsParamsSort defines parameters for ListAuthors.
+type ListAuthorsParamsSort string
+
 // ListPairsParams defines parameters for ListPairs.
 type ListPairsParams struct {
 	// Repository A repository's key, the GitHub repository as owner/name.
@@ -568,10 +860,35 @@ type ListPairsParams struct {
 	Author *string `form:"author,omitempty" json:"author,omitempty"`
 
 	// Q Matches the title, case-insensitively, or a number on either side.
-	Q      *string `form:"q,omitempty" json:"q,omitempty"`
-	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset *int    `form:"offset,omitempty" json:"offset,omitempty"`
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Limit Return at most this many items, and a `nextCursor` to read on from
+	// when there are more. Left out, every item comes in one answer.
+	Limit *PageLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Read on after the last item of a previous answer: its `nextCursor`,
+	// passed as is together with the same filters, `q`, `sort` and
+	// `limit`. A cursor names the item it follows, not a position, so
+	// items added or removed in the meantime neither repeat nor skip the
+	// ones after it.
+	//
+	// Each page is read when it is asked for; the pages together are no
+	// snapshot, and a cursor never expires. Sorted by a value that can
+	// change between two pages, such as a count or a time, an item whose
+	// value changed may cross from one page to the next and be seen twice
+	// or not at all.
+	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Sort The column to sort by, descending with a leading `-`. `created` is
+	// when the pair was made, `updated` when the bridge last changed
+	// it, `github` and `forgejo` the numbers, `comments` how many are
+	// paired. Pairs without a value come last either way; ties are
+	// ordered by id. Default `-created`, the newest first.
+	Sort *ListPairsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 }
+
+// ListPairsParamsSort defines parameters for ListPairs.
+type ListPairsParamsSort string
 
 // ListQueueParams defines parameters for ListQueue.
 type ListQueueParams struct {
@@ -579,4 +896,68 @@ type ListQueueParams struct {
 
 	// Failing Only entries whose last attempt failed.
 	Failing *bool `form:"failing,omitempty" json:"failing,omitempty"`
+
+	// Limit Return at most this many items, and a `nextCursor` to read on from
+	// when there are more. Left out, every item comes in one answer.
+	Limit *PageLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Read on after the last item of a previous answer: its `nextCursor`,
+	// passed as is together with the same filters, `q`, `sort` and
+	// `limit`. A cursor names the item it follows, not a position, so
+	// items added or removed in the meantime neither repeat nor skip the
+	// ones after it.
+	//
+	// Each page is read when it is asked for; the pages together are no
+	// snapshot, and a cursor never expires. Sorted by a value that can
+	// change between two pages, such as a count or a time, an item whose
+	// value changed may cross from one page to the next and be seen twice
+	// or not at all.
+	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Q Keep only the entries whose repository or last error contains this
+	// text, ignoring case, or whose number it is.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sort The column to sort by, descending with a leading `-`. `due` puts
+	// failing entries first, then orders by when they are due; `next`
+	// is when an entry is due, `marked` when it last changed. Entries
+	// without a value come last either way; ties are ordered by
+	// repository, side and number. Default `due`.
+	Sort *ListQueueParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 }
+
+// ListQueueParamsSort defines parameters for ListQueue.
+type ListQueueParamsSort string
+
+// ListRepositoriesParams defines parameters for ListRepositories.
+type ListRepositoriesParams struct {
+	// Limit Return at most this many items, and a `nextCursor` to read on from
+	// when there are more. Left out, every item comes in one answer.
+	Limit *PageLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Read on after the last item of a previous answer: its `nextCursor`,
+	// passed as is together with the same filters, `q`, `sort` and
+	// `limit`. A cursor names the item it follows, not a position, so
+	// items added or removed in the meantime neither repeat nor skip the
+	// ones after it.
+	//
+	// Each page is read when it is asked for; the pages together are no
+	// snapshot, and a cursor never expires. Sorted by a value that can
+	// change between two pages, such as a count or a time, an item whose
+	// value changed may cross from one page to the next and be seen twice
+	// or not at all.
+	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Q Keep only the repositories whose GitHub or Forgejo name contains this text, ignoring case.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sort The column to sort by, descending with a leading `-`. `health`
+	// puts the ones with failing work first, then the ones with queued
+	// work, then the rest; `issues` and `pulls` count the open ones;
+	// `polled` is the latest poll. Ties are ordered by name. Default
+	// `health`.
+	Sort *ListRepositoriesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// ListRepositoriesParamsSort defines parameters for ListRepositories.
+type ListRepositoriesParamsSort string

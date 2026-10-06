@@ -110,14 +110,30 @@ paths:
         most active first: GitHub logins for what came from GitHub, Forgejo
         logins for issues published from Forgejo. The bridge records the
         author of a pair, not of its comments.
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/PageCursor"
+        - name: q
+          in: query
+          description: Keep only the authors whose login contains this text, ignoring case.
+          schema: { type: string, maxLength: 200 }
+        - name: sort
+          in: query
+          description: |
+            The column to sort by, descending with a leading `-`. `pairs` is
+            what they opened in all, `last` the newest of it. Ties are
+            ordered by login. Default `-pairs`, the most active first.
+          schema:
+            type: string
+            enum: [pairs, issues, pulls, last, login, -pairs, -issues, -pulls, -last, -login]
+            default: -pairs
       responses:
         "200":
-          description: OK
+          description: The items that match, in the order `sort` gives — all of them, or one page with `limit`.
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/Author" }
+              schema: { $ref: "#/components/schemas/AuthorPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         default: { $ref: "#/components/responses/Error" }
 
   /repositories:
@@ -128,14 +144,32 @@ paths:
       description: |
         Every configured pair of repositories, with what the bridge holds for
         it: pair counts, queued work and how far each poll has read.
+      parameters:
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/PageCursor"
+        - name: q
+          in: query
+          description: Keep only the repositories whose GitHub or Forgejo name contains this text, ignoring case.
+          schema: { type: string, maxLength: 200 }
+        - name: sort
+          in: query
+          description: |
+            The column to sort by, descending with a leading `-`. `health`
+            puts the ones with failing work first, then the ones with queued
+            work, then the rest; `issues` and `pulls` count the open ones;
+            `polled` is the latest poll. Ties are ordered by name. Default
+            `health`.
+          schema:
+            type: string
+            enum: [health, name, forgejo, issues, pulls, queue, polled, -health, -name, -forgejo, -issues, -pulls, -queue, -polled]
+            default: health
       responses:
         "200":
-          description: OK
+          description: The items that match, in the order `sort` gives — all of them, or one page with `limit`.
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/Repository" }
+              schema: { $ref: "#/components/schemas/RepositoryPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         default: { $ref: "#/components/responses/Error" }
 
   /pairs:
@@ -144,8 +178,8 @@ paths:
       tags: [pairs]
       summary: Pairs of issues and pull requests
       description: |
-        Newest first. A pair is a GitHub issue or pull request and its Forgejo
-        counterpart.
+        A pair is a GitHub issue or pull request and its Forgejo counterpart.
+        Newest first unless `sort` says otherwise.
       parameters:
         - name: repository
           in: query
@@ -168,19 +202,28 @@ paths:
           in: query
           description: Matches the title, case-insensitively, or a number on either side.
           schema: { type: string, maxLength: 200 }
-        - name: limit
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/PageCursor"
+        - name: sort
           in: query
-          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
-        - name: offset
-          in: query
-          schema: { type: integer, minimum: 0, default: 0 }
+          description: |
+            The column to sort by, descending with a leading `-`. `created` is
+            when the pair was made, `updated` when the bridge last changed
+            it, `github` and `forgejo` the numbers, `comments` how many are
+            paired. Pairs without a value come last either way; ties are
+            ordered by id. Default `-created`, the newest first.
+          schema:
+            type: string
+            enum: [created, updated, title, repository, author, github, forgejo, state, comments,
+                   -created, -updated, -title, -repository, -author, -github, -forgejo, -state, -comments]
+            default: -created
       responses:
         "200":
-          description: OK
+          description: The items that match, in the order `sort` gives — all of them, or one page with `limit`.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PairPage" }
-        "400": { $ref: "#/components/responses/Error" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         default: { $ref: "#/components/responses/Error" }
 
   /pairs/{id}:
@@ -219,20 +262,73 @@ paths:
           in: query
           description: Only entries whose last attempt failed.
           schema: { type: boolean }
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/PageCursor"
+        - name: q
+          in: query
+          description: |
+            Keep only the entries whose repository or last error contains this
+            text, ignoring case, or whose number it is.
+          schema: { type: string, maxLength: 200 }
+        - name: sort
+          in: query
+          description: |
+            The column to sort by, descending with a leading `-`. `due` puts
+            failing entries first, then orders by when they are due; `next`
+            is when an entry is due, `marked` when it last changed. Entries
+            without a value come last either way; ties are ordered by
+            repository, side and number. Default `due`.
+          schema:
+            type: string
+            enum: [due, next, marked, attempts, repository, number, error,
+                   -due, -next, -marked, -attempts, -repository, -number, -error]
+            default: due
       responses:
         "200":
-          description: OK
+          description: The items that match, in the order `sort` gives — all of them, or one page with `limit`.
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: "#/components/schemas/QueueEntry" }
+              schema: { $ref: "#/components/schemas/QueuePage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         default: { $ref: "#/components/responses/Error" }
 
 components:
+  parameters:
+    PageLimit:
+      name: limit
+      in: query
+      description: |
+        Return at most this many items, and a `nextCursor` to read on from
+        when there are more. Left out, every item comes in one answer.
+      schema: { type: integer, minimum: 1, maximum: 1000 }
+    PageCursor:
+      name: cursor
+      in: query
+      description: |
+        Read on after the last item of a previous answer: its `nextCursor`,
+        passed as is together with the same filters, `q`, `sort` and
+        `limit`. A cursor names the item it follows, not a position, so
+        items added or removed in the meantime neither repeat nor skip the
+        ones after it.
+
+        Each page is read when it is asked for; the pages together are no
+        snapshot, and a cursor never expires. Sorted by a value that can
+        change between two pages, such as a count or a time, an item whose
+        value changed may cross from one page to the next and be seen twice
+        or not at all.
+      schema: { type: string, minLength: 1, maxLength: 2000 }
+
   responses:
     Error:
       description: Something went wrong
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: |
+        A parameter is not valid: a limit out of range, an unknown sort key,
+        or a cursor this API did not hand out for the same filters, q and
+        sort.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -433,7 +529,52 @@ components:
           items: { $ref: "#/components/schemas/Pair" }
         total:
           type: integer
-          description: How many pairs match, across all pages.
+          description: How many pairs match, on all pages together.
+        nextCursor:
+          type: string
+          description: Where the next page starts, for `cursor`. Absent on the last page.
+
+    QueuePage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/QueueEntry" }
+        total:
+          type: integer
+          description: How many entries match, on all pages together.
+        nextCursor:
+          type: string
+          description: Where the next page starts, for `cursor`. Absent on the last page.
+
+    AuthorPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Author" }
+        total:
+          type: integer
+          description: How many authors match, on all pages together.
+        nextCursor:
+          type: string
+          description: Where the next page starts, for `cursor`. Absent on the last page.
+
+    RepositoryPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Repository" }
+        total:
+          type: integer
+          description: How many repositories match, on all pages together.
+        nextCursor:
+          type: string
+          description: Where the next page starts, for `cursor`. Absent on the last page.
 
     Pair:
       type: object

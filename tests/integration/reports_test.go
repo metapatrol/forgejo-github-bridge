@@ -105,7 +105,7 @@ func TestReportsListPairs(t *testing.T) {
 	issue, pull := seedReports(t, st)
 	ctx := context.Background()
 
-	all, total, err := st.Pairs(ctx, store.PairFilter{})
+	all, total, _, err := st.Pairs(ctx, store.PairFilter{})
 	if err != nil || total != 4 || len(all) != 4 {
 		t.Fatalf("all = %d of %d, %v", len(all), total, err)
 	}
@@ -113,9 +113,13 @@ func TestReportsListPairs(t *testing.T) {
 		t.Errorf("not newest first: %+v", all[0])
 	}
 
-	page, total, _ := st.Pairs(ctx, store.PairFilter{Repository: "a/b", Limit: 2, Offset: 2})
-	if total != 3 || len(page) != 1 || page[0].ID != issue.ID {
-		t.Errorf("page = %+v of %d", page, total)
+	first, total, next, _ := st.Pairs(ctx, store.PairFilter{Repository: "a/b", Page: store.Page{Limit: 2}})
+	if total != 3 || len(first) != 2 || next == nil {
+		t.Fatalf("first page = %d of %d, next %v", len(first), total, next)
+	}
+	page, _, next, _ := st.Pairs(ctx, store.PairFilter{Repository: "a/b", Page: store.Page{Limit: 2, After: next}})
+	if len(page) != 1 || page[0].ID != issue.ID || next != nil {
+		t.Errorf("second page = %+v, next %v", page, next)
 	}
 
 	for _, tc := range []struct {
@@ -131,7 +135,7 @@ func TestReportsListPairs(t *testing.T) {
 		{"a Forgejo number", store.PairFilter{Repository: "a/b", Query: "#71"}, []int64{issue.ID}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, _, err := st.Pairs(ctx, tc.f)
+			got, _, _, err := st.Pairs(ctx, tc.f)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -170,7 +174,7 @@ func TestReportsListTheQueueFailingFirst(t *testing.T) {
 	issue, _ := seedReports(t, st)
 	ctx := context.Background()
 
-	q, err := st.Queue(ctx, store.QueueFilter{})
+	q, _, _, err := st.Queue(ctx, store.QueueFilter{})
 	if err != nil || len(q) != 3 {
 		t.Fatalf("queue = %+v, %v", q, err)
 	}
@@ -182,11 +186,11 @@ func TestReportsListTheQueueFailingFirst(t *testing.T) {
 			t.Errorf("an unpaired entry names a pair: %+v", e)
 		}
 	}
-	q, _ = st.Queue(ctx, store.QueueFilter{Repository: "c/d"})
+	q, _, _, _ = st.Queue(ctx, store.QueueFilter{Repository: "c/d"})
 	if len(q) != 1 || q[0].PairID == 0 {
 		t.Errorf("c/d = %+v", q)
 	}
-	q, _ = st.Queue(ctx, store.QueueFilter{FailingOnly: true})
+	q, _, _, _ = st.Queue(ctx, store.QueueFilter{FailingOnly: true})
 	if len(q) != 1 {
 		t.Errorf("failing = %+v", q)
 	}
@@ -218,7 +222,7 @@ func TestTheConsoleOnlyReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ro.Close()
-	if _, _, err := ro.Pairs(ctx, store.PairFilter{}); err != nil {
+	if _, _, _, err := ro.Pairs(ctx, store.PairFilter{}); err != nil {
 		t.Fatal(err)
 	}
 	err = ro.MarkDirty(ctx, store.DirtyKey{Repository: "a/b", Side: store.GitHub, Number: 1})
@@ -348,7 +352,7 @@ func TestAuthorsAndTheirPairs(t *testing.T) {
 	st := open(t)
 	seedReports(t, st)
 	ctx := context.Background()
-	authors, err := st.Authors(ctx)
+	authors, _, _, err := st.Authors(ctx, store.AuthorFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +366,7 @@ func TestAuthorsAndTheirPairs(t *testing.T) {
 	if a := byLogin["jdoe"]; a.Issues != 1 || a.Side != store.Forgejo {
 		t.Errorf("jdoe = %+v", a)
 	}
-	pairs, total, err := st.Pairs(ctx, store.PairFilter{Author: "alice"})
+	pairs, total, _, err := st.Pairs(ctx, store.PairFilter{Author: "alice"})
 	if err != nil || total != 1 || pairs[0].Author != "alice" {
 		t.Errorf("alice's pairs = %+v of %d, %v", pairs, total, err)
 	}
@@ -409,5 +413,119 @@ func TestAMaintenanceRoundVacuumsEveryTable(t *testing.T) {
 	}
 	if sys, _ := st.System(ctx); len(sys.Rounds) != 1 {
 		t.Errorf("a second round ran beside the first: %d rounds", len(sys.Rounds))
+	}
+}
+
+// walk reads every page of a list, a page of two at a time, and returns
+// the keys in the order it saw them.
+func walk[T any](t *testing.T, list func(store.Page) ([]T, int, *store.Position, error), sort string, key func(T) string) []string {
+	t.Helper()
+	var seen []string
+	var after *store.Position
+	for i := 0; i < 50; i++ {
+		page, _, next, err := list(store.Page{Sort: sort, Limit: 2, After: after})
+		if err != nil {
+			t.Fatalf("sort %s: %v", sort, err)
+		}
+		for _, it := range page {
+			seen = append(seen, key(it))
+		}
+		if next == nil {
+			return seen
+		}
+		after = next
+	}
+	t.Fatalf("sort %s: the pages do not end", sort)
+	return nil
+}
+
+func TestEverySortPagesThroughEveryRowOnce(t *testing.T) {
+	st := open(t)
+	seedReports(t, st)
+	ctx := context.Background()
+	pairs := func(p store.Page) ([]store.PairReport, int, *store.Position, error) {
+		return st.Pairs(ctx, store.PairFilter{Page: p})
+	}
+	queue := func(p store.Page) ([]store.QueueReport, int, *store.Position, error) {
+		return st.Queue(ctx, store.QueueFilter{Page: p})
+	}
+	authors := func(p store.Page) ([]store.Author, int, *store.Position, error) {
+		return st.Authors(ctx, store.AuthorFilter{Page: p})
+	}
+	check := func(sort string, paged []string, whole []string) {
+		t.Helper()
+		if strings.Join(paged, ",") != strings.Join(whole, ",") {
+			t.Errorf("sort %s: paged %v, whole %v", sort, paged, whole)
+		}
+	}
+	for _, sort := range []string{"created", "-created", "updated", "title", "-title", "repository", "author", "-author",
+		"github", "-forgejo", "state", "-comments"} {
+		whole, _, _, err := st.Pairs(ctx, store.PairFilter{Page: store.Page{Sort: sort}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var keys []string
+		for _, p := range whole {
+			keys = append(keys, strconv.FormatInt(p.ID, 10))
+		}
+		check(sort, walk(t, pairs, sort, func(p store.PairReport) string { return strconv.FormatInt(p.ID, 10) }), keys)
+	}
+	for _, sort := range []string{"due", "-due", "next", "marked", "-attempts", "repository", "number", "error", "-error"} {
+		whole, _, _, err := st.Queue(ctx, store.QueueFilter{Page: store.Page{Sort: sort}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := func(q store.QueueReport) string {
+			return q.Repository + string(q.Side) + strconv.FormatInt(q.Number, 10)
+		}
+		var keys []string
+		for _, q := range whole {
+			keys = append(keys, key(q))
+		}
+		check(sort, walk(t, queue, sort, key), keys)
+	}
+	for _, sort := range []string{"-pairs", "pairs", "login", "-last", "issues"} {
+		whole, _, _, err := st.Authors(ctx, store.AuthorFilter{Page: store.Page{Sort: sort}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := func(a store.Author) string { return a.Login + string(a.Side) }
+		var keys []string
+		for _, a := range whole {
+			keys = append(keys, key(a))
+		}
+		check(sort, walk(t, authors, sort, key), keys)
+	}
+
+	// Rows without a value come last, whichever the direction.
+	q, _, _, _ := st.Queue(ctx, store.QueueFilter{Page: store.Page{Sort: "-error"}})
+	if len(q) < 2 || q[0].LastError == "" || q[len(q)-1].LastError != "" {
+		t.Errorf("-error = %+v", q)
+	}
+	// The default puts failing entries first.
+	q, _, _, _ = st.Queue(ctx, store.QueueFilter{})
+	if q[0].Attempts == 0 {
+		t.Errorf("due: a failing entry is not first: %+v", q)
+	}
+	if _, _, _, err := st.Pairs(ctx, store.PairFilter{Page: store.Page{Sort: "bogus"}}); !errors.Is(err, store.ErrInvalid) {
+		t.Errorf("an unknown sort: %v", err)
+	}
+}
+
+func TestQueueAndAuthorsAreSearched(t *testing.T) {
+	st := open(t)
+	seedReports(t, st)
+	ctx := context.Background()
+	q, total, _, err := st.Queue(ctx, store.QueueFilter{Query: "http 403"})
+	if err != nil || total != 1 || len(q) != 1 {
+		t.Errorf("queue by error = %+v of %d, %v", q, total, err)
+	}
+	q, total, _, _ = st.Queue(ctx, store.QueueFilter{Query: "c/"})
+	if total != 1 || q[0].Repository != "c/d" {
+		t.Errorf("queue by repository = %+v", q)
+	}
+	a, total, _, err := st.Authors(ctx, store.AuthorFilter{Query: "AL"})
+	if err != nil || total != 1 || a[0].Login != "alice" {
+		t.Errorf("authors = %+v of %d, %v", a, total, err)
 	}
 }

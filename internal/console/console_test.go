@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -22,25 +23,31 @@ import (
 
 // reports is a canned store.Reports that records the filters it was given.
 type reports struct {
-	leader      store.Leader
-	stats       store.QueueStats
-	sums        map[string]store.RepositorySummary
-	pairs       []store.PairReport
-	comments    []store.CommentReport
-	queue       []store.QueueReport
-	pairFilter  store.PairFilter
-	queueFilter store.QueueFilter
-	system      store.System
-	limits      []store.RateLimit
-	authors     []store.Author
-	err         error
+	leader       store.Leader
+	stats        store.QueueStats
+	sums         map[string]store.RepositorySummary
+	pairs        []store.PairReport
+	comments     []store.CommentReport
+	queue        []store.QueueReport
+	pairFilter   store.PairFilter
+	queueFilter  store.QueueFilter
+	system       store.System
+	limits       []store.RateLimit
+	authors      []store.Author
+	authorFilter store.AuthorFilter
+	// next is the position every list returns as where its next page starts.
+	next *store.Position
+	err  error
 }
 
 func (r *reports) System(context.Context) (store.System, error) { return r.system, r.err }
 
 func (r *reports) RateLimits(context.Context) ([]store.RateLimit, error) { return r.limits, r.err }
 
-func (r *reports) Authors(context.Context) ([]store.Author, error) { return r.authors, r.err }
+func (r *reports) Authors(_ context.Context, f store.AuthorFilter) ([]store.Author, int, *store.Position, error) {
+	r.authorFilter = f
+	return r.authors, len(r.authors), r.next, r.err
+}
 
 func (r *reports) Leader(context.Context) (store.Leader, error)           { return r.leader, r.err }
 func (r *reports) QueueSummary(context.Context) (store.QueueStats, error) { return r.stats, r.err }
@@ -52,9 +59,9 @@ func (r *reports) RepositorySummaries(context.Context) (map[string]store.Reposit
 	return r.sums, r.err
 }
 
-func (r *reports) Pairs(_ context.Context, f store.PairFilter) ([]store.PairReport, int, error) {
+func (r *reports) Pairs(_ context.Context, f store.PairFilter) ([]store.PairReport, int, *store.Position, error) {
 	r.pairFilter = f
-	return r.pairs, len(r.pairs), r.err
+	return r.pairs, len(r.pairs), r.next, r.err
 }
 
 func (r *reports) Pair(_ context.Context, id int64) (store.PairReport, error) {
@@ -66,9 +73,9 @@ func (r *reports) Pair(_ context.Context, id int64) (store.PairReport, error) {
 	return store.PairReport{}, store.ErrNotFound
 }
 
-func (r *reports) Queue(_ context.Context, f store.QueueFilter) ([]store.QueueReport, error) {
+func (r *reports) Queue(_ context.Context, f store.QueueFilter) ([]store.QueueReport, int, *store.Position, error) {
 	r.queueFilter = f
-	return r.queue, r.err
+	return r.queue, len(r.queue), r.next, r.err
 }
 
 var (
@@ -142,9 +149,10 @@ func TestRepositoriesListEveryConfiguredOne(t *testing.T) {
 		"metapatrol/foo": {Counts: store.PairCounts{IssuesOpen: 4}, Cursors: []store.CursorReport{{Side: store.GitHub, Stream: store.Issues, Cursor: now, UpdatedAt: now}}},
 		"gone/repo":      {Counts: store.PairCounts{IssuesOpen: 9}},
 	}})
-	var repos []v1.Repository
-	get(t, h, "/api/v1/repositories", &repos)
-	if len(repos) != 1 {
+	var page v1.RepositoryPage
+	get(t, h, "/api/v1/repositories", &page)
+	repos := page.Items
+	if len(repos) != 1 || page.Total != 1 {
 		t.Fatalf("repos = %+v; only configured repositories are listed", repos)
 	}
 	r := repos[0]
@@ -160,8 +168,9 @@ func TestPairsAreLinkedOnBothSides(t *testing.T) {
 	r := &reports{pairs: []store.PairReport{issuePair, pullPair}}
 	h := newConsole(t, r)
 	var page v1.PairPage
-	get(t, h, "/api/v1/pairs?repository=metapatrol/foo&kind=pull&state=merged&origin=github&author=alice&q=%238&limit=10&offset=20", &page)
-	want := store.PairFilter{Repository: "metapatrol/foo", Kind: store.KindPull, State: store.StateMerged, Origin: store.GitHub, Author: "alice", Query: "#8", Limit: 10, Offset: 20}
+	get(t, h, "/api/v1/pairs?repository=metapatrol/foo&kind=pull&state=merged&origin=github&author=alice&q=%238&limit=10&sort=-updated", &page)
+	want := store.PairFilter{Repository: "metapatrol/foo", Kind: store.KindPull, State: store.StateMerged, Origin: store.GitHub,
+		Author: "alice", Query: "#8", Page: store.Page{Sort: "-updated", Limit: 10}}
 	if r.pairFilter != want {
 		t.Errorf("filter = %+v, want %+v", r.pairFilter, want)
 	}
@@ -186,14 +195,14 @@ func TestPairsAreLinkedOnBothSides(t *testing.T) {
 	}
 
 	get(t, h, "/api/v1/pairs", nil)
-	if r.pairFilter.Limit != 50 {
-		t.Errorf("default limit = %d", r.pairFilter.Limit)
+	if r.pairFilter.Limit != 0 || r.pairFilter.After != nil {
+		t.Errorf("without limit every pair comes in one answer: %+v", r.pairFilter.Page)
 	}
 }
 
 func TestBadFiltersAreRefused(t *testing.T) {
 	h := newConsole(t, &reports{})
-	for _, q := range []string{"kind=bug", "state=stale", "origin=gitlab", "limit=0", "limit=201", "offset=-1", "limit=x", "q=" + strings.Repeat("a", 201)} {
+	for _, q := range []string{"kind=bug", "state=stale", "origin=gitlab", "limit=0", "limit=1001", "limit=x", "cursor=%25%25", "cursor=e30", "q=" + strings.Repeat("a", 201)} {
 		res := get(t, h, "/api/v1/pairs?"+q, nil)
 		if res.StatusCode != http.StatusBadRequest {
 			t.Errorf("%s: status %d", q, res.StatusCode)
@@ -226,9 +235,10 @@ func TestOnePairWithItsComments(t *testing.T) {
 func TestQueue(t *testing.T) {
 	r := &reports{queue: []store.QueueReport{{DirtyKey: store.DirtyKey{Repository: "metapatrol/foo", Side: store.Forgejo, Number: 80}, MarkedAt: now, NotBefore: now}}}
 	h := newConsole(t, r)
-	var q []v1.QueueEntry
-	get(t, h, "/api/v1/queue?repository=metapatrol/foo&failing=true", &q)
-	if r.queueFilter != (store.QueueFilter{Repository: "metapatrol/foo", FailingOnly: true}) {
+	var page v1.QueuePage
+	get(t, h, "/api/v1/queue?repository=metapatrol/foo&failing=true&q=403&sort=-attempts", &page)
+	q := page.Items
+	if r.queueFilter != (store.QueueFilter{Repository: "metapatrol/foo", FailingOnly: true, Query: "403", Page: store.Page{Sort: "-attempts"}}) {
 		t.Errorf("filter = %+v", r.queueFilter)
 	}
 	if len(q) != 1 || q[0].Url != "https://forgejo.example.com/platform/foo/issues/80" || q[0].PairId != nil || q[0].LastError != nil {
@@ -349,13 +359,102 @@ func TestNoEventsWithoutASource(t *testing.T) {
 }
 
 func TestAuthorsLinkToTheirProfiles(t *testing.T) {
-	h := newConsole(t, &reports{authors: []store.Author{
+	r := &reports{authors: []store.Author{
 		{Login: "alice", Side: store.GitHub, Issues: 3, Pulls: 1, Last: now},
 		{Login: "jdoe", Side: store.Forgejo, Issues: 1, Last: now},
-	}})
-	var a []v1.Author
-	get(t, h, "/api/v1/authors", &a)
+	}}
+	h := newConsole(t, r)
+	var page v1.AuthorPage
+	get(t, h, "/api/v1/authors?q=al&sort=login", &page)
+	a := page.Items
+	if r.authorFilter != (store.AuthorFilter{Query: "al", Page: store.Page{Sort: "login"}}) {
+		t.Errorf("filter = %+v", r.authorFilter)
+	}
 	if len(a) != 2 || *a[0].ProfileUrl != "https://github.com/alice" || *a[1].ProfileUrl != "https://forgejo.example.com/jdoe" || a[0].Issues != 3 {
 		t.Errorf("authors = %+v", a)
+	}
+}
+
+func TestACursorReadsOnWhereThePageEnded(t *testing.T) {
+	r := &reports{pairs: []store.PairReport{issuePair}, next: &store.Position{
+		Value: store.SortValueOf(now), Tie: []store.SortValue{store.SortValueOf(int64(1))}}}
+	h := newConsole(t, r)
+	var first v1.PairPage
+	get(t, h, "/api/v1/pairs?kind=issue&q=crash&limit=1", &first)
+	if first.NextCursor == nil {
+		t.Fatal("no cursor although the store has more")
+	}
+
+	var second v1.PairPage
+	res := get(t, h, "/api/v1/pairs?kind=issue&q=crash&limit=1&cursor="+*first.NextCursor, &second)
+	if res.StatusCode != http.StatusOK || r.pairFilter.After == nil || r.pairFilter.After.Tie[0].Param() != int64(1) ||
+		!r.pairFilter.After.Value.Time.Equal(now) {
+		t.Errorf("status %d, after %+v", res.StatusCode, r.pairFilter.After)
+	}
+
+	// The same cursor with other filters, q or sort is refused: it names a
+	// row of another list.
+	for _, other := range []string{"kind=pull&q=crash", "kind=issue&q=other", "kind=issue&q=crash&sort=title"} {
+		if res := get(t, h, "/api/v1/pairs?"+other+"&limit=1&cursor="+*first.NextCursor, nil); res.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: status %d", other, res.StatusCode)
+		}
+	}
+	r.next = nil
+	var last v1.PairPage
+	get(t, h, "/api/v1/pairs?kind=issue&q=crash&limit=1", &last)
+	if last.NextCursor != nil {
+		t.Errorf("a cursor on the last page: %s", *last.NextCursor)
+	}
+}
+
+func TestAnUnknownSortIsRefused(t *testing.T) {
+	h := newConsole(t, &reports{err: fmt.Errorf("%w: cannot sort by \"x\"", store.ErrInvalid)})
+	if res := get(t, h, "/api/v1/pairs?sort=x", nil); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("status %d", res.StatusCode)
+	}
+}
+
+func TestRepositoriesAreSearchedSortedAndPaged(t *testing.T) {
+	ref := func(s string) config.RepoRef { r, _ := config.ParseRepoRef(s); return r }
+	repos := []config.Repository{
+		{GitHub: ref("metapatrol/alpha"), Forgejo: ref("platform/alpha")},
+		{GitHub: ref("metapatrol/beta"), Forgejo: ref("platform/beta")},
+		{GitHub: ref("metapatrol/gamma"), Forgejo: ref("ai/gamma")},
+	}
+	web, _ := url.Parse("https://forgejo.example.com")
+	h := New(&reports{sums: map[string]store.RepositorySummary{
+		"metapatrol/gamma": {Queue: store.QueueStats{Depth: 2, Failing: 1}},
+		"metapatrol/beta":  {Queue: store.QueueStats{Depth: 1}},
+	}}, Options{Repositories: repos, ForgejoWebURL: web, Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+
+	keys := func(p v1.RepositoryPage) (out []string) {
+		for _, r := range p.Items {
+			out = append(out, r.Key)
+		}
+		return
+	}
+	var page v1.RepositoryPage
+	get(t, h, "/api/v1/repositories", &page)
+	if got := strings.Join(keys(page), ","); got != "metapatrol/gamma,metapatrol/beta,metapatrol/alpha" {
+		t.Errorf("health order = %s", got)
+	}
+	get(t, h, "/api/v1/repositories?q=PLATFORM&sort=-name", &page)
+	if got := strings.Join(keys(page), ","); got != "metapatrol/beta,metapatrol/alpha" || page.Total != 2 {
+		t.Errorf("q and -name = %s of %d", got, page.Total)
+	}
+
+	var seen []string
+	cursor := ""
+	for i := 0; i < 5; i++ {
+		var p v1.RepositoryPage
+		get(t, h, "/api/v1/repositories?sort=name&limit=2"+cursor, &p)
+		seen = append(seen, keys(p)...)
+		if p.NextCursor == nil {
+			break
+		}
+		cursor = "&cursor=" + *p.NextCursor
+	}
+	if got := strings.Join(seen, ","); got != "metapatrol/alpha,metapatrol/beta,metapatrol/gamma" {
+		t.Errorf("paged = %s", got)
 	}
 }
