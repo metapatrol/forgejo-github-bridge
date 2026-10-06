@@ -79,6 +79,19 @@ shortens a failover and nothing else.
 | poll.fullResync | string | `"6h"` | How often every open bridged issue is reconciled regardless of polls, which is what notices deleted comments. |
 | poll.interval | string | `"60s"` | How often each repository is polled on each side. |
 | port | int | `8080` | The port probes and metrics are served on. Cluster-internal; the bridge has no public endpoint. |
+| prometheusRule.additionalLabels | object | `{}` | Labels the Prometheus instance selects rules by. |
+| prometheusRule.alertLabels | object | `{}` | Labels added to every alert, e.g. a team for routing. |
+| prometheusRule.alerts.down | object | `{"enabled":true,"for":"5m","severity":"critical"}` | No instance is scraped, or none is up. |
+| prometheusRule.alerts.maintenanceFailing | object | `{"enabled":true,"for":"0m","severity":"warning"}` | A database maintenance round failed in the last two hours. |
+| prometheusRule.alerts.maintenanceOverdue | object | `{"enabled":true,"for":"30m","intervals":2,"severity":"warning"}` | No maintenance round finished for this many intervals; quiet while maintenance is off. |
+| prometheusRule.alerts.noLeader | object | `{"enabled":true,"for":"5m","severity":"critical"}` | Instances are up, but none holds the leader lock: nothing crosses. |
+| prometheusRule.alerts.pollsFailing | object | `{"enabled":true,"for":"5m","seconds":900,"severity":"warning"}` | A poll of one side of one repository has not succeeded for this long. |
+| prometheusRule.alerts.queueStuck | object | `{"enabled":true,"for":"15m","seconds":3600,"severity":"warning"}` | The oldest queued resource has waited this long. |
+| prometheusRule.alerts.rateLimitLow | object | `{"enabled":true,"for":"10m","ratio":0.1,"severity":"warning"}` | Less than this share of a GitHub rate-limit window is left. |
+| prometheusRule.alerts.reconcilesFailing | object | `{"enabled":true,"for":"30m","severity":"warning"}` | Queued resources whose last reconcile failed, for this long. |
+| prometheusRule.enabled | bool | `false` | Render a PrometheusRule. Requires the Prometheus operator's CRDs, and the metrics scraped with the job label this release's Service gives them (serviceMonitor.enabled does that). |
+| prometheusRule.namespace | string | `""` |  |
+| prometheusRule.runbookURL | string | `"https://github.com/metapatrol/forgejo-github-bridge/blob/main/docs/operations.md"` | Where the alerts' runbook links point: the operations guide, an anchor per alert. |
 | replicaCount | int | `1` | One replica does the work. A second one waits on the leader lock and only shortens a failover; it never shares the work (docs/design.md §7). |
 | repositories | list | `[]` | The bridged repositories. Each entry pairs a public GitHub repository with the private Forgejo repository that is its source of truth.    - github: example-org/foo      # required     forgejo: platform/foo       # required     publishLabel: public        # makes a Forgejo issue public     importLabel: github         # marks issues imported from GitHub     internalPrefix: /internal   # keeps a Forgejo comment private     importSince: "2026-09-01T00:00:00Z"     # Pull requests, imported once target branches are named:     targetBranches: [develop]   # the bases a pull request may target     contrib: github-contrib/foo # the fork heads are pushed to; defaults to                                 # <contrib login>/<name>, forked at startup     rebaseRequests: false       # ask contributors to rebase outdated PRs     ciPaths: [.forgejo/, .github/]     messages: {}                # per-repository overrides of `messages` |
 | resources.limits.cpu | string | `"500m"` |  |

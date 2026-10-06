@@ -169,6 +169,68 @@ serviceMonitor:
   interval: 30s
   scrapeTimeout: ""
 
+# Alerts over the metrics the ServiceMonitor scrapes (docs/operations.md#alerts).
+# Each alert can be turned off, or given another `for`, severity or threshold.
+prometheusRule:
+  # -- Render a PrometheusRule. Requires the Prometheus operator's CRDs, and
+  # the metrics scraped with the job label this release's Service gives them
+  # (serviceMonitor.enabled does that).
+  enabled: false
+  namespace: ""
+  # -- Labels the Prometheus instance selects rules by.
+  additionalLabels: {}
+  # -- Labels added to every alert, e.g. a team for routing.
+  alertLabels: {}
+  # -- Where the alerts' runbook links point: the operations guide, an anchor
+  # per alert.
+  runbookURL: https://github.com/metapatrol/forgejo-github-bridge/blob/main/docs/operations.md
+  alerts:
+    # -- No instance is scraped, or none is up.
+    down:
+      enabled: true
+      for: 5m
+      severity: critical
+    # -- Instances are up, but none holds the leader lock: nothing crosses.
+    noLeader:
+      enabled: true
+      for: 5m
+      severity: critical
+    # -- A poll of one side of one repository has not succeeded for this long.
+    pollsFailing:
+      enabled: true
+      for: 5m
+      severity: warning
+      seconds: 900
+    # -- Queued resources whose last reconcile failed, for this long.
+    reconcilesFailing:
+      enabled: true
+      for: 30m
+      severity: warning
+    # -- The oldest queued resource has waited this long.
+    queueStuck:
+      enabled: true
+      for: 15m
+      severity: warning
+      seconds: 3600
+    # -- Less than this share of a GitHub rate-limit window is left.
+    rateLimitLow:
+      enabled: true
+      for: 10m
+      severity: warning
+      ratio: 0.1
+    # -- A database maintenance round failed in the last two hours.
+    maintenanceFailing:
+      enabled: true
+      for: 0m
+      severity: warning
+    # -- No maintenance round finished for this many intervals; quiet while
+    # maintenance is off.
+    maintenanceOverdue:
+      enabled: true
+      for: 30m
+      severity: warning
+      intervals: 2
+
 networkPolicy:
   # -- Restrict ingress to the probe and metrics port, from the namespaces
   # below, and to the console's port from `console.networkPolicyFrom`. The

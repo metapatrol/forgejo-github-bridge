@@ -153,6 +153,7 @@ helm-verify:
 	echo "--- render, everything switched on"; \
 	helm template $(CHART) $(HELM_MINIMUM) \
 		--set serviceMonitor.enabled=true \
+		--set prometheusRule.enabled=true \
 		--set networkPolicy.enabled=true \
 		--set forgejo.caSecret=forgejo-ca \
 		--set forgejo.webURL=https://forgejo.example.com \
@@ -195,6 +196,17 @@ helm-verify:
 		ARGS="$(HELM_MINIMUM) --set console.enabled=true"; \
 	$(MAKE) --no-print-directory helm-rejects-pattern \
 		WHY="a console nobody turned on" PATTERN="BRIDGE_CONSOLE_ADDR" ARGS="$(HELM_MINIMUM)"; \
+	$(MAKE) --no-print-directory helm-contains \
+		WHY="the alerts, scoped to this release's job" WANT='forgejo_github_bridge_leader{job="release-name-forgejo-github-bridge", namespace="default"}' \
+		ARGS="$(HELM_MINIMUM) --set prometheusRule.enabled=true"; \
+	$(MAKE) --no-print-directory helm-contains \
+		WHY="an alert's threshold from the values" WANT="< 0.25" \
+		ARGS="$(HELM_MINIMUM) --set prometheusRule.enabled=true --set prometheusRule.alerts.rateLimitLow.ratio=0.25"; \
+	$(MAKE) --no-print-directory helm-rejects-pattern \
+		WHY="an alert someone turned off" PATTERN="ForgejoGitHubBridgeQueueStuck" \
+		ARGS="$(HELM_MINIMUM) --set prometheusRule.enabled=true --set prometheusRule.alerts.queueStuck.enabled=false"; \
+	$(MAKE) --no-print-directory helm-rejects-pattern \
+		WHY="alerts nobody turned on" PATTERN="kind: PrometheusRule" ARGS="$(HELM_MINIMUM)"; \
 	echo "--- the chart must refuse what it says it refuses"; \
 	$(MAKE) --no-print-directory helm-refuses \
 		WHY="the console on the probe port" ARGS="$(HELM_MINIMUM) --set console.enabled=true --set console.port=8080"; \

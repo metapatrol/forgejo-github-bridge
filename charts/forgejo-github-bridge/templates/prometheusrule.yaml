@@ -1,0 +1,122 @@
+{{- if .Values.prometheusRule.enabled }}
+{{- /*
+  The alerts of docs/operations.md#alerts. Every expression selects this
+  release's metrics by the job label the ServiceMonitor gives them, which is
+  the Service's name, and its namespace.
+*/}}
+{{- $sel := printf "job=%q, namespace=%q" (include "bridge.fullname" .) .Release.Namespace }}
+{{- $m := "forgejo_github_bridge_" }}
+{{- $a := .Values.prometheusRule.alerts }}
+{{- $runbook := .Values.prometheusRule.runbookURL }}
+{{- $labels := .Values.prometheusRule.alertLabels }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "bridge.fullname" . }}
+  namespace: {{ default .Release.Namespace .Values.prometheusRule.namespace }}
+  labels:
+    {{- include "bridge.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: forgejo-github-bridge
+      rules:
+        {{- with $a.down }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeDown
+          expr: absent(up{ {{- $sel -}} }) or max(up{ {{- $sel -}} }) == 0
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: forgejo-github-bridge is down
+            description: No instance of the bridge in {{ $.Release.Namespace }} answers Prometheus. Nothing crosses between GitHub and Forgejo; changes wait and are caught up once it is back.
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgedown
+        {{- end }}{{ end }}
+        {{- with $a.noLeader }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeNoLeader
+          expr: sum({{ $m }}leader{ {{- $sel -}} }) == 0
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: No bridge instance is doing the work
+            description: The bridge's instances are up, but none holds the leader lock, so none polls or reconciles. Usually the database is unreachable.
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgenoleader
+        {{- end }}{{ end }}
+        {{- with $a.pollsFailing }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgePollsFailing
+          expr: time() - max by (repository, side) ({{ $m }}last_successful_poll_timestamp_seconds{ {{- $sel -}} }) > {{ .seconds }}
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: "Polling {{`{{ $labels.side }}`}} for {{`{{ $labels.repository }}`}} fails"
+            description: "No poll of {{`{{ $labels.side }}`}} for {{`{{ $labels.repository }}`}} has succeeded for {{`{{ $value | humanizeDuration }}`}}. The log says \"poll failed\" with the reason: a forge unreachable, a token rejected, the rate limit exhausted."
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgepollsfailing
+        {{- end }}{{ end }}
+        {{- with $a.reconcilesFailing }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeReconcilesFailing
+          expr: max({{ $m }}dirty_failing{ {{- $sel -}} }) > 0
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: Issues or pull requests keep failing to cross
+            description: "{{`{{ $value }}`}} queued resources failed their last reconcile and have kept failing. The console's queue, or the log line \"reconcile failed\", says why."
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgereconcilesfailing
+        {{- end }}{{ end }}
+        {{- with $a.queueStuck }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeQueueStuck
+          expr: max({{ $m }}dirty_oldest_age_seconds{ {{- $sel -}} }) > {{ .seconds }}
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: Something has waited in the bridge's queue for long
+            description: "The oldest queued resource has waited {{`{{ $value | humanizeDuration }}`}}. Backoff tops out at 30 minutes, so this is a resource that fails on every attempt, or a bridge that does not work its queue."
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgequeuestuck
+        {{- end }}{{ end }}
+        {{- with $a.rateLimitLow }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeRateLimitLow
+          expr: min by (resource) ({{ $m }}github_rate_limit_window_remaining{ {{- $sel -}} }) / max by (resource) ({{ $m }}github_rate_limit_window_limit{ {{- $sel -}} } > 0) < {{ .ratio }}
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: "The GitHub {{`{{ $labels.resource }}`}} rate limit is nearly spent"
+            description: "Less than {{ mulf .ratio 100.0 }} % of the installation's {{`{{ $labels.resource }}`}} window is left. When it runs out, polls fail until GitHub starts the window over."
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgeratelimitlow
+        {{- end }}{{ end }}
+        {{- with $a.maintenanceFailing }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeMaintenanceFailing
+          expr: sum(increase({{ $m }}db_maintenance_rounds_total{ {{- $sel -}}, outcome="failed"}[2h])) > 0
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: A database maintenance round failed
+            description: A table or index of the bridge's database could not be vacuumed, analyzed or rebuilt. The log line "database maintenance round done" and the console's system page name what failed.
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgemaintenancefailing
+        {{- end }}{{ end }}
+        {{- with $a.maintenanceOverdue }}{{ if .enabled }}
+        - alert: ForgejoGitHubBridgeMaintenanceOverdue
+          expr: (time() - max({{ $m }}db_maintenance_last_round_timestamp_seconds{ {{- $sel -}} })) > {{ .intervals }} * max({{ $m }}db_maintenance_interval_seconds{ {{- $sel -}} } > 0)
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            {{- with $labels }}{{ toYaml . | nindent 12 }}{{ end }}
+          annotations:
+            summary: No database maintenance round has run for long
+            description: "The last maintenance round finished {{`{{ $value | humanizeDuration }}`}} ago, more than {{ .intervals }} intervals. Autovacuum still keeps the tables; the round is the backstop."
+            runbook_url: {{ $runbook }}#alert-forgejogithubbridgemaintenanceoverdue
+        {{- end }}{{ end }}
+{{- end }}
