@@ -443,6 +443,14 @@ func TestRepositoriesAreSearchedSortedAndPaged(t *testing.T) {
 		t.Errorf("q and -name = %s of %d", got, page.Total)
 	}
 
+	pr := []config.Repository{repos[0], repos[1]}
+	pr[0].TargetBranches = []string{"develop"}
+	h2 := New(&reports{}, Options{Repositories: pr, ForgejoWebURL: web, Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	get(t, h2, "/api/v1/repositories?pullRequests=true", &page)
+	if got := strings.Join(keys(page), ","); got != "metapatrol/alpha" || page.Total != 1 {
+		t.Errorf("pullRequests=true = %s of %d", got, page.Total)
+	}
+
 	var seen []string
 	cursor := ""
 	for i := 0; i < 5; i++ {

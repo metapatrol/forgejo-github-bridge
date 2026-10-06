@@ -948,6 +948,9 @@ type ListRepositoriesParams struct {
 	// or not at all.
 	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 
+	// PullRequests Keep only the repositories that import pull requests, or with false only those that do not.
+	PullRequests *bool `form:"pullRequests,omitempty" json:"pullRequests,omitempty"`
+
 	// Q Keep only the repositories whose GitHub or Forgejo name contains this text, ignoring case.
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 

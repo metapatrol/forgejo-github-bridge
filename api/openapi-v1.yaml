@@ -147,6 +147,10 @@ paths:
       parameters:
         - $ref: "#/components/parameters/PageLimit"
         - $ref: "#/components/parameters/PageCursor"
+        - name: pullRequests
+          in: query
+          description: Keep only the repositories that import pull requests, or with false only those that do not.
+          schema: { type: boolean }
         - name: q
           in: query
           description: Keep only the repositories whose GitHub or Forgejo name contains this text, ignoring case.

@@ -374,7 +374,7 @@ func queueSummary(q store.QueueStats) v1.QueueSummary {
 // ListRepositories implements v1.ServerInterface.
 func (s *server) ListRepositories(w http.ResponseWriter, r *http.Request, p v1.ListRepositoriesParams) {
 	q, sort := deref(p.Q), string(deref(p.Sort))
-	pg, err := newPaging(p.Limit, p.Cursor, sort, filter("q", p.Q))
+	pg, err := newPaging(p.Limit, p.Cursor, sort, filter("pullRequests", p.PullRequests), filter("q", p.Q))
 	if err != nil {
 		s.pageError(w, r, err)
 		return
@@ -391,6 +391,9 @@ func (s *server) ListRepositories(w http.ResponseWriter, r *http.Request, p v1.L
 	for _, cfg := range s.opts.Repositories {
 		if needle != "" && !strings.Contains(strings.ToLower(cfg.GitHub.String()), needle) &&
 			!strings.Contains(strings.ToLower(cfg.Forgejo.String()), needle) {
+			continue
+		}
+		if p.PullRequests != nil && cfg.ImportsPullRequests() != *p.PullRequests {
 			continue
 		}
 		sum := sums[cfg.Key()]

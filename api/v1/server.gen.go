@@ -321,6 +321,14 @@ func (siw *ServerInterfaceWrapper) ListRepositories(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// ------------- Optional query parameter "pullRequests" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "pullRequests", r.URL.Query(), &params.PullRequests, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pullRequests", Err: err})
+		return
+	}
+
 	// ------------- Optional query parameter "q" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
