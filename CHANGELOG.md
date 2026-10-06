@@ -1,3 +1,42 @@
+# [0.4.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.3.1...v0.4.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **ui:** a tab left open across a deployment reloads onto the new build ([281e4e0](https://github.com/metapatrol/forgejo-github-bridge/commit/281e4e03d7dbdc49f7db619e8a1d80b6dd2c932b))
+
+
+### Features
+
+* /repositories filters by pullRequests ([72ad2c2](https://github.com/metapatrol/forgejo-github-bridge/commit/72ad2c224e5853dffca31c1cfaedab6bc936ab33))
+* authors and the rebase comment in the console API ([136a049](https://github.com/metapatrol/forgejo-github-bridge/commit/136a049ea7d2b61607e08d38fac91a9e995e2748))
+* live console events and a system page ([dc7df73](https://github.com/metapatrol/forgejo-github-bridge/commit/dc7df730abbfa69a8646a8462b8eb42dbee3361c))
+* queue entries name the kind of their pair ([dda1535](https://github.com/metapatrol/forgejo-github-bridge/commit/dda153573a493a219df67b2a673e8d57185a37bd))
+* read-only console API, served on a listener of its own ([6ebebf1](https://github.com/metapatrol/forgejo-github-bridge/commit/6ebebf1f4ea1199c1ce6fadbd8e2fa8e1e97b93e))
+* scheduled database maintenance, shown on the system page ([9d05aa5](https://github.com/metapatrol/forgejo-github-bridge/commit/9d05aa5f0d997642e3130c6e0a130854b6e3d49a))
+* search, sort and cursor paging on every console list ([dcf9ae8](https://github.com/metapatrol/forgejo-github-bridge/commit/dcf9ae8233c4aa767cd2916e6d70c34070c46174))
+* **store:** record each pair's public title and author ([ec6d9bf](https://github.com/metapatrol/forgejo-github-bridge/commit/ec6d9bf88d7f7f0a5af8518afc5da6063a0533ef))
+* the GitHub rate limit in the console ([a278d44](https://github.com/metapatrol/forgejo-github-bridge/commit/a278d4470a168312053fc88368c46d18afd38f21))
+* **ui:** a pair's history, and people ([7863668](https://github.com/metapatrol/forgejo-github-bridge/commit/78636685d32bccf498c5a34962d9042e18728906))
+* **ui:** a repository typeahead, and contributors by name ([bd4ce0d](https://github.com/metapatrol/forgejo-github-bridge/commit/bd4ce0dba8e8e75f03ba114b799a0fa1d89bc71b))
+* **ui:** every list searched, sorted and paged by the API ([fcdf67d](https://github.com/metapatrol/forgejo-github-bridge/commit/fcdf67df7822b6ea9cc9802d889d70cd92af43fd))
+* **ui:** issue and pull request lists open on what is open ([2fe81bd](https://github.com/metapatrol/forgejo-github-bridge/commit/2fe81bdc19ec548ef545d352a7c4a7f30f60fc0e))
+* **ui:** issues and pull requests apart ([66ce742](https://github.com/metapatrol/forgejo-github-bridge/commit/66ce742db03651a6a62feb70409b375c065d84c5))
+* **ui:** live updates and a system page ([789e53a](https://github.com/metapatrol/forgejo-github-bridge/commit/789e53acc988b3f7a4004f59426ca43cfc8875f0))
+* **ui:** no notice for failing entries; the queue tile says it ([82aac73](https://github.com/metapatrol/forgejo-github-bridge/commit/82aac736e1119f7bd4bceb76ca9156925003ea48))
+* **ui:** overview tiles GitHub, issues, pull requests, queue ([824ec82](https://github.com/metapatrol/forgejo-github-bridge/commit/824ec82ef5688a71c8dcbb732f1d42b3a0f101c3))
+* **ui:** overview tiles link to their pages, the GitHub rate limit, no pause ([7440388](https://github.com/metapatrol/forgejo-github-bridge/commit/74403889fe591408f69d3b86a47febb348e615b4))
+* **ui:** people are contributors ([79d0328](https://github.com/metapatrol/forgejo-github-bridge/commit/79d03285fe0e43ff1a3f910413e9936910992f18))
+* **ui:** repositories as a status list, problems first ([0a79e0c](https://github.com/metapatrol/forgejo-github-bridge/commit/0a79e0cf6218f1cd0b735a917d6c4995d3e9046b))
+* **ui:** repositories as narrow tiles on the overview and their page ([eef42fa](https://github.com/metapatrol/forgejo-github-bridge/commit/eef42fac3d012e7b2feeb4f72ccf33f8d74e05a3))
+* **ui:** repositories live on the overview ([890fcc7](https://github.com/metapatrol/forgejo-github-bridge/commit/890fcc7d5de7310a92ad847139afe29c593aeff0))
+* **ui:** the console, on the metapatrol brand ([6d0b5b1](https://github.com/metapatrol/forgejo-github-bridge/commit/6d0b5b1f10dd601e6eaf736a067e29b89b356b06))
+* **ui:** the maintenance rounds on the system page ([5b01a75](https://github.com/metapatrol/forgejo-github-bridge/commit/5b01a755c70feecc0cc688817ca05b64e79bec68))
+* **ui:** the pull request list suggests only repositories that import them, by the API ([fb01f12](https://github.com/metapatrol/forgejo-github-bridge/commit/fb01f12cff4b8cb5e90eed110549d26f27741347))
+* **ui:** the sidebar status is the console's own connection ([2dee93f](https://github.com/metapatrol/forgejo-github-bridge/commit/2dee93fa9303c2f3358f09a235b345d43a12d231))
+* **ui:** the stream's state in the sidebar status, not in a header of its own ([3e00824](https://github.com/metapatrol/forgejo-github-bridge/commit/3e0082404aa683a0487e018aa0f8505e01a1df86))
+* **ui:** the system page leads with service, database, GitHub and maintenance ([487b345](https://github.com/metapatrol/forgejo-github-bridge/commit/487b34527a1f1cab46a0c306306d15cdf57364ad))
+
 ## [0.3.1](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.3.0...v0.3.1) (2026-09-26)
 
 
