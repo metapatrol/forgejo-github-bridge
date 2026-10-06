@@ -176,3 +176,51 @@ func TestPullRequestsWithoutAnExplicitContrib(t *testing.T) {
 		t.Errorf("want pull requests on and the contrib repository left to the bridge: %+v", r)
 	}
 }
+
+func TestTheConsoleIsOffUnlessAsked(t *testing.T) {
+	cfg, err := load(env(t, minimal, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Mode != ModeBridge || cfg.ConsoleAddr != "" {
+		t.Errorf("mode %q, console %q", cfg.Mode, cfg.ConsoleAddr)
+	}
+	cfg, err = load(env(t, minimal, map[string]string{"BRIDGE_CONSOLE_ADDR": ":8090"}))
+	if err != nil || cfg.ConsoleAddr != ":8090" {
+		t.Errorf("console %q, %v", cfg.ConsoleAddr, err)
+	}
+}
+
+func TestAConsoleNeedsOnlyTheDatabase(t *testing.T) {
+	cfg, err := load(env(t, minimal+"    targetBranches: [develop]\n", map[string]string{
+		"BRIDGE_MODE":                    "console",
+		"BRIDGE_GITHUB_APP_ID":           "",
+		"BRIDGE_GITHUB_PRIVATE_KEY_FILE": "",
+		"BRIDGE_FORGEJO_TOKEN":           "",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConsoleAddr != ":8090" || cfg.ForgejoBrowserURL().String() != "https://forgejo.internal" {
+		t.Errorf("console %q, Forgejo %s", cfg.ConsoleAddr, cfg.ForgejoBrowserURL())
+	}
+}
+
+func TestModeRefusals(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"an unknown mode", map[string]string{"BRIDGE_MODE": "both"}, "BRIDGE_MODE"},
+		{"the console on the probe listener", map[string]string{"BRIDGE_CONSOLE_ADDR": ":8080"}, "BRIDGE_CONSOLE_ADDR"},
+		{"a console without a database", map[string]string{"BRIDGE_MODE": "console", "BRIDGE_DATABASE_URL": ""}, "BRIDGE_DATABASE_URL"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := load(env(t, minimal, tc.env))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

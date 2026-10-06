@@ -5,7 +5,12 @@ bin/
 
 # semantic-release installs into the workspace during a release run.
 node_modules/
-package-lock.json
+/package-lock.json
+
+# The console's build output, embedded into the binary; only the placeholder
+# is committed (internal/ui).
+/internal/ui/dist/*
+!/internal/ui/dist/.gitkeep
 
 # Local development
 *.local.yaml

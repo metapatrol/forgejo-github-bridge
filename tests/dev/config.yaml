@@ -1,0 +1,14 @@
+# The repositories `make console-dev` shows; tests/dev/seed fills the
+# database with pairs for them.
+repositories:
+  - github: metapatrol/forgejo-github-bridge
+    forgejo: platform/forgejo-github-bridge
+    targetBranches: [develop]
+    rebaseRequests: true
+  - github: metapatrol/mcp-gateway
+    forgejo: platform/mcp-gateway
+    contrib: github-contrib/mcp-gateway
+    targetBranches: [develop, main]
+  - github: metapatrol/engram
+    forgejo: ai/engram
+    importSince: "2026-06-01T00:00:00Z"

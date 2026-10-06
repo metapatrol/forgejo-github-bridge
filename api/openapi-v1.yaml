@@ -1,0 +1,449 @@
+openapi: "3.0.3"
+
+info:
+  title: forgejo-github-bridge console API
+  version: "1.0.0"
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  description: |
+    What the bridge knows, read-only: the bridged repositories, the pairs of
+    issues and pull requests it keeps in step, and the work it has queued.
+
+    Everything comes from the bridge's database. No request reaches GitHub or
+    Forgejo, and no request changes anything: the queries run in read-only
+    transactions.
+
+    The API has no sign-in of its own. Whoever reaches the console listener
+    can read it; who may reach it is decided in front of it
+    (docs/console.md).
+
+servers:
+  - url: /api/v1
+
+tags:
+  - name: status
+    description: The instance answering, the instance doing the work, the queue.
+  - name: repositories
+    description: The configured repository pairs and what is held for each.
+  - name: pairs
+    description: Issues and pull requests and their counterparts.
+  - name: queue
+    description: Work waiting to be done, and why it may be stuck.
+
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      tags: [status]
+      summary: The bridge at a glance
+      description: |
+        This instance, the instance doing the work, and the queue.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /repositories:
+    get:
+      operationId: listRepositories
+      tags: [repositories]
+      summary: The bridged repositories
+      description: |
+        Every configured pair of repositories, with what the bridge holds for
+        it: pair counts, queued work and how far each poll has read.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Repository" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /pairs:
+    get:
+      operationId: listPairs
+      tags: [pairs]
+      summary: Pairs of issues and pull requests
+      description: |
+        Newest first. A pair is a GitHub issue or pull request and its Forgejo
+        counterpart.
+      parameters:
+        - name: repository
+          in: query
+          description: A repository's key, the GitHub repository as owner/name.
+          schema: { type: string }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/PairKind" }
+        - name: state
+          in: query
+          schema: { $ref: "#/components/schemas/PairState" }
+        - name: origin
+          in: query
+          schema: { $ref: "#/components/schemas/Side" }
+        - name: q
+          in: query
+          description: Matches the title, case-insensitively, or a number on either side.
+          schema: { type: string, maxLength: 200 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairPage" }
+        "400": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /pairs/{id}:
+    get:
+      operationId: getPair
+      tags: [pairs]
+      summary: One pair, with its comments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PairDetail" }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /queue:
+    get:
+      operationId: listQueue
+      tags: [queue]
+      summary: Queued work
+      description: |
+        Resources waiting to be reconciled, the ones that failed first, then
+        by when they are due. An entry that keeps failing names its last
+        error.
+      parameters:
+        - name: repository
+          in: query
+          schema: { type: string }
+        - name: failing
+          in: query
+          description: Only entries whose last attempt failed.
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/QueueEntry" }
+        default: { $ref: "#/components/responses/Error" }
+
+components:
+  responses:
+    Error:
+      description: Something went wrong
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+
+    Side:
+      type: string
+      enum: [github, forgejo]
+
+    PairKind:
+      type: string
+      enum: [issue, pull]
+
+    PairState:
+      type: string
+      description: |
+        open and closed for every pair; merged only for pull requests. A
+        closed pull request was closed without merging.
+      enum: [open, closed, merged]
+
+    Status:
+      type: object
+      required: [version, commit, builtAt, instance, mode, queue, forgejoUrl]
+      properties:
+        version: { type: string }
+        commit: { type: string }
+        builtAt: { type: string }
+        instance:
+          type: string
+          description: The host name of the instance that answered.
+        mode:
+          type: string
+          description: bridge, or console for an instance that only serves the console.
+          enum: [bridge, console]
+        leader:
+          $ref: "#/components/schemas/Leader"
+        queue: { $ref: "#/components/schemas/QueueSummary" }
+        forgejoUrl:
+          type: string
+          description: Forgejo's address for people's browsers.
+
+    Leader:
+      type: object
+      description: |
+        The instance holding the leader lock, the one doing the work. Absent
+        when no instance holds it.
+      required: [present]
+      properties:
+        present: { type: boolean }
+        instance:
+          type: string
+          description: Its host name, when the database lets this instance see it.
+        connectedAt:
+          type: string
+          format: date-time
+          description: When the connection holding the lock was opened.
+
+    QueueSummary:
+      type: object
+      required: [depth, failing]
+      properties:
+        depth: { type: integer }
+        failing: { type: integer }
+        oldestMarkedAt:
+          type: string
+          format: date-time
+
+    Repository:
+      type: object
+      required:
+        - key
+        - github
+        - forgejo
+        - githubUrl
+        - forgejoUrl
+        - pullRequests
+        - targetBranches
+        - rebaseRequests
+        - importLabel
+        - publishLabel
+        - counts
+        - queue
+        - cursors
+      properties:
+        key:
+          type: string
+          description: The GitHub repository, owner/name; what every other resource refers to.
+        github: { type: string }
+        forgejo: { type: string }
+        githubUrl: { type: string }
+        forgejoUrl: { type: string }
+        contrib:
+          type: string
+          description: |
+            The contrib fork, when configured. Absent with pull requests on
+            means the default, the contrib account's fork under the Forgejo
+            repository's name.
+        pullRequests:
+          type: boolean
+          description: Whether pull requests are imported.
+        targetBranches:
+          type: array
+          items: { type: string }
+        rebaseRequests: { type: boolean }
+        importLabel: { type: string }
+        publishLabel: { type: string }
+        importSince:
+          type: string
+          format: date-time
+        counts: { $ref: "#/components/schemas/PairCounts" }
+        queue: { $ref: "#/components/schemas/QueueSummary" }
+        cursors:
+          type: array
+          items: { $ref: "#/components/schemas/Cursor" }
+
+    PairCounts:
+      type: object
+      required: [issuesOpen, issuesClosed, pullsOpen, pullsMerged, pullsClosed]
+      properties:
+        issuesOpen: { type: integer }
+        issuesClosed: { type: integer }
+        pullsOpen: { type: integer }
+        pullsMerged: { type: integer }
+        pullsClosed: { type: integer }
+
+    Cursor:
+      type: object
+      description: How far one poll has read.
+      required: [side, stream, cursor, updatedAt]
+      properties:
+        side: { $ref: "#/components/schemas/Side" }
+        stream:
+          type: string
+          enum: [issues, comments]
+        cursor:
+          type: string
+          format: date-time
+          description: The last change the poll has seen, by the forge's clock.
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the cursor last moved.
+
+    PairPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Pair" }
+        total:
+          type: integer
+          description: How many pairs match, across all pages.
+
+    Pair:
+      type: object
+      required:
+        - id
+        - repository
+        - kind
+        - origin
+        - state
+        - title
+        - author
+        - githubNumber
+        - forgejoNumber
+        - githubUrl
+        - forgejoUrl
+        - comments
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: integer, format: int64 }
+        repository: { type: string }
+        kind: { $ref: "#/components/schemas/PairKind" }
+        origin:
+          $ref: "#/components/schemas/Side"
+        state: { $ref: "#/components/schemas/PairState" }
+        title:
+          type: string
+          description: The title on the origin side when the pair was last reconciled; empty until then.
+        author:
+          type: string
+          description: Who opened it, on the origin side.
+        githubNumber: { type: integer, format: int64 }
+        forgejoNumber: { type: integer, format: int64 }
+        githubUrl: { type: string }
+        forgejoUrl: { type: string }
+        comments:
+          type: integer
+          description: How many comments are paired.
+        createdAt: { type: string, format: date-time }
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the bridge last changed what it holds for the pair.
+        pull: { $ref: "#/components/schemas/PullRequest" }
+        queued: { $ref: "#/components/schemas/QueueEntry" }
+
+    PullRequest:
+      type: object
+      description: What a pull request pair has on top of an issue pair.
+      required:
+        - contribBranch
+        - importedHeadSha
+        - headFrozen
+        - touchesCi
+        - rebaseRequested
+        - outcomeReported
+        - updatedAt
+      properties:
+        contribBranch: { type: string }
+        contribBranchUrl:
+          type: string
+          description: The branch in the contrib fork, when the fork is known.
+        importedHeadSha:
+          type: string
+          description: The commit the bridge last pushed to the contrib branch.
+        headFrozen:
+          type: boolean
+          description: Someone else pushed to the contrib branch; the bridge no longer updates it.
+        touchesCi:
+          type: boolean
+          description: The pull request changes CI configuration.
+        rebaseRequested:
+          type: boolean
+          description: The bridge currently asks the contributor to rebase.
+        outcomeReported:
+          type: boolean
+          description: The merge or close has been reported on GitHub.
+        updatedAt: { type: string, format: date-time }
+
+    PairDetail:
+      allOf:
+        - $ref: "#/components/schemas/Pair"
+        - type: object
+          required: [commentPairs]
+          properties:
+            commentPairs:
+              type: array
+              items: { $ref: "#/components/schemas/CommentPair" }
+
+    CommentPair:
+      type: object
+      required: [id, origin, githubCommentId, forgejoCommentId, githubUrl, forgejoUrl, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        origin: { $ref: "#/components/schemas/Side" }
+        githubCommentId: { type: integer, format: int64 }
+        forgejoCommentId: { type: integer, format: int64 }
+        githubUrl: { type: string }
+        forgejoUrl: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    QueueEntry:
+      type: object
+      required: [repository, side, number, markedAt, notBefore, attempts, url]
+      properties:
+        repository: { type: string }
+        side:
+          $ref: "#/components/schemas/Side"
+        number:
+          type: integer
+          format: int64
+          description: |
+            The issue or pull request number on that side. Entries for a
+            pair are keyed by the GitHub number.
+        url: { type: string }
+        pairId:
+          type: integer
+          format: int64
+          description: The pair it belongs to, if it is one.
+        markedAt:
+          type: string
+          format: date-time
+          description: When it was last marked as changed.
+        notBefore:
+          type: string
+          format: date-time
+          description: When it is due.
+        attempts:
+          type: integer
+          description: Failed attempts since it last succeeded.
+        lastError:
+          type: string

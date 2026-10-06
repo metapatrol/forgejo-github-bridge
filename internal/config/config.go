@@ -115,11 +115,19 @@ func (r Repository) Key() string { return r.GitHub.String() }
 
 // Config is the whole configuration of the bridge.
 type Config struct {
+	// Mode is ModeBridge, or ModeConsole for a process that serves the
+	// console alone (docs/console.md): it needs no credential but the
+	// database's, may use a role that can only read, and does no work.
+	Mode string
 	// ListenAddr serves /healthz, /readyz and /metrics. Cluster-internal; the
 	// bridge has no public endpoint at all.
 	ListenAddr string
-	LogFormat  string
-	LogLevel   string
+	// ConsoleAddr serves the read-only console; empty turns it off. It is a
+	// listener of its own, so that who may reach it can be decided apart
+	// from probes and metrics.
+	ConsoleAddr string
+	LogFormat   string
+	LogLevel    string
 
 	DatabaseURL      string
 	DatabaseMaxConns int32
@@ -162,6 +170,12 @@ type Config struct {
 	// repository's own Messages win over these.
 	Messages map[string]string
 }
+
+// The modes a process runs in.
+const (
+	ModeBridge  = "bridge"
+	ModeConsole = "console"
+)
 
 // file is the shape of the YAML configuration file.
 type file struct {
@@ -216,6 +230,7 @@ func load(getenv func(string) string) (*Config, error) {
 	}
 
 	cfg := &Config{
+		Mode:                 env("MODE", ModeBridge),
 		ListenAddr:           env("LISTEN_ADDR", ":8080"),
 		LogFormat:            env("LOG_FORMAT", "json"),
 		LogLevel:             env("LOG_LEVEL", "info"),
@@ -231,9 +246,27 @@ func load(getenv func(string) string) (*Config, error) {
 			errs = append(errs, fmt.Errorf("%s%s is required", EnvPrefix, name))
 		}
 	}
+	bridge := true
+	switch cfg.Mode {
+	case ModeBridge:
+		cfg.ConsoleAddr = env("CONSOLE_ADDR", "")
+	case ModeConsole:
+		bridge = false
+		cfg.ConsoleAddr = env("CONSOLE_ADDR", ":8090")
+	default:
+		errs = append(errs, fmt.Errorf("%sMODE must be %s or %s, not %q", EnvPrefix, ModeBridge, ModeConsole, cfg.Mode))
+	}
+	if cfg.ConsoleAddr != "" && cfg.ConsoleAddr == cfg.ListenAddr {
+		errs = append(errs, fmt.Errorf("%sCONSOLE_ADDR must differ from %sLISTEN_ADDR", EnvPrefix, EnvPrefix))
+	}
+
 	required("DATABASE_URL", cfg.DatabaseURL)
-	required("GITHUB_PRIVATE_KEY_FILE", cfg.GitHubPrivateKeyFile)
-	required("FORGEJO_TOKEN", cfg.ForgejoToken)
+	// A console reads the database and nothing else; it is given no
+	// credential it would not use.
+	if bridge {
+		required("GITHUB_PRIVATE_KEY_FILE", cfg.GitHubPrivateKeyFile)
+		required("FORGEJO_TOKEN", cfg.ForgejoToken)
+	}
 
 	switch cfg.LogFormat {
 	case "json", "text":
@@ -255,7 +288,9 @@ func load(getenv func(string) string) (*Config, error) {
 	}
 
 	if raw := env("GITHUB_APP_ID", ""); raw == "" {
-		errs = append(errs, fmt.Errorf("%sGITHUB_APP_ID is required", EnvPrefix))
+		if bridge {
+			errs = append(errs, fmt.Errorf("%sGITHUB_APP_ID is required", EnvPrefix))
+		}
 	} else if id, err := strconv.ParseInt(raw, 10, 64); err != nil || id <= 0 {
 		errs = append(errs, fmt.Errorf("%sGITHUB_APP_ID must be a positive integer, not %q", EnvPrefix, raw))
 	} else {
@@ -295,11 +330,19 @@ func load(getenv func(string) string) (*Config, error) {
 	// Pull requests are opened by a second account (docs/design.md §8), and
 	// without its token they cannot be imported at all.
 	for _, r := range cfg.Repositories {
-		if r.ImportsPullRequests() && cfg.ForgejoContribToken == "" {
+		if bridge && r.ImportsPullRequests() && cfg.ForgejoContribToken == "" {
 			return nil, fmt.Errorf("%sFORGEJO_CONTRIB_TOKEN is required: %s imports pull requests", EnvPrefix, r.GitHub)
 		}
 	}
 	return cfg, nil
+}
+
+// ForgejoBrowserURL is the Forgejo address for people's browsers.
+func (c *Config) ForgejoBrowserURL() *url.URL {
+	if c.ForgejoWebURL != nil {
+		return c.ForgejoWebURL
+	}
+	return c.ForgejoURL
 }
 
 // ForgejoURLs returns every address Forgejo is known by.

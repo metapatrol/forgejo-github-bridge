@@ -2,8 +2,12 @@
 // private Forgejo and the public GitHub repositories it push-mirrors to.
 //
 // It runs inside the private network and only ever connects out: to GitHub's
-// API, to Forgejo and to its database. Its one listener serves probes and
-// metrics to the cluster and nothing to the internet.
+// API, to Forgejo and to its database. One listener serves probes and metrics
+// to the cluster; a second, off unless configured, serves the read-only
+// console (docs/console.md). Neither is meant for the internet.
+//
+// With BRIDGE_MODE=console the process serves the console alone: it holds no
+// credential but the database's, and does no work.
 package main
 
 import (
@@ -23,11 +27,13 @@ import (
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/bridge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/console"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forgejo"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/github"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/gitops"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store/postgres"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/ui"
 )
 
 var (
@@ -68,9 +74,13 @@ func run() error {
 		repos[i] = r.GitHub.String() + "=" + r.Forgejo.String()
 	}
 	log.Info("starting forgejo-github-bridge",
-		"version", version, "commit", commit, "built_at", builtAt,
+		"version", version, "commit", commit, "built_at", builtAt, "mode", cfg.Mode,
 		"forgejo", cfg.ForgejoURL.String(), "repositories", repos,
 		"poll_interval", cfg.PollInterval, "full_resync", cfg.FullResync)
+
+	if cfg.Mode == config.ModeConsole {
+		return runConsole(cfg, log)
+	}
 
 	if err := bridge.CheckMessages(cfg.Messages, cfg.Repositories); err != nil {
 		return fmt.Errorf("messages: %w", err)
@@ -98,9 +108,14 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	errs := make(chan error, 1)
+	errs := make(chan error, 2)
 	srv := serve(cfg.ListenAddr, st, errs, log)
 	defer shutdown(srv, log)
+	// Every instance serves the console, the one waiting for the lock too:
+	// what it shows is in the database.
+	if cfg.ConsoleAddr != "" {
+		defer shutdown(serveConsole(cfg, st, errs, log), log)
+	}
 
 	// A second replica waits here until the first one's session ends
 	// (docs/design.md §7). It stays ready meanwhile: readiness is about whether
@@ -190,6 +205,46 @@ func forgejoClient(caFile string) (*http.Client, error) {
 	return &http.Client{Timeout: httpTimeout, Transport: transport}, nil
 }
 
+// runConsole serves the console and the probes until a signal arrives.
+func runConsole(cfg *config.Config, log *slog.Logger) error {
+	startCtx, cancelStart := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelStart()
+	st, err := postgres.OpenReadOnly(startCtx, cfg.DatabaseURL, cfg.DatabaseMaxConns, log)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	errs := make(chan error, 2)
+	defer shutdown(serve(cfg.ListenAddr, st, errs, log), log)
+	defer shutdown(serveConsole(cfg, st, errs, log), log)
+	select {
+	case err := <-errs:
+		return err
+	case <-ctx.Done():
+		log.Info("shutting down")
+		return nil
+	}
+}
+
+func serveConsole(cfg *config.Config, st *postgres.Store, errs chan<- error, log *slog.Logger) *http.Server {
+	host, _ := os.Hostname()
+	files := ui.Built()
+	if files == nil {
+		log.Warn("this binary was built without the console's web application; serving the API alone")
+	}
+	h := console.New(st, console.Options{
+		Info:          console.Info{Version: version, Commit: commit, BuiltAt: builtAt, Instance: host, Mode: cfg.Mode},
+		Repositories:  cfg.Repositories,
+		ForgejoWebURL: cfg.ForgejoBrowserURL(),
+		UI:            files,
+		Log:           log,
+	})
+	return listen("console", cfg.ConsoleAddr, h, errs, log)
+}
+
 func serve(addr string, st *postgres.Store, errs chan<- error, log *slog.Logger) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -205,12 +260,15 @@ func serve(addr string, st *postgres.Store, errs chan<- error, log *slog.Logger)
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.Handle("GET /metrics", promhttp.Handler())
+	return listen("probes and metrics", addr, mux, errs, log)
+}
 
-	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+func listen(name, addr string, h http.Handler, errs chan<- error, log *slog.Logger) *http.Server {
+	srv := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
-		log.Info("listening", "addr", addr)
+		log.Info("listening", "addr", addr, "serves", name)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs <- fmt.Errorf("listener on %s: %w", addr, err)
+			errs <- fmt.Errorf("%s listener on %s: %w", name, addr, err)
 		}
 	}()
 	return srv
