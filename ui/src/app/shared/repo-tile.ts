@@ -19,6 +19,10 @@ import { lastPoll, repoHealth } from '../core/repos';
  */
 export const REPO_GRID = 'grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,19rem)]';
 
+/** A tile that is a link as a whole: hover and keyboard focus as the brand's panels take them. */
+export const TILE_LINK =
+  'mp-panel mp-panel-flush text-fg no-underline hover:border-line-strong hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal';
+
 /** A repository as a narrow tile: its health, its pairs, when it was last polled. */
 @Component({
   selector: 'app-repo-tile',
@@ -28,7 +32,7 @@ export const REPO_GRID = 'grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,
   template: `
     <a
       [routerLink]="['/repositories', ...path()]"
-      class="mp-panel mp-panel-flush flex h-full flex-col gap-1 px-4 py-3 text-fg no-underline hover:border-line-strong hover:bg-surface-2"
+      [class]="tileLink + ' flex h-full flex-col gap-1 px-4 py-3'"
       [title]="repo().key"
     >
       <span class="flex min-w-0 items-center gap-2">
@@ -92,6 +96,7 @@ export class RepoTile {
   /** Also how pull requests are imported, for the repositories page. */
   readonly detailed = input(false, { transform: booleanAttribute });
 
+  protected readonly tileLink = TILE_LINK;
   protected readonly path = computed(() => repoPath(this.repo().key));
   protected readonly health = computed(() => repoHealth(this.repo()));
   protected readonly polled = computed(() => lastPoll(this.repo()));

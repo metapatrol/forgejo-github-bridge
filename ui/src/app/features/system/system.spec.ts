@@ -81,7 +81,35 @@ describe('System', () => {
     const fixture = TestBed.createComponent(System);
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
-    TestBed.inject(HttpTestingController).expectOne('/api/v1/system').flush(system);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/v1/system').flush(system);
+    http.expectOne('/api/v1/status').flush({
+      version: '0.4.0',
+      commit: 'abc1234',
+      builtAt: '2026-10-06T00:00:00Z',
+      instance: 'bridge-0',
+      mode: 'bridge',
+      forgejoUrl: 'https://forgejo.example.com',
+      queue: { depth: 0, failing: 0 },
+      githubRateLimits: [
+        {
+          resource: 'core',
+          limit: 5000,
+          remaining: 200,
+          used: 4800,
+          resetAt: '2099-01-01T00:00:00Z',
+          observedAt: '2026-10-06T00:00:00Z',
+        },
+        {
+          resource: 'search',
+          limit: 30,
+          remaining: 30,
+          used: 0,
+          resetAt: '2099-01-01T00:00:00Z',
+          observedAt: '2026-10-06T00:00:00Z',
+        },
+      ],
+    });
     await fixture.whenStable();
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -93,6 +121,11 @@ describe('System', () => {
     expect(text).toContain('1 invalid');
     expect(text).toContain('0001_initial.sql');
     expect(text).toContain('Nothing is running');
-    expect(fixture.nativeElement.querySelectorAll('[role="meter"]').length).toBe(3);
+    expect(text).toContain('GitHub API');
+    expect(text).toContain('4,800 of 5,000');
+    expect(text).toContain('4.0 %');
+    expect(text).toContain('search');
+    // the freeze meter, two per table, and one per rate-limit window
+    expect(fixture.nativeElement.querySelectorAll('[role="meter"]').length).toBe(5);
   });
 });

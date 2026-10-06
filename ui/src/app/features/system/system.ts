@@ -21,7 +21,9 @@ import { getSystem } from '../../api/fn/status/get-system';
 import { SystemDatabase } from '../../api/models/system-database';
 import { SystemTable } from '../../api/models/system-table';
 import { apiResource } from '../../core/api';
-import { RefreshService } from '../../core/refresh';
+import { percentLeft, rateTone } from '../../core/rate-limit';
+import { StatusService } from '../../core/status';
+import { until } from '../../core/format';
 import { Meter } from '../../shared/meter';
 
 /** How often the page reloads on its own: the database has no events, and its figures move slowly. */
@@ -66,15 +68,24 @@ export function interval(seconds: number): string {
 })
 export class System {
   private readonly clock = inject(MpClock);
-  private readonly refresh = inject(RefreshService);
   protected readonly bytes = bytes;
   protected readonly count = count;
   protected readonly ago = ago;
   protected readonly timestamp = timestamp;
   protected readonly interval = interval;
   protected readonly lastOf = lastOf;
+  protected readonly percentLeft = percentLeft;
+  protected readonly rateTone = rateTone;
+
+  protected resetsIn(at: string): string {
+    const due = until(at, this.clock.now());
+    return due === 'due' ? 'now' : due;
+  }
 
   protected readonly res = apiResource(getSystem, () => ({}));
+  /** GitHub's rate limits come with the status, which follows rateLimit events. */
+  private readonly status = inject(StatusService).status;
+  protected readonly limits = computed(() => this.status.body()?.githubRateLimits ?? []);
   protected readonly loadedAt = signal(Date.now());
 
   protected readonly cacheHit = computed(() => {
@@ -92,7 +103,7 @@ export class System {
 
   constructor() {
     const timer = setInterval(() => {
-      if (!this.refresh.paused() && document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible') {
         this.reload();
       }
     }, SYSTEM_REFRESH_MS);

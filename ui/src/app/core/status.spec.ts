@@ -15,6 +15,7 @@ const base: Status = {
   forgejoUrl: 'https://forgejo.example.com',
   leader: { present: true, instance: 'bridge-0' },
   queue: { depth: 0, failing: 0 },
+  githubRateLimits: [],
 };
 
 describe('StatusService', () => {
@@ -48,6 +49,25 @@ describe('StatusService', () => {
     const h = await answer({ ...base, leader: { present: false } });
     expect(h.text).toBe('no leader');
     expect(h.status).toBe('error');
+  });
+
+  it('warns when the GitHub rate limit is nearly used up', async () => {
+    const h = await answer({
+      ...base,
+      queue: { depth: 4, failing: 2 },
+      githubRateLimits: [
+        {
+          resource: 'core',
+          limit: 5000,
+          remaining: 120,
+          used: 4880,
+          resetAt: '2099-01-01T00:00:00Z',
+          observedAt: '2026-10-06T00:00:00Z',
+        },
+      ],
+    });
+    expect(h.text).toBe('GitHub 2.4 % left');
+    expect(h.status).toBe('warning');
   });
 
   it('counts what fails', async () => {

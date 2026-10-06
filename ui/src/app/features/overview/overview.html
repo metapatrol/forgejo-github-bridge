@@ -8,10 +8,10 @@
 
 @if (s(); as s) {
   <div class="flex flex-col gap-5">
-    @if (!s.leader?.present) {
-      <mp-notice tone="bad">
-        No instance holds the leader lock: nothing is being bridged. Check that the bridge is
-        running and can reach its database.
+    @if (!working()) {
+      <mp-notice tone="warn">
+        No instance holds the leader lock: nothing is being bridged.
+        <a routerLink="/system" class="mp-link">See the system →</a>
       </mp-notice>
     }
     @if (s.queue.failing > 0) {
@@ -23,29 +23,32 @@
       </mp-notice>
     }
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.6fr_1fr]">
-      <div class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3">
-        <span class="mp-label mb-0"><span class="mp-label-index">01</span>leader</span>
-        @if (s.leader; as l) {
-          @if (l.present) {
-            <span class="mp-status text-xl font-semibold" data-status="success">working</span>
-            <span class="flex flex-col font-mono text-xs text-fg-muted">
-              <span>{{ l.instance || 'an instance' }}</span>
-              @if (l.connectedAt) {
-                <span>connected <mp-time [value]="l.connectedAt" /></span>
-              }
-            </span>
-          }
-        }
-        @if (!s.leader?.present) {
-          <span class="mp-status text-xl font-semibold" data-status="error">none</span>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1.6fr]">
+      <a routerLink="/system" [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'">
+        <span class="mp-label mb-0"><span class="mp-label-index">01</span>bridge</span>
+        @if (working()) {
+          <span class="mp-status text-xl font-semibold" data-status="success">working</span>
+          <span class="font-mono text-xs text-fg-muted">
+            on {{ leaderHost() }}
+            @if (leaderSince(); as at) {
+              since <mp-time [value]="at" />
+            }
+          </span>
+        } @else {
+          <span class="mp-status text-xl font-semibold" data-status="error"
+            >no instance working</span
+          >
           <span class="font-mono text-xs text-fg-muted">nothing is being bridged</span>
         }
-      </div>
+        <span class="truncate font-mono text-xs text-fg-subtle" [title]="buildTip()">{{
+          instanceLine()
+        }}</span>
+      </a>
 
       <a
         routerLink="/queue"
-        class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3 text-fg no-underline hover:border-line-strong"
+        [queryParams]="s.queue.failing > 0 ? { failing: true } : {}"
+        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'"
       >
         <span class="mp-label mb-0"><span class="mp-label-index">02</span>queue</span>
         <span class="text-3xl font-semibold tabular-nums">{{ count(s.queue.depth) }}</span>
@@ -61,15 +64,47 @@
         </span>
       </a>
 
+      <a
+        routerLink="/system"
+        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3 sm:col-span-2 xl:col-span-1'"
+      >
+        <span class="mp-label mb-0"><span class="mp-label-index">03</span>GitHub</span>
+        @if (core(); as c) {
+          <span
+            class="text-3xl font-semibold tabular-nums"
+            [class.text-warning]="coreTone() === 'warn'"
+            [class.text-error]="coreTone() === 'bad'"
+            >{{ count(c.remaining) }}</span
+          >
+          <span class="font-mono text-xs text-fg-muted"
+            >left of {{ count(c.limit) }} · {{ percentLeft(c) }}</span
+          >
+          <app-meter
+            [value]="c.used"
+            [max]="c.limit"
+            [warnAt]="0.8"
+            [errorAt]="0.95"
+            label="GitHub API requests used in this window"
+          />
+          <span class="flex flex-wrap gap-x-3 font-mono text-xs text-fg-muted">
+            <span [title]="c.resetAt">{{ resetsIn(c.resetAt) }}</span>
+            <span class="text-fg-subtle">as of <mp-time [value]="c.observedAt" /></span>
+          </span>
+        } @else {
+          <span class="text-xl font-semibold text-fg-subtle">—</span>
+          <span class="font-mono text-xs text-fg-muted">no requests yet</span>
+        }
+      </a>
+
       <div
-        class="mp-panel mp-panel-flush grid grid-cols-2 divide-x divide-line sm:col-span-2 xl:col-span-1"
+        class="mp-panel mp-panel-flush grid grid-cols-2 divide-x divide-line overflow-hidden sm:col-span-2 xl:col-span-1"
       >
         <a
           routerLink="/issues"
           [queryParams]="open"
-          class="flex min-w-0 flex-col gap-2 rounded-l-[inherit] px-4 py-3 text-fg no-underline hover:bg-surface-2"
+          class="flex min-w-0 flex-col gap-2 px-4 py-3 text-fg no-underline hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal"
         >
-          <span class="mp-label mb-0"><span class="mp-label-index">03</span>issues</span>
+          <span class="mp-label mb-0"><span class="mp-label-index">04</span>issues</span>
           <span class="text-3xl font-semibold tabular-nums">{{ count(totals().issuesOpen) }}</span>
           <span class="flex flex-col font-mono text-xs text-fg-muted">
             <span>open</span>
@@ -79,11 +114,9 @@
         <a
           routerLink="/pulls"
           [queryParams]="open"
-          class="flex min-w-0 flex-col gap-2 rounded-r-[inherit] px-4 py-3 text-fg no-underline hover:bg-surface-2"
+          class="flex min-w-0 flex-col gap-2 px-4 py-3 text-fg no-underline hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal"
         >
-          <span class="mp-label mb-0 truncate"
-            ><span class="mp-label-index">04</span>pull requests</span
-          >
+          <span class="mp-label mb-0"><span class="mp-label-index">05</span>pull requests</span>
           <span class="text-3xl font-semibold tabular-nums">{{ count(totals().pullsOpen) }}</span>
           <span class="flex flex-col font-mono text-xs text-fg-muted">
             <span>open</span>
@@ -93,21 +126,6 @@
             >
           </span>
         </a>
-      </div>
-
-      <div
-        class="mp-panel mp-panel-flush flex flex-col gap-2 px-4 py-3 sm:col-span-2 xl:col-span-1"
-      >
-        <span class="mp-label mb-0"><span class="mp-label-index">05</span>this instance</span>
-        <span class="font-mono text-xl font-semibold">{{ s.version }}</span>
-        <span class="flex flex-col font-mono text-xs text-fg-muted">
-          <span>{{ s.instance }} · {{ s.mode }} mode</span>
-          @if (s.commit !== 'unknown') {
-            <span [title]="'built ' + s.builtAt">{{ s.commit }}</span>
-          } @else {
-            <span>local build</span>
-          }
-        </span>
       </div>
     </div>
 

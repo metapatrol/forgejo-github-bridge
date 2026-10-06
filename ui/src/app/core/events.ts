@@ -1,6 +1,5 @@
-import { DestroyRef, effect, inject, Injectable, signal } from '@angular/core';
+import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { PairKind } from '../api/models/pair-kind';
-import { RefreshService } from './refresh';
 
 /** A change the bridge announces on GET /api/v1/events. Events name what changed, never its content. */
 export type BridgeEvent =
@@ -9,9 +8,10 @@ export type BridgeEvent =
   | { kind: 'pair'; op: string; id: number; repository?: string; pairKind?: PairKind }
   | { kind: 'queue'; op: string; repository: string; side: string; number: number }
   | { kind: 'cursor'; op: string; repository: string; side: string; stream: string }
-  | { kind: 'leader'; present: boolean };
+  | { kind: 'leader'; present: boolean }
+  | { kind: 'rateLimit'; op: string; resource: string };
 
-const KINDS = ['ready', 'resync', 'pair', 'queue', 'cursor', 'leader'] as const;
+const KINDS = ['ready', 'resync', 'pair', 'queue', 'cursor', 'leader', 'rateLimit'] as const;
 
 /** What a view shows, as far as events are concerned. */
 export type Scope =
@@ -33,7 +33,7 @@ export function concerns(e: BridgeEvent, scope: Scope): boolean {
   }
   switch (scope.view) {
     case 'status':
-      return e.kind === 'leader' || e.kind === 'queue';
+      return e.kind === 'leader' || e.kind === 'queue' || e.kind === 'rateLimit';
     case 'overview':
       return true;
     case 'repositories':
@@ -67,34 +67,19 @@ const MAX_BACKOFF_MS = 30_000;
 /**
  * The console's one connection to the bridge's event stream. Views reload
  * what they show when an event concerns them, instead of polling. The
- * stream reconnects with backoff when it drops. While the console is paused
- * the stream stays open but nothing reloads; resuming reloads everything,
- * since events were not acted on in between.
+ * stream reconnects with backoff when it drops; every view reloads on the
+ * ready that follows, since changes in between were not sent.
  */
 @Injectable({ providedIn: 'root' })
 export class EventsService {
-  private readonly refresh = inject(RefreshService);
   private readonly listeners = new Set<(e: BridgeEvent) => void>();
   private source?: EventSource;
   private backoff = MIN_BACKOFF_MS;
   private started = false;
 
   readonly state = signal<StreamState>('connecting');
-  /** When the last change arrived, for "live · last change 4s ago". */
-  readonly lastEvent = signal<number | undefined>(undefined);
 
-  constructor() {
-    let wasPaused = this.refresh.paused();
-    effect(() => {
-      const paused = this.refresh.paused();
-      if (wasPaused && !paused) {
-        this.emit({ kind: 'resync' });
-      }
-      wasPaused = paused;
-    });
-  }
-
-  /** Calls fn for every event, unless paused, until the returned function is called. */
+  /** Calls fn for every event until the returned function is called. */
   on(fn: (e: BridgeEvent) => void): () => void {
     this.start();
     this.listeners.add(fn);
@@ -121,8 +106,6 @@ export class EventsService {
         if (kind === 'ready') {
           this.state.set('live');
           this.backoff = MIN_BACKOFF_MS;
-        } else {
-          this.lastEvent.set(Date.now());
         }
         this.emit(event);
       });
@@ -140,9 +123,6 @@ export class EventsService {
   }
 
   private emit(e: BridgeEvent): void {
-    if (this.refresh.paused()) {
-      return;
-    }
     for (const fn of this.listeners) {
       fn(e);
     }

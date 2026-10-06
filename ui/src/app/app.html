@@ -1,23 +1,18 @@
 <mp-app-shell project="forgejo-github-bridge" home="/" [nav]="groups()">
   <ng-template mpShellAccount>
-    <!-- read-only console: the account slot holds the live indicator and its pause switch -->
-    <button
-      type="button"
-      class="mp-btn-ghost flex items-center gap-2 text-sm"
-      [attr.aria-pressed]="!refresh.paused()"
+    <!-- read-only and event-driven: the account slot says whether the console is current -->
+    <span
+      class="mp-status text-sm"
+      [attr.data-status]="live().status"
       [title]="live().tip"
-      (click)="refresh.toggle()"
+      role="status"
+      aria-live="polite"
     >
-      <span class="mp-status" [attr.data-status]="live().status" aria-live="polite">
-        <span class="hidden sm:inline">
-          {{ live().text }}
-          @if (live().text === 'live' && events.lastEvent(); as at) {
-            <span class="text-fg-subtle">· last change <mp-time [value]="at" /></span>
-          }
-        </span>
-      </span>
-      <mp-icon class="size-4" [name]="refresh.paused() ? 'play' : 'pause'" />
-    </button>
+      <span class="text-fg-muted">{{ live().text }}</span>
+      @if (live().status === 'warning') {
+        <span class="hidden text-xs text-fg-subtle sm:inline">· may not be current</span>
+      }
+    </span>
   </ng-template>
 
   <!-- the bridge's health in one word; folded, only its dot -->

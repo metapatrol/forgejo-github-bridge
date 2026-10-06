@@ -2,6 +2,7 @@ import { computed, Injectable } from '@angular/core';
 import { getStatus } from '../api/fn/status/get-status';
 import { apiResource } from './api';
 import { liveReload } from './events';
+import { coreLimit, percentLeft, rateTone } from './rate-limit';
 
 /** The bridge's status, shared by the sidebar and the overview, refreshed with the console. */
 @Injectable({ providedIn: 'root' })
@@ -26,6 +27,14 @@ export class StatusService {
         text: 'no leader',
         status: 'error',
         detail: 'No instance holds the leader lock: nothing is being bridged.',
+      };
+    }
+    const core = coreLimit(s.githubRateLimits);
+    if (core && rateTone(core) === 'bad') {
+      return {
+        text: `GitHub ${percentLeft(core)} left`,
+        status: 'warning',
+        detail: `${core.remaining} of ${core.limit} GitHub API requests left until the window resets.`,
       };
     }
     if (s.queue.failing > 0) {

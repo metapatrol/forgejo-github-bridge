@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 
 /**
  * How far a value has come towards a limit, as a thin bar: calm below
- * warnAt, a warning from there, and an error at the limit.
+ * warnAt, a warning from there, and an error from errorAt (the limit, by
+ * default).
  */
 @Component({
   selector: 'app-meter',
@@ -27,11 +28,13 @@ export class Meter {
   readonly label = input('');
   /** The share of max from which it shows as a warning. */
   readonly warnAt = input(0.75);
+  /** The share of max from which it shows as an error. */
+  readonly errorAt = input(1);
 
   protected readonly ratio = computed(() => (this.max() > 0 ? this.value() / this.max() : 0));
   protected readonly percent = computed(() => Math.min(100, Math.max(0, this.ratio() * 100)));
   protected readonly tone = computed(() => {
     const r = this.ratio();
-    return r >= 1 ? 'bg-error' : r >= this.warnAt() ? 'bg-warning' : 'bg-signal';
+    return r >= this.errorAt() ? 'bg-error' : r >= this.warnAt() ? 'bg-warning' : 'bg-signal';
   });
 }

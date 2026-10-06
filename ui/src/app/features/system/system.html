@@ -15,7 +15,7 @@
 
 @if (res.body(); as s) {
   <div class="flex flex-col gap-5">
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 2xl:grid-cols-3">
       <!-- service -->
       <section class="mp-panel mp-panel-flush">
         <header class="mp-panel-head">
@@ -169,11 +169,73 @@
           </details>
         }
       </section>
+      <!-- GitHub API -->
+      <section class="mp-panel mp-panel-flush lg:col-span-2 2xl:col-span-1">
+        <header class="mp-panel-head">
+          <h2 class="mp-label"><span class="mp-label-index">03</span>GitHub API</h2>
+          <span class="font-mono text-xs text-fg-subtle">rate limits of the App installation</span>
+        </header>
+        @if (limits().length) {
+          <div class="overflow-x-auto">
+            <table class="mp-table w-full">
+              <thead>
+                <tr>
+                  <th scope="col">window</th>
+                  <th scope="col" class="w-1/3">used</th>
+                  <th scope="col" class="mp-num">left</th>
+                  <th scope="col">resets</th>
+                  <th scope="col">as of</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of limits(); track r.resource) {
+                  <tr>
+                    <td class="font-mono text-xs">{{ r.resource }}</td>
+                    <td>
+                      <app-meter
+                        [value]="r.used"
+                        [max]="r.limit"
+                        [warnAt]="0.8"
+                        [errorAt]="0.95"
+                        [label]="r.resource + ' requests used'"
+                      />
+                      <span class="font-mono text-xs text-fg-subtle"
+                        >{{ count(r.used) }} of {{ count(r.limit) }}</span
+                      >
+                    </td>
+                    <td
+                      class="mp-num"
+                      [class.text-warning]="rateTone(r) === 'warn'"
+                      [class.text-error]="rateTone(r) === 'bad'"
+                    >
+                      {{ count(r.remaining) }}
+                      <span class="block text-xs text-fg-subtle">{{ percentLeft(r) }}</span>
+                    </td>
+                    <td class="text-xs whitespace-nowrap" [title]="timestamp(r.resetAt)">
+                      {{ resetsIn(r.resetAt) }}
+                    </td>
+                    <td class="text-xs whitespace-nowrap text-fg-muted">
+                      <mp-time [value]="r.observedAt" />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="mp-panel-note text-xs">
+            core is the REST API the bridge uses; the figures are GitHub's, from its last response.
+          </p>
+        } @else {
+          <p class="px-4 py-3 text-sm text-fg-subtle">
+            No requests yet: the working instance has not talked to GitHub since it started.
+          </p>
+        }
+      </section>
     </div>
 
     <!-- tables, the largest first -->
     <div class="flex flex-col gap-3">
-      <h2 class="mp-label mb-0"><span class="mp-label-index">03</span>Tables</h2>
+      <h2 class="mp-label mb-0"><span class="mp-label-index">04</span>Tables</h2>
       <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         @for (t of s.tables; track t.name) {
           <section class="mp-panel mp-panel-flush" [attr.aria-label]="t.name">
@@ -294,7 +356,7 @@
       <!-- migrations -->
       <section class="mp-panel mp-panel-flush">
         <header class="mp-panel-head">
-          <h2 class="mp-label"><span class="mp-label-index">04</span>Migrations</h2>
+          <h2 class="mp-label"><span class="mp-label-index">05</span>Migrations</h2>
           <span class="font-mono text-xs text-fg-subtle">{{ s.migrations.length }} applied</span>
         </header>
         <table class="mp-table w-full">
@@ -327,7 +389,7 @@
       <!-- running maintenance -->
       <section class="mp-panel mp-panel-flush">
         <header class="mp-panel-head">
-          <h2 class="mp-label"><span class="mp-label-index">05</span>Running maintenance</h2>
+          <h2 class="mp-label"><span class="mp-label-index">06</span>Running maintenance</h2>
           @if (s.running.length) {
             <span class="mp-status font-mono text-xs" data-status="active">running</span>
           }

@@ -22,6 +22,7 @@ const cursor = (repository = 'o/a'): BridgeEvent => ({
   stream: 'issues',
 });
 const leader: BridgeEvent = { kind: 'leader', present: false };
+const rateLimit: BridgeEvent = { kind: 'rateLimit', op: 'update', resource: 'core' };
 
 describe('concerns', () => {
   const every: Scope[] = [
@@ -42,13 +43,14 @@ describe('concerns', () => {
   });
 
   it('reloads the overview for anything', () => {
-    for (const e of [pair(), queue(), cursor(), leader]) {
+    for (const e of [pair(), queue(), cursor(), leader, rateLimit]) {
       expect(concerns(e, { view: 'overview' })).toBe(true);
     }
   });
 
-  it('reloads the status on the leader and the queue only', () => {
+  it('reloads the status on the leader, the queue and the rate limit only', () => {
     expect(concerns(leader, { view: 'status' })).toBe(true);
+    expect(concerns(rateLimit, { view: 'status' })).toBe(true);
     expect(concerns(queue(), { view: 'status' })).toBe(true);
     expect(concerns(pair(), { view: 'status' })).toBe(false);
     expect(concerns(cursor(), { view: 'status' })).toBe(false);
@@ -89,6 +91,12 @@ describe('concerns', () => {
     expect(concerns(pair('o/a', 'issue', 7), scope)).toBe(true);
     expect(concerns(pair('o/a', 'issue', 8), scope)).toBe(false);
     expect(concerns(queue(), scope)).toBe(true);
+  });
+
+  it('leaves lists and details alone when the rate limit moves', () => {
+    for (const scope of every.filter((s) => s.view !== 'status' && s.view !== 'overview')) {
+      expect(concerns(rateLimit, scope)).toBe(false);
+    }
   });
 
   it('reloads the queue for the queue only', () => {

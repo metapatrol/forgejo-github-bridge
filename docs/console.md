@@ -74,7 +74,8 @@ and the bridge's error messages, which name repositories and accounts.
 
 Every view follows changes as they happen: the bridge's database announces
 each one, and the console streams it to the browser, which reloads what it
-shows. The switch at the top pauses that.
+shows. The dot at the top says whether that stream is connected; while it
+reconnects, what is shown may not be current.
 A pair's title is the one GitHub shows, recorded when the bridge last
 reconciled it; a pair the bridge has not reconciled since an upgrade shows its
 numbers until it does.
