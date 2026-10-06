@@ -9,9 +9,19 @@ export type BridgeEvent =
   | { kind: 'queue'; op: string; repository: string; side: string; number: number }
   | { kind: 'cursor'; op: string; repository: string; side: string; stream: string }
   | { kind: 'leader'; present: boolean }
-  | { kind: 'rateLimit'; op: string; resource: string };
+  | { kind: 'rateLimit'; op: string; resource: string }
+  | { kind: 'maintenance'; op: string; id: number; finished: boolean };
 
-const KINDS = ['ready', 'resync', 'pair', 'queue', 'cursor', 'leader', 'rateLimit'] as const;
+const KINDS = [
+  'ready',
+  'resync',
+  'pair',
+  'queue',
+  'cursor',
+  'leader',
+  'rateLimit',
+  'maintenance',
+] as const;
 
 /** What a view shows, as far as events are concerned. */
 export type Scope =
@@ -23,6 +33,7 @@ export type Scope =
   | { view: 'pair'; id: number }
   | { view: 'queue' }
   | { view: 'people' }
+  | { view: 'system' }
   | { view: 'person'; login: string; side: string };
 
 /**
@@ -59,6 +70,8 @@ export function concerns(e: BridgeEvent, scope: Scope): boolean {
       return e.kind === 'queue';
     case 'people':
       return e.kind === 'pair';
+    case 'system':
+      return e.kind === 'maintenance';
     case 'person':
       // A pair event does not name its author: any may be theirs.
       return e.kind === 'pair' || e.kind === 'queue';

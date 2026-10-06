@@ -386,26 +386,92 @@
         </table>
       </section>
 
-      <!-- running maintenance -->
+      <!-- maintenance: the scheduled rounds, and what PostgreSQL runs now -->
       <section class="mp-panel mp-panel-flush">
         <header class="mp-panel-head">
-          <h2 class="mp-label"><span class="mp-label-index">06</span>Running maintenance</h2>
-          @if (s.running.length) {
-            <span class="mp-status font-mono text-xs" data-status="active">running</span>
+          <h2 class="mp-label"><span class="mp-label-index">06</span>Maintenance</h2>
+          @if (roundRunning() || s.running.length) {
+            <span class="mp-status font-mono text-xs" data-status="active">running now</span>
           }
         </header>
-        @if (s.running.length) {
-          <ul class="flex flex-col gap-2 px-4 py-3">
-            @for (q of s.running; track $index) {
-              <li class="font-mono text-xs break-words text-fg-muted">{{ q }}</li>
+        <div class="flex flex-col gap-3 px-4 py-3 text-sm">
+          <dl class="mp-kv text-sm">
+            <dt>schedule</dt>
+            <dd>
+              @if (s.maintenance.intervalSeconds > 0) {
+                a round every {{ interval(s.maintenance.intervalSeconds) }}
+                <span class="block text-xs text-fg-subtle"
+                  >VACUUM (ANALYZE) on every table, invalid indexes rebuilt</span
+                >
+              } @else {
+                <span class="text-fg-muted">scheduled maintenance is off</span>
+              }
+            </dd>
+            <dt>last round</dt>
+            <dd>
+              @if (lastRound(); as r) {
+                @if (r.finishedAt) {
+                  <span [title]="timestamp(r.startedAt)"><mp-time [value]="r.startedAt" /></span>
+                  <span class="text-xs text-fg-subtle"> · took {{ duration(r) }}</span>
+                } @else {
+                  <span class="mp-status" data-status="active"
+                    >running since <mp-time [value]="r.startedAt"
+                  /></span>
+                }
+                <span class="block text-xs text-fg-muted">{{ roundSummary(r) }}</span>
+                @for (f of r.failures; track $index) {
+                  <span class="block font-mono text-xs break-words text-error">{{ f }}</span>
+                }
+              } @else {
+                <span class="text-fg-muted">none yet</span>
+              }
+            </dd>
+            @if (s.maintenance.intervalSeconds > 0 && s.maintenance.nextRoundAt; as next) {
+              <dt>next round</dt>
+              <dd [title]="timestamp(next)">
+                {{ resetsIn(next) === 'now' ? 'due now' : resetsIn(next) }}
+              </dd>
             }
-          </ul>
-        } @else {
-          <p class="px-4 py-3 text-sm text-fg-subtle">
-            Nothing is running. Autovacuum <code>{{ setting('autovacuum') }}</code> keeps the tables
-            on its own.
-          </p>
-        }
+            <dt>autovacuum</dt>
+            <dd>
+              <code>{{ setting('autovacuum') }}</code>
+              <span class="text-xs text-fg-subtle"> · keeps the tables between rounds</span>
+            </dd>
+          </dl>
+          @if (s.running.length) {
+            <div>
+              <p class="mp-label">PostgreSQL is running</p>
+              <ul class="mt-1 flex flex-col gap-1">
+                @for (q of s.running; track $index) {
+                  <li class="font-mono text-xs break-words text-fg-muted">{{ q }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (s.maintenance.rounds.length > 1) {
+            <details>
+              <summary class="cursor-pointer text-xs text-fg-muted">
+                {{ s.maintenance.rounds.length }} recent rounds
+              </summary>
+              <ul class="mt-2 flex flex-col divide-y divide-line">
+                @for (r of s.maintenance.rounds; track r.startedAt) {
+                  <li class="flex flex-col gap-0.5 py-2 text-xs">
+                    <span class="flex flex-wrap justify-between gap-x-3">
+                      <span [title]="timestamp(r.startedAt)"
+                        ><mp-time [value]="r.startedAt"
+                      /></span>
+                      <span class="text-fg-subtle">{{ duration(r) }}</span>
+                    </span>
+                    <span class="text-fg-muted">{{ roundSummary(r) }}</span>
+                    @for (f of r.failures; track $index) {
+                      <span class="font-mono break-words text-error">{{ f }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        </div>
       </section>
     </div>
   </div>

@@ -4,7 +4,7 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideApiConfiguration } from '../../api/api-configuration';
 import { System as SystemModel } from '../../api/models/system';
-import { cacheHitRatio, interval, lastOf, System } from './system';
+import { cacheHitRatio, interval, lastOf, roundDuration, roundSummary, System } from './system';
 
 const system: SystemModel = {
   service: {
@@ -56,6 +56,28 @@ const system: SystemModel = {
   ],
   migrations: [{ name: '0001_initial.sql', appliedAt: '2026-10-01T00:00:00Z' }],
   running: [],
+  maintenance: {
+    intervalSeconds: 86400,
+    nextRoundAt: '2099-01-01T00:00:00Z',
+    rounds: [
+      {
+        startedAt: '2026-10-06T00:00:00Z',
+        finishedAt: '2026-10-06T00:00:02Z',
+        tables: ['issue_mapping', 'dirty'],
+        rebuilt: ['dirty_due'],
+        dropped: [],
+        failures: ['VACUUM poll_cursor: lock timeout'],
+      },
+      {
+        startedAt: '2026-10-05T00:00:00Z',
+        finishedAt: '2026-10-05T00:00:01Z',
+        tables: ['issue_mapping'],
+        rebuilt: [],
+        dropped: [],
+        failures: [],
+      },
+    ],
+  },
 };
 
 describe('System', () => {
@@ -66,11 +88,15 @@ describe('System', () => {
     expect(interval(21600)).toBe('6 h');
     expect(interval(45)).toBe('45 s');
     expect(lastOf(undefined, undefined)).toBeUndefined();
-    expect(lastOf('2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z')?.by).toBe('manual');
+    expect(lastOf('2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z')?.by).toBe('round');
     expect(lastOf(undefined, '2026-10-01T00:00:00Z')?.by).toBe('autovacuum');
+    const round = system.maintenance.rounds[0];
+    expect(roundSummary(round)).toBe('2 tables vacuumed · rebuilt dirty_due');
+    expect(roundDuration(round)).toBe(2000);
+    expect(roundDuration({ ...round, finishedAt: undefined })).toBeUndefined();
   });
 
-  it('renders the service, the database, the tables and the migrations', async () => {
+  async function render(model: SystemModel): Promise<string> {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
@@ -82,7 +108,7 @@ describe('System', () => {
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
     const http = TestBed.inject(HttpTestingController);
-    http.expectOne('/api/v1/system').flush(system);
+    http.expectOne('/api/v1/system').flush(model);
     http.expectOne('/api/v1/status').flush({
       version: '0.4.0',
       commit: 'abc1234',
@@ -112,7 +138,14 @@ describe('System', () => {
     });
     await fixture.whenStable();
     fixture.detectChanges();
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    meters = fixture.nativeElement.querySelectorAll('[role="meter"]').length;
+    return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  let meters = 0;
+
+  it('renders the service, the database, the tables and the migrations', async () => {
+    const text = await render(system);
     expect(text).toContain('go1.27.1');
     expect(text).toContain('every 1 min');
     expect(text).toContain('2 with pull requests');
@@ -120,12 +153,34 @@ describe('System', () => {
     expect(text).toContain('issue_mapping');
     expect(text).toContain('1 invalid');
     expect(text).toContain('0001_initial.sql');
-    expect(text).toContain('Nothing is running');
+    expect(text).toContain('a round every 24 h');
+    expect(text).toContain('took 2.0 s');
+    expect(text).toContain('2 tables vacuumed · rebuilt dirty_due');
+    expect(text).toContain('VACUUM poll_cursor: lock timeout');
+    expect(text).toContain('2 recent rounds');
     expect(text).toContain('GitHub API');
     expect(text).toContain('4,800 of 5,000');
     expect(text).toContain('4.0 %');
     expect(text).toContain('search');
     // the freeze meter, two per table, and one per rate-limit window
-    expect(fixture.nativeElement.querySelectorAll('[role="meter"]').length).toBe(5);
+    expect(meters).toBe(5);
+  });
+
+  it('shows a round that is running', async () => {
+    const running = structuredClone(system);
+    running.maintenance.rounds[0].finishedAt = undefined;
+    const text = await render(running);
+    expect(text).toContain('running now');
+    expect(text).toContain('running since');
+  });
+
+  it('says when scheduled maintenance is off', async () => {
+    const text = await render({
+      ...system,
+      maintenance: { intervalSeconds: 0, rounds: [] },
+    });
+    expect(text).toContain('scheduled maintenance is off');
+    expect(text).toContain('none yet');
+    expect(text).not.toContain('next round');
   });
 });

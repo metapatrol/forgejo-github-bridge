@@ -23,6 +23,7 @@ const cursor = (repository = 'o/a'): BridgeEvent => ({
 });
 const leader: BridgeEvent = { kind: 'leader', present: false };
 const rateLimit: BridgeEvent = { kind: 'rateLimit', op: 'update', resource: 'core' };
+const maintenance: BridgeEvent = { kind: 'maintenance', op: 'insert', id: 1, finished: false };
 
 describe('concerns', () => {
   const every: Scope[] = [
@@ -35,6 +36,7 @@ describe('concerns', () => {
     { view: 'queue' },
     { view: 'people' },
     { view: 'person', login: 'alice', side: 'github' },
+    { view: 'system' },
   ];
 
   it('reloads everything on ready and resync', () => {
@@ -45,7 +47,7 @@ describe('concerns', () => {
   });
 
   it('reloads the overview for anything', () => {
-    for (const e of [pair(), queue(), cursor(), leader, rateLimit]) {
+    for (const e of [pair(), queue(), cursor(), leader, rateLimit, maintenance]) {
       expect(concerns(e, { view: 'overview' })).toBe(true);
     }
   });
@@ -109,6 +111,16 @@ describe('concerns', () => {
     expect(concerns(pair(), person)).toBe(true);
     expect(concerns(queue(), person)).toBe(true);
     expect(concerns(leader, person)).toBe(false);
+  });
+
+  it('reloads the system page when a maintenance round starts or ends, and only then', () => {
+    expect(concerns(maintenance, { view: 'system' })).toBe(true);
+    for (const e of [pair(), queue(), cursor(), leader, rateLimit]) {
+      expect(concerns(e, { view: 'system' })).toBe(false);
+    }
+    for (const scope of every.filter((s) => s.view !== 'system' && s.view !== 'overview')) {
+      expect(concerns(maintenance, scope)).toBe(false);
+    }
   });
 
   it('reloads the queue for the queue only', () => {
