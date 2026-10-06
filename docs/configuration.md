@@ -174,6 +174,7 @@ harm.
 | `gitCacheSize` | `1Gi` | size limit of the git cache |
 | `resources` | 10m/32Mi requested, 500m/128Mi limit | |
 | `serviceMonitor.enabled` | `false` | needs the Prometheus operator's CRDs |
+| `prometheusRule.enabled` | `false` | the [alerts](operations.md#alerts) as a PrometheusRule; each tunable under `prometheusRule.alerts` |
 | `networkPolicy.enabled` | `false` | ingress to the metrics port from `networkPolicy.metricsNamespaceSelector` only |
 
 The complete list, generated from the chart, is in the

@@ -38,7 +38,11 @@ helm upgrade --install forgejo-github-bridge-grafana-dashboard \
 | Queue | queued against failing, the oldest wait, and what marks items dirty: polls or the full resync |
 | Reconciling | reconciles by outcome and by repository |
 | What the bridge did | every write on GitHub and in Forgejo by kind and action, and counts for the selected range: issues imported and published, pull requests imported, commits followed, pull requests touching CI, comments crossed |
-| GitHub API | the rate-limit budget over time |
+| GitHub API | the core rate-limit budget over time, every window's limit and remaining requests, and when the core window starts over |
+| Database maintenance and console | time since the last maintenance round against the interval, how long the last round took, failed rounds in the range, and how many browsers follow the console live |
+
+The alerts that go with it are part of the `forgejo-github-bridge` chart:
+`prometheusRule.enabled=true` (docs/operations.md, Alerts).
 
 The queries are filtered by `$job` and `$namespace`, discovered from
 `forgejo_github_bridge_build_info`, and by `$repository`.

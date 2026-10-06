@@ -4,6 +4,7 @@
 
 - [Health](#health)
 - [Metrics](#metrics)
+- [Alerts](#alerts)
 - [Logs](#logs)
 - [When something is stuck](#when-something-is-stuck)
 - [Upgrades](#upgrades)
@@ -37,7 +38,15 @@ no public endpoint.
 | `forgejo_github_bridge_dirty_oldest_age_seconds` | | how long the oldest entry has waited |
 | `forgejo_github_bridge_reconciles_total` | repository, outcome (`ok`, `error`) | |
 | `forgejo_github_bridge_changes_total` | repository, side, kind, action | every write the bridge makes |
-| `forgejo_github_bridge_github_rate_limit_remaining` | | as of the last GitHub response |
+| `forgejo_github_bridge_github_rate_limit_remaining` | | the core window, as of the last GitHub response |
+| `forgejo_github_bridge_github_rate_limit_window_remaining` | resource | every window GitHub reported for the installation; `core` is the REST API |
+| `forgejo_github_bridge_github_rate_limit_window_limit` | resource | what the window allows in all |
+| `forgejo_github_bridge_github_rate_limit_window_reset_timestamp_seconds` | resource | when the window starts over |
+| `forgejo_github_bridge_db_maintenance_interval_seconds` | | the configured time between maintenance rounds; 0 when they are off |
+| `forgejo_github_bridge_db_maintenance_last_round_timestamp_seconds` | | when the last round finished, on any instance, as the active one read it |
+| `forgejo_github_bridge_db_maintenance_round_duration_seconds` | | how long the active instance's last round took |
+| `forgejo_github_bridge_db_maintenance_rounds_total` | outcome (`ok`, `failed`) | rounds this instance ran |
+| `forgejo_github_bridge_console_event_subscribers` | | browsers following this instance's console live |
 | `forgejo_github_bridge_build_info` | version, commit, built_at | |
 
 The queue gauges are refreshed every 15 seconds.
@@ -46,28 +55,88 @@ A Grafana dashboard covering all of them ships as its own chart,
 [forgejo-github-bridge-grafana-dashboard](../charts/forgejo-github-bridge-grafana-dashboard/README.md),
 for the namespace the Grafana sidecar watches.
 
-### Alerts worth having
+## Alerts
 
-```yaml
-groups:
-  - name: forgejo-github-bridge
-    rules:
-      - alert: ForgejoGitHubBridgeNotWorking
-        expr: max(forgejo_github_bridge_leader) < 1 or absent(forgejo_github_bridge_leader)
-        for: 10m
-      - alert: ForgejoGitHubBridgePollsFailing
-        expr: time() - forgejo_github_bridge_last_successful_poll_timestamp_seconds > 900
-        for: 5m
-      - alert: ForgejoGitHubBridgeStuck
-        expr: forgejo_github_bridge_dirty_failing > 0
-        for: 30m
-      - alert: ForgejoGitHubBridgeRateLimitLow
-        expr: forgejo_github_bridge_github_rate_limit_remaining < 500
-        for: 10m
-```
+The chart renders these as a PrometheusRule with `prometheusRule.enabled`
+(it needs the Prometheus operator, and `serviceMonitor.enabled` for the job
+label they select by). Each can be turned off, or given another `for`,
+severity or threshold, under `prometheusRule.alerts`; `alertLabels` adds
+labels for routing. Each alert links its section below.
 
-A failing entry that waits for the push mirror after a merge counts as
-failing too, briefly; `for: 30m` keeps that from alerting.
+| Alert | Fires when | For | Severity |
+|---|---|---|---|
+| [ForgejoGitHubBridgeDown](#alert-forgejogithubbridgedown) | no instance is scraped, or none is up | 5m | critical |
+| [ForgejoGitHubBridgeNoLeader](#alert-forgejogithubbridgenoleader) | instances are up, none holds the leader lock | 5m | critical |
+| [ForgejoGitHubBridgePollsFailing](#alert-forgejogithubbridgepollsfailing) | a side of a repository has not been polled successfully for 15 minutes | 5m | warning |
+| [ForgejoGitHubBridgeReconcilesFailing](#alert-forgejogithubbridgereconcilesfailing) | queued resources keep failing to reconcile | 30m | warning |
+| [ForgejoGitHubBridgeQueueStuck](#alert-forgejogithubbridgequeuestuck) | the oldest queue entry has waited an hour | 15m | warning |
+| [ForgejoGitHubBridgeRateLimitLow](#alert-forgejogithubbridgeratelimitlow) | less than 10 % of a GitHub rate-limit window is left | 10m | warning |
+| [ForgejoGitHubBridgeMaintenanceFailing](#alert-forgejogithubbridgemaintenancefailing) | a database maintenance round failed in the last two hours | — | warning |
+| [ForgejoGitHubBridgeMaintenanceOverdue](#alert-forgejogithubbridgemaintenanceoverdue) | no maintenance round finished for two intervals; quiet while maintenance is off | 30m | warning |
+
+### Alert: ForgejoGitHubBridgeDown
+
+No instance answers Prometheus. Nothing crosses between GitHub and Forgejo,
+but nothing is lost either: changes wait on both sides and are caught up
+when the bridge is back. Look at the pods: `kubectl get pods`, then the
+previous container's log. The usual causes are a configuration the bridge
+refuses at startup (it says why in its last log line) and a database that
+does not answer within the startup minute.
+
+### Alert: ForgejoGitHubBridgeNoLeader
+
+The instances run, but none holds the leader lock, so none polls or
+reconciles. An instance logs "holding the leader lock" when it takes it and
+"waiting for the leader lock" while another has it. With none holding it,
+the database is the suspect: an instance that cannot keep the connection
+holding the lock exits on purpose, and its replacement waits for the
+database.
+
+### Alert: ForgejoGitHubBridgePollsFailing
+
+One side of one repository has not been polled successfully for 15 minutes.
+The log line "poll failed" carries the repository, the side and the reason:
+a forge unreachable, a token revoked or lacking access, the GitHub App
+uninstalled from the repository, or the rate limit spent (see below).
+
+### Alert: ForgejoGitHubBridgeReconcilesFailing
+
+Queued issues or pull requests have failed every attempt for half an hour.
+The console's queue shows each one with its last error in full;
+[when something is stuck](#when-something-is-stuck) lists the common causes.
+A merge waiting for the push mirror counts as failing too, briefly; the
+`for` keeps that from alerting.
+
+### Alert: ForgejoGitHubBridgeQueueStuck
+
+Something has waited in the queue for more than an hour. Backoff tops out at
+30 minutes, so this is a resource that fails on every attempt — the alert
+above usually fires with it — or a bridge that does not work its queue at
+all, which the leader alert covers. Start with the console's queue.
+
+### Alert: ForgejoGitHubBridgeRateLimitLow
+
+Less than a tenth of a GitHub rate-limit window of the App installation is
+left. When it runs out, every poll fails until the window starts over, at
+the time the dashboard shows. Unchanged lists cost nothing (they are
+answered from their ETag), so a budget that drains means many changes, many
+repositories on one installation, or a poll interval set very short.
+
+### Alert: ForgejoGitHubBridgeMaintenanceFailing
+
+A database maintenance round could not vacuum, analyze or rebuild a table or
+index. The log line "database maintenance round done" lists the failures,
+and the console's system page shows the round. Autovacuum keeps working
+meanwhile; a lock held by a long transaction or a lack of disk are the
+usual causes.
+
+### Alert: ForgejoGitHubBridgeMaintenanceOverdue
+
+No maintenance round has finished for two intervals. The active instance
+runs one an interval after the last; one that never gets there restarts
+too often, or cannot take the round's lock because a round elsewhere hangs.
+Autovacuum still keeps the tables; the round is the backstop, so this is
+worth a look rather than urgent.
 
 ## Logs
 
