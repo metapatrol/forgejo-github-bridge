@@ -14,6 +14,9 @@ import (
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Changes as they happen
+	// (GET /events)
+	StreamEvents(w http.ResponseWriter, r *http.Request)
 	// Pairs of issues and pull requests
 	// (GET /pairs)
 	ListPairs(w http.ResponseWriter, r *http.Request, params ListPairsParams)
@@ -29,6 +32,9 @@ type ServerInterface interface {
 	// The bridge at a glance
 	// (GET /status)
 	GetStatus(w http.ResponseWriter, r *http.Request)
+	// The service and its database
+	// (GET /system)
+	GetSystem(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -39,6 +45,20 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// StreamEvents operation middleware
+func (siw *ServerInterfaceWrapper) StreamEvents(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StreamEvents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListPairs operation middleware
 func (siw *ServerInterfaceWrapper) ListPairs(w http.ResponseWriter, r *http.Request) {
@@ -203,6 +223,20 @@ func (siw *ServerInterfaceWrapper) GetStatus(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetSystem operation middleware
+func (siw *ServerInterfaceWrapper) GetSystem(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSystem(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -323,11 +357,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc("GET "+options.BaseURL+"/events", wrapper.StreamEvents)
 	m.HandleFunc("GET "+options.BaseURL+"/pairs", wrapper.ListPairs)
 	m.HandleFunc("GET "+options.BaseURL+"/pairs/{id}", wrapper.GetPair)
 	m.HandleFunc("GET "+options.BaseURL+"/queue", wrapper.ListQueue)
 	m.HandleFunc("GET "+options.BaseURL+"/repositories", wrapper.ListRepositories)
 	m.HandleFunc("GET "+options.BaseURL+"/status", wrapper.GetStatus)
+	m.HandleFunc("GET "+options.BaseURL+"/system", wrapper.GetSystem)
 
 	return m
 }

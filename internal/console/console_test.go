@@ -16,6 +16,7 @@ import (
 
 	v1 "forgejo.metapatrol.local/platform/forgejo-github-bridge/api/v1"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/events"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
 )
 
@@ -29,8 +30,11 @@ type reports struct {
 	queue       []store.QueueReport
 	pairFilter  store.PairFilter
 	queueFilter store.QueueFilter
+	system      store.System
 	err         error
 }
+
+func (r *reports) System(context.Context) (store.System, error) { return r.system, r.err }
 
 func (r *reports) Leader(context.Context) (store.Leader, error)           { return r.leader, r.err }
 func (r *reports) QueueSummary(context.Context) (store.QueueStats, error) { return r.stats, r.err }
@@ -108,7 +112,7 @@ func TestStatus(t *testing.T) {
 	})
 	var s v1.Status
 	get(t, h, "/api/v1/status", &s)
-	if s.Version != "1.2.3" || s.Instance != "pod-1" || s.Mode != v1.Bridge || s.ForgejoUrl != "https://forgejo.example.com" {
+	if s.Version != "1.2.3" || s.Instance != "pod-1" || s.Mode != v1.StatusModeBridge || s.ForgejoUrl != "https://forgejo.example.com" {
 		t.Errorf("status = %+v", s)
 	}
 	if s.Leader == nil || *s.Leader.Instance != "pod-0" || s.Queue.Failing != 1 || s.Queue.OldestMarkedAt == nil {
@@ -264,5 +268,69 @@ func TestTheApplicationAndTheSpecification(t *testing.T) {
 	}
 	if res := get(t, h, "/api/v1/nothing", nil); res.StatusCode != http.StatusNotFound || !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") {
 		t.Errorf("an unknown API path: %d %s", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+}
+
+func TestSystem(t *testing.T) {
+	h := newConsole(t, &reports{
+		leader: store.Leader{Present: true, Instance: "pod-0", ConnectedAt: now},
+		system: store.System{
+			Database: store.SystemDatabase{Version: "18.0", SizeBytes: 8 << 20, XIDAge: 1200, FreezeMaxAge: 200_000_000,
+				Settings: []store.Setting{{Name: "autovacuum", Value: "on"}}},
+			Tables: []store.SystemTable{{Name: "dirty", DeadRows: 40, VacuumThreshold: 50, LastAutovacuum: now,
+				Indexes: []store.SystemIndex{{Name: "dirty_due", Method: "btree", Valid: true}}}},
+			Migrations: []store.Migration{{Name: "0001_initial.sql", AppliedAt: now}},
+		},
+	})
+	var s v1.System
+	get(t, h, "/api/v1/system", &s)
+	if s.Service.Version != "1.2.3" || s.Service.Repositories != 1 || s.Service.PullRequestRepositories != 1 ||
+		s.Service.GoVersion == "" || s.Service.Leader == nil {
+		t.Errorf("service = %+v", s.Service)
+	}
+	if s.Database.Version != "18.0" || s.Database.XidAge != 1200 || len(s.Database.Settings) != 1 || s.Database.StatsReset != nil {
+		t.Errorf("database = %+v", s.Database)
+	}
+	if len(s.Tables) != 1 || s.Tables[0].LastAutovacuum == nil || s.Tables[0].LastVacuum != nil || len(s.Tables[0].Indexes) != 1 {
+		t.Errorf("tables = %+v", s.Tables)
+	}
+	if len(s.Migrations) != 1 || s.Running == nil {
+		t.Errorf("migrations %+v, running %v", s.Migrations, s.Running)
+	}
+}
+
+// source is an EventSource that hands out one channel.
+type source struct{ ch chan events.Event }
+
+func (s *source) Subscribe() (<-chan events.Event, func()) { return s.ch, func() {} }
+
+func TestEventsAreStreamed(t *testing.T) {
+	src := &source{ch: make(chan events.Event, 1)}
+	web, _ := url.Parse("https://forgejo.example.com")
+	srv := httptest.NewServer(New(&reports{}, Options{ForgejoWebURL: web, Events: src,
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}))
+	defer srv.Close()
+
+	res, err := srv.Client().Get(srv.URL + "/api/v1/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("content type %q", res.Header.Get("Content-Type"))
+	}
+	src.ch <- events.Event{Kind: "queue", Data: []byte(`{"kind":"queue","number":7}`)}
+	close(src.ch)
+	body, _ := io.ReadAll(res.Body)
+	want := "event: ready\ndata: {}\n\nevent: queue\ndata: {\"kind\":\"queue\",\"number\":7}\n\n"
+	if string(body) != want {
+		t.Errorf("stream:\n%s\nwant:\n%s", body, want)
+	}
+}
+
+func TestNoEventsWithoutASource(t *testing.T) {
+	h := newConsole(t, &reports{})
+	if res := get(t, h, "/api/v1/events", nil); res.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("status %d", res.StatusCode)
 	}
 }

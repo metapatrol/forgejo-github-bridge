@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/events"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store/postgres"
 )
@@ -221,5 +223,103 @@ func TestTheConsoleOnlyReads(t *testing.T) {
 	err = ro.MarkDirty(ctx, store.DirtyKey{Repository: "a/b", Side: store.GitHub, Number: 1})
 	if err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Errorf("a write through the console's session: %v", err)
+	}
+}
+
+func TestChangesAreAnnounced(t *testing.T) {
+	st := open(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// The console's own session, read-only, is the one that listens.
+	ro, err := postgres.OpenReadOnly(ctx, os.Getenv("BRIDGE_TEST_DATABASE_URL"), 2, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub := events.NewHub(ro.Pool(), ro.Leader, quiet)
+	// The hub's connection goes back only when it stops listening, and the
+	// pool waits for it: stop the hub first.
+	defer func() {
+		cancel()
+		hub.Close()
+		ro.Close()
+	}()
+	ch, stop := hub.Subscribe()
+	defer stop()
+	go hub.Run(ctx)
+
+	next := func() events.Event {
+		t.Helper()
+		select {
+		case ev := <-ch:
+			return ev
+		case <-time.After(5 * time.Second):
+			t.Fatal("no event")
+			return events.Event{}
+		}
+	}
+	// LISTEN takes effect asynchronously; retry the first change until the
+	// hub hears one.
+	var first events.Event
+	for i := 0; ; i++ {
+		if err := st.SetCursor(ctx, "a/b", store.GitHub, store.Issues, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case first = <-ch:
+		case <-time.After(200 * time.Millisecond):
+			if i < 25 {
+				continue
+			}
+			t.Fatal("the hub never heard a change")
+		}
+		break
+	}
+	if first.Kind != "cursor" || !strings.Contains(string(first.Data), `"stream" : "issues"`) && !strings.Contains(string(first.Data), `"stream":"issues"`) {
+		t.Errorf("cursor event = %s %s", first.Kind, first.Data)
+	}
+	for len(ch) > 0 {
+		<-ch
+	}
+
+	m, err := st.InsertIssue(ctx, store.IssueMapping{Repository: "a/b", Kind: store.KindPull, GitHubNumber: 3, ForgejoNumber: 73, Origin: store.GitHub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev := next(); ev.Kind != "pair" || !strings.Contains(string(ev.Data), `"pairKind" : "pull"`) {
+		t.Errorf("pair event = %s %s", ev.Kind, ev.Data)
+	}
+	if err := st.MarkDirty(ctx, store.DirtyKey{Repository: "a/b", Side: store.GitHub, Number: 3}); err != nil {
+		t.Fatal(err)
+	}
+	if ev := next(); ev.Kind != "queue" {
+		t.Errorf("queue event = %s %s", ev.Kind, ev.Data)
+	}
+	if err := st.SavePullRequest(ctx, store.PullRequestState{IssueMappingID: m.ID, ContribBranch: "pr/3", ImportedHeadSHA: "a", State: store.PullOpen}); err != nil {
+		t.Fatal(err)
+	}
+	if ev := next(); ev.Kind != "pair" || !strings.Contains(string(ev.Data), strconv.FormatInt(m.ID, 10)) {
+		t.Errorf("pull state event = %s %s", ev.Kind, ev.Data)
+	}
+}
+
+func TestSystemDescribesTheDatabase(t *testing.T) {
+	st := open(t)
+	seedReports(t, st)
+	sys, err := st.System(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sys.Database.Version == "" || sys.Database.SizeBytes == 0 || sys.Database.PoolMax != 4 || len(sys.Database.Settings) == 0 {
+		t.Errorf("database = %+v", sys.Database)
+	}
+	tables := map[string]store.SystemTable{}
+	for _, tb := range sys.Tables {
+		tables[tb.Name] = tb
+	}
+	if d, ok := tables["dirty"]; !ok || len(d.Indexes) == 0 || d.VacuumThreshold <= 0 {
+		t.Errorf("dirty = %+v", d)
+	}
+	if len(sys.Migrations) < 5 || sys.Migrations[0].Name != "0001_initial.sql" {
+		t.Errorf("migrations = %+v", sys.Migrations)
 	}
 }

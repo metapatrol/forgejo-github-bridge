@@ -47,6 +47,57 @@ paths:
               schema: { $ref: "#/components/schemas/Status" }
         default: { $ref: "#/components/responses/Error" }
 
+  /events:
+    get:
+      operationId: streamEvents
+      tags: [status]
+      summary: Changes as they happen
+      description: |
+        A Server-Sent Events stream (`text/event-stream`) of changes, so that
+        live views need not poll. Events name what changed, never its
+        content; a view reloads what it shows. Event types:
+
+        - `ready`: the stream is open. Changes before this moment are not
+          sent; load what you show now.
+        - `pair`: a pair was created, changed or removed, or its pull request
+          state or comments changed: `{"op", "id", "repository"?, "pairKind"?}`.
+        - `queue`: an entry was queued, retried or done:
+          `{"op", "repository", "side", "number"}`.
+        - `cursor`: a poll read further: `{"op", "repository", "side", "stream"}`.
+        - `leader`: the instance holding the leader lock changed: `{"present"}`.
+        - `resync`: events were missed, by a slow client or a lost database
+          connection; reload everything.
+
+        A comment line every 25 seconds keeps the connection open through
+        proxies.
+      responses:
+        "200":
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default: { $ref: "#/components/responses/Error" }
+
+  /system:
+    get:
+      operationId: getSystem
+      tags: [status]
+      summary: The service and its database
+      description: |
+        This instance and how it is configured, and how the database is
+        doing and how it is kept: size, connections, cache, transaction age,
+        the bridge's tables with their autovacuum thresholds and indexes,
+        the applied migrations, and the maintenance PostgreSQL runs now. All
+        database figures are PostgreSQL's.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        default: { $ref: "#/components/responses/Error" }
+
   /repositories:
     get:
       operationId: listRepositories
@@ -449,3 +500,154 @@ components:
           description: Failed attempts since it last succeeded.
         lastError:
           type: string
+
+    System:
+      type: object
+      required: [service, database, tables, migrations, running]
+      properties:
+        service: { $ref: "#/components/schemas/Service" }
+        database: { $ref: "#/components/schemas/SystemDatabase" }
+        tables:
+          type: array
+          description: The bridge's tables, the largest first.
+          items: { $ref: "#/components/schemas/SystemTable" }
+        migrations:
+          type: array
+          items: { $ref: "#/components/schemas/Migration" }
+        running:
+          type: array
+          description: Maintenance statements PostgreSQL runs now, autovacuum included.
+          items: { type: string }
+
+    Service:
+      type: object
+      required: [version, commit, builtAt, goVersion, instance, mode, startedAt, pollIntervalSeconds, fullResyncSeconds, repositories, pullRequestRepositories]
+      properties:
+        version: { type: string }
+        commit: { type: string }
+        builtAt: { type: string }
+        goVersion: { type: string }
+        instance:
+          type: string
+          description: The host name of the instance that answered.
+        mode:
+          type: string
+          enum: [bridge, console]
+        startedAt: { type: string, format: date-time }
+        pollIntervalSeconds:
+          type: integer
+          description: How often each repository is polled on each side.
+        fullResyncSeconds:
+          type: integer
+          description: How often every open pair is reconciled whether or not it changed.
+        repositories:
+          type: integer
+          description: Configured repository pairs.
+        pullRequestRepositories:
+          type: integer
+          description: Of those, how many import pull requests.
+        leader: { $ref: "#/components/schemas/Leader" }
+
+    SystemDatabase:
+      type: object
+      required: [version, sizeBytes, connections, maxConnections, poolSize, poolInUse, poolMax, blocksHit, blocksRead, deadlocks, tempBytes, xidAge, freezeMaxAge, settings]
+      properties:
+        version:
+          type: string
+          description: PostgreSQL's version.
+        sizeBytes: { type: integer, format: int64 }
+        connections:
+          type: integer
+          format: int64
+          description: Sessions on this database now.
+        maxConnections:
+          type: integer
+          format: int64
+          description: The most the server takes, for all databases.
+        poolSize:
+          type: integer
+          format: int64
+          description: Connections this instance holds.
+        poolInUse: { type: integer, format: int64 }
+        poolMax:
+          type: integer
+          format: int64
+          description: The most this instance opens.
+        blocksHit:
+          type: integer
+          format: int64
+          description: Blocks found in shared buffers, since statsReset.
+        blocksRead:
+          type: integer
+          format: int64
+          description: Blocks read from disk, since statsReset.
+        deadlocks: { type: integer, format: int64 }
+        tempBytes:
+          type: integer
+          format: int64
+          description: Written to temporary files, when work_mem was too small.
+        xidAge:
+          type: integer
+          format: int64
+          description: How many transactions ago the oldest unfrozen row was written.
+        freezeMaxAge:
+          type: integer
+          format: int64
+          description: At this xidAge autovacuum vacuums against wraparound.
+        statsReset: { type: string, format: date-time }
+        settings:
+          type: array
+          items: { $ref: "#/components/schemas/Setting" }
+
+    Setting:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string }
+        value: { type: string }
+
+    SystemTable:
+      type: object
+      required: [name, totalBytes, heapBytes, indexBytes, liveRows, deadRows, modifiedSinceAnalyze, vacuumThreshold, analyzeThreshold, indexes]
+      properties:
+        name: { type: string }
+        totalBytes: { type: integer, format: int64 }
+        heapBytes: { type: integer, format: int64 }
+        indexBytes: { type: integer, format: int64 }
+        liveRows: { type: integer, format: int64 }
+        deadRows: { type: integer, format: int64 }
+        modifiedSinceAnalyze: { type: integer, format: int64 }
+        vacuumThreshold:
+          type: integer
+          format: int64
+          description: Dead rows at which autovacuum vacuums the table.
+        analyzeThreshold:
+          type: integer
+          format: int64
+          description: Changed rows at which autovacuum analyzes the table.
+        lastVacuum: { type: string, format: date-time }
+        lastAutovacuum: { type: string, format: date-time }
+        lastAnalyze: { type: string, format: date-time }
+        lastAutoanalyze: { type: string, format: date-time }
+        indexes:
+          type: array
+          items: { $ref: "#/components/schemas/SystemIndex" }
+
+    SystemIndex:
+      type: object
+      required: [name, method, bytes, scans, valid]
+      properties:
+        name: { type: string }
+        method: { type: string }
+        bytes: { type: integer, format: int64 }
+        scans: { type: integer, format: int64 }
+        valid:
+          type: boolean
+          description: False for an index a failed build left behind.
+
+    Migration:
+      type: object
+      required: [name, appliedAt]
+      properties:
+        name: { type: string }
+        appliedAt: { type: string, format: date-time }

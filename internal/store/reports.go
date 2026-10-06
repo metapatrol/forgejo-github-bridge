@@ -32,6 +32,8 @@ type Reports interface {
 	// Queue lists queued entries, failing ones first, then by when they are
 	// due.
 	Queue(ctx context.Context, f QueueFilter) ([]QueueReport, error)
+	// System describes the database, the bridge's tables and their upkeep.
+	System(ctx context.Context) (System, error)
 }
 
 // Leader is the instance doing the work.
@@ -130,4 +132,59 @@ type QueueReport struct {
 	// paired yet. Kind is that pair's.
 	PairID int64
 	Kind   Kind
+}
+
+// System is how the database is doing and how it is kept: what the console's
+// system page shows. All figures are PostgreSQL's.
+type System struct {
+	Database   SystemDatabase
+	Tables     []SystemTable
+	Migrations []Migration
+	// Running lists the maintenance statements PostgreSQL runs now,
+	// autovacuum included.
+	Running []string
+}
+
+// SystemDatabase describes the database and the connections to it.
+type SystemDatabase struct {
+	Version                      string
+	SizeBytes                    int64
+	Connections, MaxConnections  int64
+	PoolSize, PoolInUse, PoolMax int64
+	BlocksHit, BlocksRead        int64
+	Deadlocks, TempBytes         int64
+	XIDAge, FreezeMaxAge         int64
+	StatsReset                   time.Time
+	Settings                     []Setting
+}
+
+// Setting is one server setting.
+type Setting struct{ Name, Value string }
+
+// SystemTable describes one of the bridge's tables and how autovacuum keeps
+// it.
+type SystemTable struct {
+	Name                              string
+	TotalBytes, HeapBytes, IndexBytes int64
+	LiveRows, DeadRows                int64
+	ModifiedSinceAnalyze              int64
+	// VacuumThreshold and AnalyzeThreshold are the dead and changed rows at
+	// which autovacuum vacuums or analyzes the table.
+	VacuumThreshold, AnalyzeThreshold int64
+	LastVacuum, LastAutovacuum        time.Time
+	LastAnalyze, LastAutoanalyze      time.Time
+	Indexes                           []SystemIndex
+}
+
+// SystemIndex describes an index.
+type SystemIndex struct {
+	Name, Method string
+	Bytes, Scans int64
+	Valid        bool
+}
+
+// Migration is an applied schema migration.
+type Migration struct {
+	Name      string
+	AppliedAt time.Time
 }

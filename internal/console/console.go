@@ -16,12 +16,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strconv"
 	"time"
 
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/api"
 	v1 "forgejo.metapatrol.local/platform/forgejo-github-bridge/api/v1"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/events"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/ui"
 )
@@ -33,6 +35,10 @@ type Info struct {
 	Instance string
 	// Mode is "bridge" or "console".
 	Mode string
+	// StartedAt is when the process started.
+	StartedAt time.Time
+	// PollInterval and FullResync are the bridge's schedule.
+	PollInterval, FullResync time.Duration
 }
 
 // Options configure a console.
@@ -44,9 +50,19 @@ type Options struct {
 	// GitHubWebURL defaults to https://github.com.
 	GitHubWebURL *url.URL
 	// UI is the web application; nil serves the API alone.
-	UI  fs.FS
-	Log *slog.Logger
+	UI fs.FS
+	// Events feeds GET /api/v1/events; nil answers it with 503.
+	Events EventSource
+	Log    *slog.Logger
 }
+
+// EventSource is satisfied by *events.Hub.
+type EventSource interface {
+	Subscribe() (<-chan events.Event, func())
+}
+
+// keepaliveInterval keeps proxies from closing an idle event stream.
+const keepaliveInterval = 25 * time.Second
 
 // requestTimeout bounds every API request's queries.
 const requestTimeout = 10 * time.Second
@@ -136,6 +152,128 @@ func ctxFor(r *http.Request) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(r.Context(), requestTimeout)
 }
 
+// StreamEvents implements v1.ServerInterface: changes as Server-Sent Events.
+func (s *server) StreamEvents(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Events == nil {
+		writeError(w, http.StatusServiceUnavailable, "this console has no event stream")
+		return
+	}
+	rc := http.NewResponseController(w)
+	ch, stop := s.opts.Events.Subscribe()
+	defer stop()
+
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-store")
+	h.Set("X-Accel-Buffering", "no") // nginx: do not buffer the stream
+	w.WriteHeader(http.StatusOK)
+
+	send := func(kind string, data []byte) error {
+		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", kind, data); err != nil {
+			return err
+		}
+		return rc.Flush()
+	}
+	if send("ready", []byte(`{}`)) != nil {
+		return
+	}
+	keepalive := time.NewTicker(keepaliveInterval)
+	defer keepalive.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case ev, ok := <-ch:
+			if !ok || send(ev.Kind, ev.Data) != nil {
+				return
+			}
+		case <-keepalive.C:
+			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil || rc.Flush() != nil {
+				return
+			}
+		}
+	}
+}
+
+// GetSystem implements v1.ServerInterface.
+func (s *server) GetSystem(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := ctxFor(r)
+	defer cancel()
+	sys, err := s.reports.System(ctx)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	leader, err := s.reports.Leader(ctx)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	info := s.opts.Info
+	out := v1.System{
+		Service: v1.Service{
+			Version: info.Version, Commit: info.Commit, BuiltAt: info.BuiltAt, GoVersion: runtime.Version(),
+			Instance: info.Instance, Mode: v1.ServiceMode(info.Mode), StartedAt: info.StartedAt,
+			PollIntervalSeconds: int(info.PollInterval / time.Second), FullResyncSeconds: int(info.FullResync / time.Second),
+			Repositories: len(s.opts.Repositories), Leader: leaderOf(leader),
+		},
+		Tables:     make([]v1.SystemTable, 0, len(sys.Tables)),
+		Migrations: make([]v1.Migration, 0, len(sys.Migrations)),
+		Running:    append([]string{}, sys.Running...),
+	}
+	for _, r := range s.opts.Repositories {
+		if r.ImportsPullRequests() {
+			out.Service.PullRequestRepositories++
+		}
+	}
+	d := sys.Database
+	out.Database = v1.SystemDatabase{
+		Version: d.Version, SizeBytes: d.SizeBytes, Connections: d.Connections, MaxConnections: d.MaxConnections,
+		PoolSize: d.PoolSize, PoolInUse: d.PoolInUse, PoolMax: d.PoolMax, BlocksHit: d.BlocksHit, BlocksRead: d.BlocksRead,
+		Deadlocks: d.Deadlocks, TempBytes: d.TempBytes, XidAge: d.XIDAge, FreezeMaxAge: d.FreezeMaxAge,
+		StatsReset: timePtr(d.StatsReset), Settings: make([]v1.Setting, 0, len(d.Settings)),
+	}
+	for _, st := range d.Settings {
+		out.Database.Settings = append(out.Database.Settings, v1.Setting{Name: st.Name, Value: st.Value})
+	}
+	for _, t := range sys.Tables {
+		table := v1.SystemTable{
+			Name: t.Name, TotalBytes: t.TotalBytes, HeapBytes: t.HeapBytes, IndexBytes: t.IndexBytes,
+			LiveRows: t.LiveRows, DeadRows: t.DeadRows, ModifiedSinceAnalyze: t.ModifiedSinceAnalyze,
+			VacuumThreshold: t.VacuumThreshold, AnalyzeThreshold: t.AnalyzeThreshold,
+			LastVacuum: timePtr(t.LastVacuum), LastAutovacuum: timePtr(t.LastAutovacuum),
+			LastAnalyze: timePtr(t.LastAnalyze), LastAutoanalyze: timePtr(t.LastAutoanalyze),
+			Indexes: make([]v1.SystemIndex, 0, len(t.Indexes)),
+		}
+		for _, ix := range t.Indexes {
+			table.Indexes = append(table.Indexes, v1.SystemIndex{Name: ix.Name, Method: ix.Method, Bytes: ix.Bytes, Scans: ix.Scans, Valid: ix.Valid})
+		}
+		out.Tables = append(out.Tables, table)
+	}
+	for _, m := range sys.Migrations {
+		out.Migrations = append(out.Migrations, v1.Migration{Name: m.Name, AppliedAt: m.AppliedAt})
+	}
+	writeJSON(w, out)
+}
+
+func timePtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+func leaderOf(l store.Leader) *v1.Leader {
+	if !l.Present {
+		return nil
+	}
+	out := &v1.Leader{Present: true, ConnectedAt: timePtr(l.ConnectedAt)}
+	if l.Instance != "" {
+		out.Instance = &l.Instance
+	}
+	return out
+}
+
 // GetStatus implements v1.ServerInterface.
 func (s *server) GetStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := ctxFor(r)
@@ -156,16 +294,7 @@ func (s *server) GetStatus(w http.ResponseWriter, r *http.Request) {
 		Queue:      queueSummary(stats),
 		ForgejoUrl: s.opts.ForgejoWebURL.String(),
 	}
-	if leader.Present {
-		l := &v1.Leader{Present: true}
-		if leader.Instance != "" {
-			l.Instance = &leader.Instance
-		}
-		if !leader.ConnectedAt.IsZero() {
-			l.ConnectedAt = &leader.ConnectedAt
-		}
-		out.Leader = l
-	}
+	out.Leader = leaderOf(leader)
 	writeJSON(w, out)
 }
 

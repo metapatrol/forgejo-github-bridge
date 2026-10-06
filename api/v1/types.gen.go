@@ -64,6 +64,24 @@ func (e PairState) Valid() bool {
 	}
 }
 
+// Defines values for ServiceMode.
+const (
+	ServiceModeBridge  ServiceMode = "bridge"
+	ServiceModeConsole ServiceMode = "console"
+)
+
+// Valid indicates whether the value is a known member of the ServiceMode enum.
+func (e ServiceMode) Valid() bool {
+	switch e {
+	case ServiceModeBridge:
+		return true
+	case ServiceModeConsole:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Side.
 const (
 	Forgejo Side = "forgejo"
@@ -84,16 +102,16 @@ func (e Side) Valid() bool {
 
 // Defines values for StatusMode.
 const (
-	Bridge  StatusMode = "bridge"
-	Console StatusMode = "console"
+	StatusModeBridge  StatusMode = "bridge"
+	StatusModeConsole StatusMode = "console"
 )
 
 // Valid indicates whether the value is a known member of the StatusMode enum.
 func (e StatusMode) Valid() bool {
 	switch e {
-	case Bridge:
+	case StatusModeBridge:
 		return true
-	case Console:
+	case StatusModeConsole:
 		return true
 	default:
 		return false
@@ -139,6 +157,12 @@ type Leader struct {
 	// Instance Its host name, when the database lets this instance see it.
 	Instance *string `json:"instance,omitempty"`
 	Present  bool    `json:"present"`
+}
+
+// Migration defines model for Migration.
+type Migration struct {
+	AppliedAt time.Time `json:"appliedAt"`
+	Name      string    `json:"name"`
 }
 
 // Pair defines model for Pair.
@@ -311,6 +335,44 @@ type Repository struct {
 	TargetBranches []string     `json:"targetBranches"`
 }
 
+// Service defines model for Service.
+type Service struct {
+	BuiltAt string `json:"builtAt"`
+	Commit  string `json:"commit"`
+
+	// FullResyncSeconds How often every open pair is reconciled whether or not it changed.
+	FullResyncSeconds int    `json:"fullResyncSeconds"`
+	GoVersion         string `json:"goVersion"`
+
+	// Instance The host name of the instance that answered.
+	Instance string `json:"instance"`
+
+	// Leader The instance holding the leader lock, the one doing the work. Absent
+	// when no instance holds it.
+	Leader *Leader     `json:"leader,omitempty"`
+	Mode   ServiceMode `json:"mode"`
+
+	// PollIntervalSeconds How often each repository is polled on each side.
+	PollIntervalSeconds int `json:"pollIntervalSeconds"`
+
+	// PullRequestRepositories Of those, how many import pull requests.
+	PullRequestRepositories int `json:"pullRequestRepositories"`
+
+	// Repositories Configured repository pairs.
+	Repositories int       `json:"repositories"`
+	StartedAt    time.Time `json:"startedAt"`
+	Version      string    `json:"version"`
+}
+
+// ServiceMode defines model for Service.Mode.
+type ServiceMode string
+
+// Setting defines model for Setting.
+type Setting struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 // Side defines model for Side.
 type Side string
 
@@ -337,6 +399,89 @@ type Status struct {
 
 // StatusMode bridge, or console for an instance that only serves the console.
 type StatusMode string
+
+// System defines model for System.
+type System struct {
+	Database   SystemDatabase `json:"database"`
+	Migrations []Migration    `json:"migrations"`
+
+	// Running Maintenance statements PostgreSQL runs now, autovacuum included.
+	Running []string `json:"running"`
+	Service Service  `json:"service"`
+
+	// Tables The bridge's tables, the largest first.
+	Tables []SystemTable `json:"tables"`
+}
+
+// SystemDatabase defines model for SystemDatabase.
+type SystemDatabase struct {
+	// BlocksHit Blocks found in shared buffers, since statsReset.
+	BlocksHit int64 `json:"blocksHit"`
+
+	// BlocksRead Blocks read from disk, since statsReset.
+	BlocksRead int64 `json:"blocksRead"`
+
+	// Connections Sessions on this database now.
+	Connections int64 `json:"connections"`
+	Deadlocks   int64 `json:"deadlocks"`
+
+	// FreezeMaxAge At this xidAge autovacuum vacuums against wraparound.
+	FreezeMaxAge int64 `json:"freezeMaxAge"`
+
+	// MaxConnections The most the server takes, for all databases.
+	MaxConnections int64 `json:"maxConnections"`
+	PoolInUse      int64 `json:"poolInUse"`
+
+	// PoolMax The most this instance opens.
+	PoolMax int64 `json:"poolMax"`
+
+	// PoolSize Connections this instance holds.
+	PoolSize   int64      `json:"poolSize"`
+	Settings   []Setting  `json:"settings"`
+	SizeBytes  int64      `json:"sizeBytes"`
+	StatsReset *time.Time `json:"statsReset,omitempty"`
+
+	// TempBytes Written to temporary files, when work_mem was too small.
+	TempBytes int64 `json:"tempBytes"`
+
+	// Version PostgreSQL's version.
+	Version string `json:"version"`
+
+	// XidAge How many transactions ago the oldest unfrozen row was written.
+	XidAge int64 `json:"xidAge"`
+}
+
+// SystemIndex defines model for SystemIndex.
+type SystemIndex struct {
+	Bytes  int64  `json:"bytes"`
+	Method string `json:"method"`
+	Name   string `json:"name"`
+	Scans  int64  `json:"scans"`
+
+	// Valid False for an index a failed build left behind.
+	Valid bool `json:"valid"`
+}
+
+// SystemTable defines model for SystemTable.
+type SystemTable struct {
+	// AnalyzeThreshold Changed rows at which autovacuum analyzes the table.
+	AnalyzeThreshold     int64         `json:"analyzeThreshold"`
+	DeadRows             int64         `json:"deadRows"`
+	HeapBytes            int64         `json:"heapBytes"`
+	IndexBytes           int64         `json:"indexBytes"`
+	Indexes              []SystemIndex `json:"indexes"`
+	LastAnalyze          *time.Time    `json:"lastAnalyze,omitempty"`
+	LastAutoanalyze      *time.Time    `json:"lastAutoanalyze,omitempty"`
+	LastAutovacuum       *time.Time    `json:"lastAutovacuum,omitempty"`
+	LastVacuum           *time.Time    `json:"lastVacuum,omitempty"`
+	LiveRows             int64         `json:"liveRows"`
+	ModifiedSinceAnalyze int64         `json:"modifiedSinceAnalyze"`
+	Name                 string        `json:"name"`
+	TotalBytes           int64         `json:"totalBytes"`
+
+	// VacuumThreshold Dead rows at which autovacuum vacuums the table.
+	VacuumThreshold int64 `json:"vacuumThreshold"`
+}
 
 // ListPairsParams defines parameters for ListPairs.
 type ListPairsParams struct {

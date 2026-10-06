@@ -28,6 +28,7 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/bridge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/config"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/console"
+	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/events"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forgejo"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/github"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/gitops"
@@ -35,6 +36,9 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/ui"
 )
+
+// startedAt is when the process started, for the console's system page.
+var startedAt = time.Now()
 
 var (
 	version = "dev"
@@ -114,7 +118,10 @@ func run() error {
 	// Every instance serves the console, the one waiting for the lock too:
 	// what it shows is in the database.
 	if cfg.ConsoleAddr != "" {
-		defer shutdown(serveConsole(cfg, st, errs, log), log)
+		srv, hub := serveConsole(ctx, cfg, st, errs, log)
+		defer shutdown(srv, log)
+		// Before the listener shuts down: open event streams end with it.
+		defer hub.Close()
 	}
 
 	// A second replica waits here until the first one's session ends
@@ -219,7 +226,9 @@ func runConsole(cfg *config.Config, log *slog.Logger) error {
 	defer stop()
 	errs := make(chan error, 2)
 	defer shutdown(serve(cfg.ListenAddr, st, errs, log), log)
-	defer shutdown(serveConsole(cfg, st, errs, log), log)
+	srv, hub := serveConsole(ctx, cfg, st, errs, log)
+	defer shutdown(srv, log)
+	defer hub.Close()
 	select {
 	case err := <-errs:
 		return err
@@ -229,20 +238,24 @@ func runConsole(cfg *config.Config, log *slog.Logger) error {
 	}
 }
 
-func serveConsole(cfg *config.Config, st *postgres.Store, errs chan<- error, log *slog.Logger) *http.Server {
+func serveConsole(ctx context.Context, cfg *config.Config, st *postgres.Store, errs chan<- error, log *slog.Logger) (*http.Server, *events.Hub) {
 	host, _ := os.Hostname()
+	hub := events.NewHub(st.Pool(), st.Leader, log)
+	go hub.Run(ctx)
 	files := ui.Built()
 	if files == nil {
 		log.Warn("this binary was built without the console's web application; serving the API alone")
 	}
 	h := console.New(st, console.Options{
-		Info:          console.Info{Version: version, Commit: commit, BuiltAt: builtAt, Instance: host, Mode: cfg.Mode},
+		Info: console.Info{Version: version, Commit: commit, BuiltAt: builtAt, Instance: host, Mode: cfg.Mode,
+			StartedAt: startedAt, PollInterval: cfg.PollInterval, FullResync: cfg.FullResync},
 		Repositories:  cfg.Repositories,
 		ForgejoWebURL: cfg.ForgejoBrowserURL(),
 		UI:            files,
+		Events:        hub,
 		Log:           log,
 	})
-	return listen("console", cfg.ConsoleAddr, h, errs, log)
+	return listen("console", cfg.ConsoleAddr, h, errs, log), hub
 }
 
 func serve(addr string, st *postgres.Store, errs chan<- error, log *slog.Logger) *http.Server {
