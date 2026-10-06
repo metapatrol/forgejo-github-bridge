@@ -56,10 +56,11 @@ describe('Pairs', () => {
     expect(req.request.params.get('author')).toBe('alice');
     expect(req.request.params.get('origin')).toBe('github');
     fixture.detectChanges();
-    const chip = (fixture.nativeElement as HTMLElement).querySelector(
-      'button[aria-label="Remove the filter by alice"]',
-    );
-    expect(chip).not.toBeNull();
+    // the author field shows them, with a button to clear the filter
+    const el = fixture.nativeElement as HTMLElement;
+    const field = el.querySelector('app-author-input input') as HTMLInputElement;
+    expect(field.value).toBe('alice');
+    expect(el.querySelector('button[aria-label="Remove the author filter"]')).not.toBeNull();
   });
 
   /** The request the list makes, for the URL's parameters. */

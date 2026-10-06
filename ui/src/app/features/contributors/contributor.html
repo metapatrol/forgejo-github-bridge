@@ -33,9 +33,14 @@
         </dd>
         <dt class="text-fg-muted">opened</dt>
         <dd>
-          {{ a.issues }} {{ a.issues === 1 ? 'issue' : 'issues' }}
+          <a [routerLink]="'/issues'" [queryParams]="links().issues.query" [class]="quiet"
+            >{{ a.issues }} {{ a.issues === 1 ? 'issue' : 'issues' }}</a
+          >
           @if (a.side === 'github') {
-            · {{ a.pulls }} {{ a.pulls === 1 ? 'pull request' : 'pull requests' }}
+            ·
+            <a [routerLink]="'/pulls'" [queryParams]="links().pulls.query" [class]="quiet"
+              >{{ a.pulls }} {{ a.pulls === 1 ? 'pull request' : 'pull requests' }}</a
+            >
           }
         </dd>
         <dt class="text-fg-muted">last</dt>
@@ -45,7 +50,11 @@
   }
 
   <mp-panel index="02" title="issues">
-    <a mpPanelActions routerLink="/issues" [queryParams]="listParams()" class="mp-link text-xs"
+    <a
+      mpPanelActions
+      routerLink="/issues"
+      [queryParams]="links().issues.query"
+      class="mp-link text-xs"
       >all {{ issues.body()?.total ?? '' }} →</a
     >
     <mp-load-state
@@ -65,7 +74,11 @@
 
   @if (side() === 'github') {
     <mp-panel index="03" title="pull requests">
-      <a mpPanelActions routerLink="/pulls" [queryParams]="listParams()" class="mp-link text-xs"
+      <a
+        mpPanelActions
+        routerLink="/pulls"
+        [queryParams]="links().pulls.query"
+        class="mp-link text-xs"
         >all {{ pulls.body()?.total ?? '' }} →</a
       >
       <mp-load-state

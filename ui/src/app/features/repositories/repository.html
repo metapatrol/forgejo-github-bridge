@@ -58,11 +58,53 @@
             class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 font-mono text-sm"
           >
             <dt class="text-fg-muted">issues</dt>
-            <dd>{{ r.counts.issuesOpen }} open · {{ r.counts.issuesClosed }} closed</dd>
+            <dd>
+              <a [routerLink]="'/issues'" [queryParams]="links().issuesOpen.query" [class]="quiet"
+                >{{ r.counts.issuesOpen }} open</a
+              >
+              ·
+              <a [routerLink]="'/issues'" [queryParams]="links().issuesClosed.query" [class]="quiet"
+                >{{ r.counts.issuesClosed }} closed</a
+              >
+            </dd>
             <dt class="text-fg-muted">pull requests</dt>
             <dd>
-              {{ r.counts.pullsOpen }} open · {{ r.counts.pullsMerged }} merged ·
-              {{ r.counts.pullsClosed }} closed
+              @if (r.pullRequests) {
+                <a [routerLink]="'/pulls'" [queryParams]="links().pullsOpen.query" [class]="quiet"
+                  >{{ r.counts.pullsOpen }} open</a
+                >
+                ·
+                <a [routerLink]="'/pulls'" [queryParams]="links().pullsMerged.query" [class]="quiet"
+                  >{{ r.counts.pullsMerged }} merged</a
+                >
+                ·
+                <a [routerLink]="'/pulls'" [queryParams]="links().pullsClosed.query" [class]="quiet"
+                  >{{ r.counts.pullsClosed }} closed</a
+                >
+              } @else {
+                <span class="text-fg-subtle">not imported</span>
+              }
+            </dd>
+            <dt class="text-fg-muted">queue</dt>
+            <dd>
+              @if (r.queue.depth > 0) {
+                <a [routerLink]="'/queue'" [queryParams]="links().queue.query" [class]="quiet"
+                  >{{ r.queue.depth }} queued</a
+                >
+                @if (r.queue.failing > 0) {
+                  ·
+                  <span class="text-error"
+                    ><a
+                      [routerLink]="'/queue'"
+                      [queryParams]="links().queueFailing.query"
+                      [class]="quiet"
+                      >{{ r.queue.failing }} failing</a
+                    ></span
+                  >
+                }
+              } @else {
+                <span class="text-fg-subtle">nothing queued</span>
+              }
             </dd>
           </dl>
         </mp-panel>

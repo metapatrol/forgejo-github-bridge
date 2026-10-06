@@ -5,6 +5,8 @@ import { NearEnd } from './near-end';
 import { Pair } from '../api/models/pair';
 import { PairKind } from '../api/models/pair-kind';
 import { pairLink } from '../core/kinds';
+import { repositoryLink } from '../core/links';
+import { QUIET_LINK } from './tile';
 import { Author } from './author';
 import { PullFlags, SideLabel, StateBadge } from './badges';
 
@@ -103,7 +105,7 @@ export const PAIRS_SORTS = [
               <a [routerLink]="link(p)" class="mp-link">{{ p.title || '(no title yet)' }}</a>
               <span class="block truncate font-mono text-xs text-fg-subtle">
                 @if (showRepository()) {
-                  {{ p.repository }}
+                  <a [routerLink]="repoLink(p.repository)" [class]="quiet">{{ p.repository }}</a>
                 }
                 @if (showRepository() && p.author && showAuthor()) {
                   ·
@@ -207,6 +209,12 @@ export class PairsTable {
   readonly more = input(false);
   readonly nearEnd = output<void>();
   protected readonly fallback = PAIRS_SORT;
+
+  protected readonly quiet = QUIET_LINK;
+
+  protected repoLink(key: string): (string | number)[] {
+    return repositoryLink(key).commands;
+  }
 
   protected link(p: Pair): (string | number)[] {
     return pairLink(p.kind, p.id);

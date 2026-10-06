@@ -24,6 +24,7 @@ import { repoPath, shortSha, until } from '../../core/format';
 import { KINDS, pairLink } from '../../core/kinds';
 import { PairKind } from '../../api/models/pair-kind';
 import { liveReload } from '../../core/events';
+import { pairsLink, queueLink, repositoryLink } from '../../core/links';
 import { PullFlags, SideLabel, StateBadge } from '../../shared/badges';
 import { Author } from '../../shared/author';
 import { history, HistoryEntry, sideName } from '../../core/history';
@@ -61,6 +62,16 @@ export class PairDetailPage {
   });
   protected readonly repoPath = repoPath;
   protected readonly sideName = sideName;
+  protected readonly repoLink = computed(() => repositoryLink(this.p()?.repository ?? ''));
+  /** The list of this pair's kind, in its repository and state. */
+  protected readonly stateLink = computed(() => {
+    const p = this.p();
+    return pairsLink(this.kind(), { repository: p?.repository, state: p?.state ?? 'open' });
+  });
+  /** The queue of this pair's repository. */
+  protected readonly queueLink = computed(() =>
+    queueLink({ repository: this.p()?.repository, failing: !!this.p()?.queued?.lastError }),
+  );
   /** What the bridge holds about the pair, as a timeline. */
   protected readonly entries = computed(() => {
     const p = this.p();

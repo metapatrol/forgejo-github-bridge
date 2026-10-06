@@ -52,9 +52,18 @@
           </dd>
           <dt>repositories</dt>
           <dd>
-            {{ s.service.repositories }}
+            <a routerLink="/" [class]="quiet" title="The repositories on the overview">{{
+              s.service.repositories
+            }}</a>
             <span class="text-xs text-fg-subtle"
-              >· {{ s.service.pullRequestRepositories }} with pull requests</span
+              >·
+              <a
+                routerLink="/pulls"
+                [queryParams]="{ state: 'open' }"
+                [class]="quiet"
+                title="Their open pull requests"
+                >{{ s.service.pullRequestRepositories }} with pull requests</a
+              ></span
             >
           </dd>
           <dt>leader</dt>

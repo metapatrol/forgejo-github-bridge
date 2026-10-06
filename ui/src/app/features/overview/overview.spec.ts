@@ -127,6 +127,11 @@ describe('Overview', () => {
     expect(hrefs).toContain('/system');
     expect(hrefs).toContain('/queue?failing=true');
     expect(hrefs).toContain('/issues?state=open');
+    // and the counts inside them, to their own lists
+    expect(hrefs).toContain('/issues?state=closed');
+    expect(hrefs).toContain('/pulls?state=merged');
+    expect(hrefs).toContain('/pulls?state=closed');
+    expect(hrefs.filter((h) => h === '/queue?failing=true').length).toBe(2);
     expect(hrefs).toContain('/pulls?state=open');
   });
 
@@ -142,6 +147,20 @@ describe('Overview', () => {
     expect(Array.from(el.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toContain(
       '/queue',
     );
+  });
+
+  it('links a repository tile by its name, and its counts to their lists', async () => {
+    const el = await render(working, [repository('foo', 2)]);
+    const tile = el.querySelector('app-repo-tile') as HTMLElement;
+    const links = Array.from(tile.querySelectorAll('a')).map((a) =>
+      decodeURIComponent(a.getAttribute('href') ?? ''),
+    );
+    expect(links[0]).toBe('/repositories/metapatrol/foo');
+    expect(links).toContain('/queue?repository=metapatrol/foo&failing=true');
+    expect(links).toContain('/issues?repository=metapatrol/foo&state=open');
+    expect(links).toContain('/issues?repository=metapatrol/foo&state=closed');
+    // links do not nest
+    expect(tile.querySelector('a a')).toBeNull();
   });
 
   it('offers no filter for a few repositories', async () => {

@@ -23,6 +23,8 @@ import { StatusService } from '../../core/status';
 import { until } from '../../core/format';
 import { liveReload } from '../../core/events';
 import { Meter } from '../../shared/meter';
+import { QUIET_LINK } from '../../shared/tile';
+import { RouterLink } from '@angular/router';
 
 /** How often the page reloads on its own: the database has no events, and its figures move slowly. */
 export const SYSTEM_REFRESH_MS = 30_000;
@@ -95,7 +97,7 @@ export function interval(seconds: number): string {
 
 @Component({
   selector: 'app-system',
-  imports: [MpIcon, MpLoadState, MpPageHeader, MpTime, MpTip, Meter],
+  imports: [RouterLink, MpIcon, MpLoadState, MpPageHeader, MpTime, MpTip, Meter],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './system.html',
 })
@@ -109,6 +111,7 @@ export class System {
   protected readonly lastOf = lastOf;
   protected readonly percentLeft = percentLeft;
   protected readonly roundSummary = roundSummary;
+  protected readonly quiet = QUIET_LINK;
   protected readonly coreNote = 'core is the REST API the bridge uses.';
   protected readonly rateNote =
     "The GitHub App installation's rate-limit windows. core is the REST API the bridge uses; the figures are GitHub's, from its last response.";

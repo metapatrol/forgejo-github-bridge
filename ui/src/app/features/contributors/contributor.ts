@@ -13,8 +13,9 @@ import { listPairs } from '../../api/fn/pairs/list-pairs';
 import { Side } from '../../api/models/side';
 import { apiResource } from '../../core/api';
 import { liveReload } from '../../core/events';
+import { contributorLinks } from '../../core/links';
+import { QUIET_LINK } from '../../shared/tile';
 import { sideName } from '../../core/history';
-import { ANY_STATE } from '../../core/state-filter';
 import { PairsTable } from '../../shared/pairs-table';
 
 const RECENT = 10;
@@ -59,12 +60,9 @@ export class ContributorDetail {
       : undefined,
   );
 
-  /** The filtered list behind a panel, every state. */
-  protected readonly listParams = computed(() => ({
-    author: this.login(),
-    origin: this.side(),
-    state: ANY_STATE,
-  }));
+  /** Where the counts and the panels' "all →" go: their pairs, every state. */
+  protected readonly links = computed(() => contributorLinks(this.login(), this.side()));
+  protected readonly quiet = QUIET_LINK;
 
   constructor() {
     liveReload(

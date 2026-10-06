@@ -30,12 +30,18 @@
       <mp-panel index="01" [title]="list().one">
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 px-4 py-3 text-sm">
           <dt class="text-fg-muted">state</dt>
-          <dd class="flex flex-wrap items-center gap-1"><app-state [state]="p.state" /></dd>
+          <dd class="flex flex-wrap items-center gap-1">
+            <a
+              [routerLink]="stateLink().commands"
+              [queryParams]="stateLink().query"
+              class="rounded-full focus-visible:outline-2 focus-visible:outline-signal"
+              [title]="'All ' + p.state + ' ' + list().many + ' of ' + p.repository"
+              ><app-state [state]="p.state"
+            /></a>
+          </dd>
           <dt class="text-fg-muted">repository</dt>
           <dd class="font-mono">
-            <a [routerLink]="['/repositories', ...repoPath(p.repository)]" class="mp-link">{{
-              p.repository
-            }}</a>
+            <a [routerLink]="repoLink().commands" class="mp-link">{{ p.repository }}</a>
           </dd>
           <dt class="text-fg-muted">GitHub</dt>
           <dd class="font-mono">
@@ -228,6 +234,12 @@
                           queued
                         }
                         <span class="text-xs text-fg-muted">· next try {{ due(q.notBefore) }}</span>
+                        <a
+                          [routerLink]="queueLink().commands"
+                          [queryParams]="queueLink().query"
+                          class="mp-link ml-2 text-xs"
+                          >queue →</a
+                        >
                       }
                     }
                   }

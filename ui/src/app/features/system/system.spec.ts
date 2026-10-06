@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideApiConfiguration } from '../../api/api-configuration';
 import { System as SystemModel } from '../../api/models/system';
 import {
@@ -115,6 +116,7 @@ describe('System', () => {
   async function render(model: SystemModel): Promise<string> {
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
         provideApiConfiguration('/api/v1'),

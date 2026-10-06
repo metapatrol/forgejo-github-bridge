@@ -13,6 +13,8 @@ import { listQueue } from '../../api/fn/queue/list-queue';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
 import { liveReload } from '../../core/events';
+import { repositoryLinks } from '../../core/links';
+import { QUIET_LINK } from '../../shared/tile';
 import { ANY_STATE, OPEN } from '../../core/state-filter';
 import { SideLabel } from '../../shared/badges';
 import { PairsTable } from '../../shared/pairs-table';
@@ -41,6 +43,9 @@ export class RepositoryDetail {
   readonly name = input.required<string>();
   protected readonly key = computed(() => `${this.owner()}/${this.name()}`);
   protected readonly timestamp = timestamp;
+  protected readonly quiet = QUIET_LINK;
+  /** Where the page's counts go. */
+  protected readonly links = computed(() => repositoryLinks(this.key()));
 
   protected readonly repos = apiResource(listRepositories, () => ({}));
   protected readonly repo = computed(() =>

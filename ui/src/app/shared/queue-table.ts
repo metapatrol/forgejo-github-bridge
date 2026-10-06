@@ -12,6 +12,8 @@ import { NearEnd } from './near-end';
 import { QueueEntry } from '../api/models/queue-entry';
 import { until } from '../core/format';
 import { KINDS, pairLink } from '../core/kinds';
+import { repositoryLink } from '../core/links';
+import { QUIET_LINK } from './tile';
 import { PairKind } from '../api/models/pair-kind';
 import { SideLabel } from './badges';
 
@@ -108,7 +110,9 @@ export const QUEUE_SORTS = [
               </span>
             </td>
             @if (showRepository()) {
-              <td class="truncate font-mono text-xs" [title]="e.repository">{{ e.repository }}</td>
+              <td class="truncate font-mono text-xs" [title]="e.repository">
+                <a [routerLink]="repoLink(e.repository)" [class]="quiet">{{ e.repository }}</a>
+              </td>
             }
             <td class="font-mono tabular-nums" [class.text-error]="e.attempts > 0">
               {{ e.attempts }}
@@ -173,6 +177,12 @@ export class QueueTable {
 
   protected due(at: string): string {
     return until(at, this.clock.now());
+  }
+
+  protected readonly quiet = QUIET_LINK;
+
+  protected repoLink(key: string): (string | number)[] {
+    return repositoryLink(key).commands;
   }
 
   protected link(kind: PairKind, id: number): (string | number)[] {

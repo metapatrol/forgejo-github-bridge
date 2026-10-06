@@ -3,6 +3,10 @@ import { MpListSearch, MpLoadState, MpPageHeader, MpSort, MpTime, Sort } from '@
 import { ListAuthors$Params, listAuthors } from '../../api/fn/pairs/list-authors';
 import { pagedList, sortParam } from '../../core/paged';
 import { NearEnd } from '../../shared/near-end';
+import { contributorLinks } from '../../core/links';
+import { QUIET_LINK } from '../../shared/tile';
+import { Side } from '../../api/models/side';
+import { RouterLink } from '@angular/router';
 import { liveReload } from '../../core/events';
 import { Author } from '../../shared/author';
 import { SideLabel } from '../../shared/badges';
@@ -14,7 +18,17 @@ const CONTRIBUTORS_SORTS = ['pairs', 'issues', 'pulls', 'last', 'login'];
 /** Everyone who opened a pair, the most active first. */
 @Component({
   selector: 'app-contributors',
-  imports: [MpListSearch, MpLoadState, MpPageHeader, MpSort, MpTime, Author, NearEnd, SideLabel],
+  imports: [
+    RouterLink,
+    MpListSearch,
+    MpLoadState,
+    MpPageHeader,
+    MpSort,
+    MpTime,
+    Author,
+    NearEnd,
+    SideLabel,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mp-page-header title="Contributors" [note]="authors.total().toString()" />
@@ -66,8 +80,26 @@ const CONTRIBUTORS_SORTS = ['pairs', 'issues', 'pulls', 'last', 'login'];
                   <td><app-author [login]="a.login" [side]="a.side" /></td>
                   <td><app-side [side]="a.side" /></td>
                   <td class="mp-num">{{ a.issues + a.pulls }}</td>
-                  <td class="mp-num">{{ a.issues }}</td>
-                  <td class="mp-num">{{ a.side === 'github' ? a.pulls : '—' }}</td>
+                  <td class="mp-num">
+                    <a
+                      [routerLink]="'/issues'"
+                      [queryParams]="links(a.login, a.side).issues.query"
+                      [class]="quiet"
+                      >{{ a.issues }}</a
+                    >
+                  </td>
+                  <td class="mp-num">
+                    @if (a.side === 'github') {
+                      <a
+                        [routerLink]="'/pulls'"
+                        [queryParams]="links(a.login, a.side).pulls.query"
+                        [class]="quiet"
+                        >{{ a.pulls }}</a
+                      >
+                    } @else {
+                      —
+                    }
+                  </td>
                   <td class="text-xs whitespace-nowrap text-fg-muted">
                     <mp-time [value]="a.lastAt" />
                   </td>
@@ -96,6 +128,18 @@ export class Contributors {
   /** ?sort=: a column, descending with a leading -; the most active first by default. */
   readonly sort = input<string>();
   protected readonly fallback = CONTRIBUTORS_SORT;
+  protected readonly quiet = QUIET_LINK;
+  /** Their pairs, every state; built once per row. */
+  private readonly linkCache = new Map<string, ReturnType<typeof contributorLinks>>();
+  protected links(login: string, side: Side) {
+    const key = `${side}/${login}`;
+    let l = this.linkCache.get(key);
+    if (!l) {
+      l = contributorLinks(login, side);
+      this.linkCache.set(key, l);
+    }
+    return l;
+  }
   protected readonly authors = pagedList(listAuthors, () => ({
     q: this.q() || undefined,
     sort: sortParam<NonNullable<ListAuthors$Params['sort']>>(this.sort(), CONTRIBUTORS_SORTS),

@@ -16,9 +16,10 @@ import { sideName } from '../../core/history';
 import { apiResource } from '../../core/api';
 import { repoPath } from '../../core/format';
 import { displayNames, FILTER_FROM } from '../../core/repos';
-import { REPO_GRID, RepoTile, TILE_LINK } from '../../shared/repo-tile';
+import { REPO_GRID, RepoTile } from '../../shared/repo-tile';
+import { QUIET_LINK, TILE, TILE_LINK, TILE_MAIN } from '../../shared/tile';
+import { pairsLink, queueLink } from '../../core/links';
 import { liveReload } from '../../core/events';
-import { OPEN } from '../../core/state-filter';
 import { coreLimit, percentLeft, rateTone } from '../../core/rate-limit';
 import { until } from '../../core/format';
 import { Meter } from '../../shared/meter';
@@ -46,7 +47,17 @@ export class Overview {
   protected readonly repoPath = repoPath;
   protected readonly grid = REPO_GRID;
   protected readonly tileLink = TILE_LINK;
-  protected readonly open = OPEN;
+  protected readonly tile = TILE;
+  protected readonly main = TILE_MAIN;
+  protected readonly quiet = QUIET_LINK;
+  // Where the counts of the stat tiles go.
+  protected readonly issuesOpen = pairsLink('issue', { state: 'open' });
+  protected readonly issuesClosed = pairsLink('issue', { state: 'closed' });
+  protected readonly pullsOpen = pairsLink('pull', { state: 'open' });
+  protected readonly pullsMerged = pairsLink('pull', { state: 'merged' });
+  protected readonly pullsClosed = pairsLink('pull', { state: 'closed' });
+  protected readonly queueAll = queueLink();
+  protected readonly queueFailing = queueLink({ failing: true });
   /** The filter above the tiles, from ?repo=; offered only for many repositories. */
   readonly repo = input<string>();
   protected readonly all = computed(() => this.repos.body()?.items ?? []);

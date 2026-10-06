@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { MpListSearch, mpQueryParams } from '@metapatrol/ng';
 import { RepositoryInput } from './repository-input';
+import { AuthorFilter, AuthorInput } from './author-input';
+import { PairKind } from '../api/models/pair-kind';
 
 export interface FilterOption {
   value: string;
@@ -10,7 +12,7 @@ export interface FilterOption {
 /** The filters above a list of issues or pull requests, all in the URL. */
 @Component({
   selector: 'app-pair-filters',
-  imports: [MpListSearch, RepositoryInput],
+  imports: [MpListSearch, RepositoryInput, AuthorInput],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'mp-panel-head flex-wrap items-center gap-3' },
   template: `
@@ -25,8 +27,15 @@ export interface FilterOption {
       <app-repository-input
         class="w-72"
         [value]="repository()"
-        [pullsOnly]="pullsOnly()"
+        [pullsOnly]="kind() === 'pull'"
         (committed)="filter('repository', $event)"
+      />
+      <app-author-input
+        class="w-56"
+        [kind]="kind()"
+        [author]="author()"
+        [origin]="origin() === 'forgejo' ? 'forgejo' : 'github'"
+        (committed)="setAuthor($event)"
       />
       <label class="sr-only" for="f-state">State</label>
       <select id="f-state" class="mp-input w-auto" (change)="setState($any($event.target).value)">
@@ -52,8 +61,9 @@ export interface FilterOption {
   `,
 })
 export class PairFilters {
-  /** Suggest only repositories that import pull requests. */
-  readonly pullsOnly = input(false);
+  readonly kind = input.required<PairKind>();
+  /** Who opened them; the origin says on which side. */
+  readonly author = input<string | undefined>();
   readonly states = input<readonly FilterOption[]>([]);
   /** Empty: no origin filter. */
   readonly origins = input<readonly FilterOption[]>([]);
@@ -68,6 +78,11 @@ export class PairFilters {
 
   protected setState(selected: string): void {
     this.setQuery({ state: selected });
+  }
+
+  /** An author comes with the side their login is on; clearing removes both. */
+  protected setAuthor(f: AuthorFilter | null): void {
+    this.setQuery({ author: f?.author ?? null, origin: f?.origin ?? null });
   }
 
   protected filter(name: string, value: string): void {

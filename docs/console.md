@@ -71,8 +71,9 @@ and the bridge's error messages, which name repositories and accounts.
 | System | the service (version, uptime, schedule, the instance doing the work), the GitHub rate limit, and the database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the schema version, the maintenance PostgreSQL runs now, and the bridge's own maintenance rounds: when the last ran, what it did, when the next is due |
 
 Lists load more as they are scrolled; their search, sort and filters are in
-the address, so a view can be linked. The repository filter suggests
-repositories as one types.
+the address, so a view can be linked. The repository and author filters
+suggest as one types. Every count links to the list it counts, filtered
+accordingly, and every repository and contributor to their page.
 
 ![Pull requests: state, flags and contrib branch, sorted by when they were opened](./images/console-pulls.png)
 
@@ -101,7 +102,7 @@ read on its own:
 | `GET /api/v1/pairs` | pairs, filtered by `repository`, `kind`, `state`, `origin`, `author` and `q` |
 | `GET /api/v1/pairs/{id}` | one pair with its comment pairs |
 | `GET /api/v1/queue` | queued entries, by `repository`, `q`, optionally `failing` only |
-| `GET /api/v1/authors` | who opened the pairs, by `q` |
+| `GET /api/v1/authors` | who opened the pairs, by `q`, `side` and `kind` |
 | `GET /api/v1/system` | the service, the database, its tables and their upkeep |
 | `GET /api/v1/events` | changes as Server-Sent Events: which pair, queue entry or cursor changed, never its content |
 | `GET /api/v1/openapi.yaml` | the specification all of the above is generated from |

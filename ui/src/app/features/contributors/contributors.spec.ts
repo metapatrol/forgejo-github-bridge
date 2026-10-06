@@ -44,8 +44,19 @@ describe('Contributors', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    const hrefs = Array.from(el.querySelectorAll('tbody a')).map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/contributors/github/alice', '/contributors/forgejo/jdoe']);
+    const names = Array.from(el.querySelectorAll('tbody app-author a')).map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(names).toEqual(['/contributors/github/alice', '/contributors/forgejo/jdoe']);
+    // their counts link to their pairs, every state; a Forgejo login has no pull requests
+    const counts = Array.from(el.querySelectorAll('tbody td.mp-num a')).map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(counts).toEqual([
+      '/issues?author=alice&origin=github&state=any',
+      '/pulls?author=alice&origin=github&state=any',
+      '/issues?author=jdoe&origin=forgejo&state=any',
+    ]);
     expect(el.textContent).toContain('Forgejo');
   });
 });
@@ -74,6 +85,10 @@ describe('ContributorDetail', () => {
     expect(el.querySelector('a[href="https://github.com/alice"]')).not.toBeNull();
     const all = Array.from(el.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(all).toContain('/issues?author=alice&origin=github&state=any');
+    // the counts in the panel link there too
+    const counts = Array.from(el.querySelectorAll('dd a')).map((a) => a.getAttribute('href'));
+    expect(counts).toContain('/issues?author=alice&origin=github&state=any');
+    expect(counts).toContain('/pulls?author=alice&origin=github&state=any');
     expect(all).toContain('/pulls?author=alice&origin=github&state=any');
   });
 

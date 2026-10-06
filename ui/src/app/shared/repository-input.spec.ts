@@ -68,9 +68,13 @@ describe('RepositoryInput', () => {
     return last.request;
   }
 
+  /** The suggestions as read: the label, and the hint beside it. */
   const options = () =>
     Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('[role="option"]')).map(
-      (o) => o.textContent?.replace(/\s+/g, ' ').trim(),
+      (o) =>
+        Array.from(o.querySelectorAll('span'))
+          .map((s) => s.textContent?.trim())
+          .join(' '),
     );
 
   function press(key: string) {

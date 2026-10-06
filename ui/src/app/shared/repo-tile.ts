@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { RouterLink } from '@angular/router';
 import { MpTime } from '@metapatrol/ng';
 import { Repository } from '../api/models/repository';
-import { repoPath } from '../core/format';
+import { repositoryLinks } from '../core/links';
+import { QUIET_LINK, TILE, TILE_MAIN } from './tile';
 import { lastPoll, repoHealth } from '../core/repos';
 
 /**
@@ -13,10 +14,6 @@ import { lastPoll, repoHealth } from '../core/repos';
  */
 export const REPO_GRID = 'grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,19rem)]';
 
-/** A tile that is a link as a whole: hover and keyboard focus as the brand's panels take them. */
-export const TILE_LINK =
-  'mp-panel mp-panel-flush text-fg no-underline hover:border-line-strong hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal';
-
 /** A repository as a narrow tile: its health, its pairs, when it was last polled. */
 @Component({
   selector: 'app-repo-tile',
@@ -24,32 +21,57 @@ export const TILE_LINK =
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block h-full min-w-0' },
   template: `
-    <a
-      [routerLink]="['/repositories', ...path()]"
-      [class]="tileLink + ' flex h-full flex-col gap-1 px-4 py-3'"
-      [title]="repo().key"
-    >
+    <div [class]="tile + ' flex h-full flex-col gap-1 px-4 py-3'">
       <span class="flex min-w-0 items-center gap-2">
         <span
           class="mp-status shrink-0"
           [attr.data-status]="health().status"
           aria-hidden="true"
         ></span>
-        <span class="truncate font-mono text-sm font-medium">{{ name() || repo().key }}</span>
+        <a
+          [routerLink]="links().page.commands"
+          [class]="main + ' truncate font-mono text-sm font-medium'"
+          [title]="repo().key"
+          >{{ name() || repo().key }}</a
+        >
       </span>
       <span
         class="font-mono text-xs"
         [class.text-error]="health().status === 'error'"
         [class.text-fg-muted]="health().status !== 'error'"
-        >{{ health().text }}</span
       >
+        @if (repo().queue.depth > 0) {
+          <a [routerLink]="queue().commands" [queryParams]="queue().query" [class]="quiet">{{
+            health().text
+          }}</a>
+        } @else {
+          {{ health().text }}
+        }
+      </span>
       <span class="font-mono text-xs text-fg-muted"
-        >issues {{ repo().counts.issuesOpen }} open · {{ repo().counts.issuesClosed }} closed</span
+        >issues
+        <a [routerLink]="'/issues'" [queryParams]="links().issuesOpen.query" [class]="quiet"
+          >{{ repo().counts.issuesOpen }} open</a
+        >
+        ·
+        <a [routerLink]="'/issues'" [queryParams]="links().issuesClosed.query" [class]="quiet"
+          >{{ repo().counts.issuesClosed }} closed</a
+        ></span
       >
       @if (repo().pullRequests) {
         <span class="font-mono text-xs text-fg-muted"
-          >PRs {{ repo().counts.pullsOpen }} open · {{ repo().counts.pullsMerged }} merged ·
-          {{ repo().counts.pullsClosed }} closed</span
+          >PRs
+          <a [routerLink]="'/pulls'" [queryParams]="links().pullsOpen.query" [class]="quiet"
+            >{{ repo().counts.pullsOpen }} open</a
+          >
+          ·
+          <a [routerLink]="'/pulls'" [queryParams]="links().pullsMerged.query" [class]="quiet"
+            >{{ repo().counts.pullsMerged }} merged</a
+          >
+          ·
+          <a [routerLink]="'/pulls'" [queryParams]="links().pullsClosed.query" [class]="quiet"
+            >{{ repo().counts.pullsClosed }} closed</a
+          ></span
         >
       } @else {
         <span class="font-mono text-xs text-fg-subtle">PRs off</span>
@@ -62,7 +84,7 @@ export const TILE_LINK =
           not polled yet
         }
       </span>
-    </a>
+    </div>
   `,
 })
 export class RepoTile {
@@ -70,8 +92,14 @@ export class RepoTile {
   /** What to call it; the full key by default. */
   readonly name = input('');
 
-  protected readonly tileLink = TILE_LINK;
-  protected readonly path = computed(() => repoPath(this.repo().key));
+  protected readonly tile = TILE;
+  protected readonly main = TILE_MAIN;
+  protected readonly quiet = QUIET_LINK;
+  protected readonly links = computed(() => repositoryLinks(this.repo().key));
+  /** The repository's queue: only what fails, when something does. */
+  protected readonly queue = computed(() =>
+    this.repo().queue.failing > 0 ? this.links().queueFailing : this.links().queue,
+  );
   protected readonly health = computed(() => repoHealth(this.repo()));
   protected readonly polled = computed(() => lastPoll(this.repo()));
 }
