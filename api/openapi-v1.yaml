@@ -113,6 +113,14 @@ paths:
       parameters:
         - $ref: "#/components/parameters/PageLimit"
         - $ref: "#/components/parameters/PageCursor"
+        - name: side
+          in: query
+          description: Keep only the authors of one side.
+          schema: { $ref: "#/components/schemas/Side" }
+        - name: kind
+          in: query
+          description: Keep only the authors who opened at least one pair of this kind; their counts stay whole.
+          schema: { $ref: "#/components/schemas/PairKind" }
         - name: q
           in: query
           description: Keep only the authors whose login contains this text, ignoring case.

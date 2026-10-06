@@ -836,6 +836,12 @@ type ListAuthorsParams struct {
 	// or not at all.
 	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 
+	// Side Keep only the authors of one side.
+	Side *Side `form:"side,omitempty" json:"side,omitempty"`
+
+	// Kind Keep only the authors who opened at least one pair of this kind; their counts stay whole.
+	Kind *PairKind `form:"kind,omitempty" json:"kind,omitempty"`
+
 	// Q Keep only the authors whose login contains this text, ignoring case.
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 

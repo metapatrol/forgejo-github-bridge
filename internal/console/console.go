@@ -204,14 +204,23 @@ func (s *server) ListAuthors(w http.ResponseWriter, r *http.Request, p v1.ListAu
 		writeError(w, http.StatusBadRequest, "q is longer than 200 characters")
 		return
 	}
-	pg, err := newPaging(p.Limit, p.Cursor, string(deref(p.Sort)), filter("q", p.Q))
+	if p.Side != nil && !validSide(*p.Side) {
+		writeError(w, http.StatusBadRequest, "side must be github or forgejo")
+		return
+	}
+	if p.Kind != nil && *p.Kind != v1.Issue && *p.Kind != v1.Pull {
+		writeError(w, http.StatusBadRequest, "kind must be issue or pull")
+		return
+	}
+	pg, err := newPaging(p.Limit, p.Cursor, string(deref(p.Sort)), filter("side", p.Side), filter("kind", p.Kind), filter("q", p.Q))
 	if err != nil {
 		s.pageError(w, r, err)
 		return
 	}
 	ctx, cancel := ctxFor(r)
 	defer cancel()
-	authors, total, next, err := s.reports.Authors(ctx, store.AuthorFilter{Query: deref(p.Q), Page: pg.page})
+	authors, total, next, err := s.reports.Authors(ctx, store.AuthorFilter{Query: deref(p.Q),
+		Side: store.Side(deref(p.Side)), Kind: store.Kind(deref(p.Kind)), Page: pg.page})
 	if err != nil {
 		s.pageError(w, r, err)
 		return

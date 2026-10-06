@@ -528,4 +528,12 @@ func TestQueueAndAuthorsAreSearched(t *testing.T) {
 	if err != nil || total != 1 || a[0].Login != "alice" {
 		t.Errorf("authors = %+v of %d, %v", a, total, err)
 	}
+	a, total, _, _ = st.Authors(ctx, store.AuthorFilter{Kind: store.KindPull})
+	if total != 1 || a[0].Login != "bob" || a[0].Issues != 0 || a[0].Pulls != 1 {
+		t.Errorf("pull request authors = %+v of %d", a, total)
+	}
+	a, total, _, _ = st.Authors(ctx, store.AuthorFilter{Side: store.Forgejo})
+	if total != 1 || a[0].Login != "jdoe" {
+		t.Errorf("Forgejo authors = %+v of %d", a, total)
+	}
 }

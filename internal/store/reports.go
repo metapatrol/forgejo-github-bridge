@@ -163,6 +163,10 @@ type QueueFilter struct {
 type AuthorFilter struct {
 	// Query matches the login, case-insensitively.
 	Query string
+	// Side keeps the authors of one side; Kind those who opened at least one
+	// pair of that kind. Their counts stay whole.
+	Side Side
+	Kind Kind
 	Page
 }
 

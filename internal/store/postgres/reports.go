@@ -535,14 +535,24 @@ func (s *Store) Authors(ctx context.Context, f store.AuthorFilter) ([]store.Auth
 	arg := placeholders(&args)
 	search := ""
 	if q := strings.TrimSpace(f.Query); q != "" {
-		search = " AND author ILIKE " + arg("%"+likeEscape(q)+"%")
+		search += " AND author ILIKE " + arg("%"+likeEscape(q)+"%")
+	}
+	if f.Side != "" {
+		search += " AND origin = " + arg(string(f.Side))
+	}
+	var where []string
+	switch f.Kind {
+	case store.KindIssue:
+		where = append(where, "a.issues > 0")
+	case store.KindPull:
+		where = append(where, "a.pulls > 0")
 	}
 	authors := `(SELECT author, origin, count(*) FILTER (WHERE kind = 'issue') AS issues,
 		       count(*) FILTER (WHERE kind = 'pull') AS pulls, count(*) AS pairs, max(created_at) AS last
 		FROM issue_mapping WHERE author <> ''` + search + `
 		GROUP BY author, origin) a`
 	countArgs := len(args)
-	var where []string
+	countWhere := clause(where)
 	if f.After != nil {
 		cond, err := keys.after(f.After, arg)
 		if err != nil {
@@ -559,7 +569,7 @@ func (s *Store) Authors(ctx context.Context, f store.AuthorFilter) ([]store.Auth
 	var positions []store.Position
 	var total int
 	err = s.read(ctx, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM `+authors, args[:countArgs]...).Scan(&total); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM `+authors+countWhere, args[:countArgs]...).Scan(&total); err != nil {
 			return err
 		}
 		rows, err := tx.Query(ctx, `SELECT a.author, a.origin, a.issues, a.pulls, a.last, `+keys.selectKeys()+

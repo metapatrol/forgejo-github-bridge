@@ -365,9 +365,9 @@ func TestAuthorsLinkToTheirProfiles(t *testing.T) {
 	}}
 	h := newConsole(t, r)
 	var page v1.AuthorPage
-	get(t, h, "/api/v1/authors?q=al&sort=login", &page)
+	get(t, h, "/api/v1/authors?q=al&side=github&kind=pull&sort=login", &page)
 	a := page.Items
-	if r.authorFilter != (store.AuthorFilter{Query: "al", Page: store.Page{Sort: "login"}}) {
+	if r.authorFilter != (store.AuthorFilter{Query: "al", Side: store.GitHub, Kind: store.KindPull, Page: store.Page{Sort: "login"}}) {
 		t.Errorf("filter = %+v", r.authorFilter)
 	}
 	if len(a) != 2 || *a[0].ProfileUrl != "https://github.com/alice" || *a[1].ProfileUrl != "https://forgejo.example.com/jdoe" || a[0].Issues != 3 {
