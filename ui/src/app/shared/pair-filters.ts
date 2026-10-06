@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { MpListSearch, mpQueryParams } from '@metapatrol/ng';
+import { RepositoryInput } from './repository-input';
 
 export interface FilterOption {
   value: string;
@@ -9,7 +10,7 @@ export interface FilterOption {
 /** The filters above a list of issues or pull requests, all in the URL. */
 @Component({
   selector: 'app-pair-filters',
-  imports: [MpListSearch],
+  imports: [MpListSearch, RepositoryInput],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'mp-panel-head flex-wrap items-center gap-3' },
   template: `
@@ -21,17 +22,12 @@ export interface FilterOption {
       placeholder="Title or number"
     />
     <div class="flex flex-wrap items-center gap-2">
-      <label class="sr-only" for="f-repository">Repository</label>
-      <select
-        id="f-repository"
-        class="mp-input w-auto"
-        (change)="filter('repository', $any($event.target).value)"
-      >
-        <option value="">all repositories</option>
-        @for (r of repositories(); track r) {
-          <option [value]="r" [selected]="r === repository()">{{ r }}</option>
-        }
-      </select>
+      <app-repository-input
+        class="w-72"
+        [value]="repository()"
+        [pullsOnly]="pullsOnly()"
+        (committed)="filter('repository', $event)"
+      />
       <label class="sr-only" for="f-state">State</label>
       <select id="f-state" class="mp-input w-auto" (change)="setState($any($event.target).value)">
         @for (s of states(); track s.value) {
@@ -56,7 +52,8 @@ export interface FilterOption {
   `,
 })
 export class PairFilters {
-  readonly repositories = input<readonly string[]>([]);
+  /** Suggest only repositories that import pull requests. */
+  readonly pullsOnly = input(false);
   readonly states = input<readonly FilterOption[]>([]);
   /** Empty: no origin filter. */
   readonly origins = input<readonly FilterOption[]>([]);

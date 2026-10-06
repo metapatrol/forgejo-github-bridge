@@ -3,11 +3,9 @@ import { MpIcon, MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng
 import { RouterLink } from '@angular/router';
 import { ListPairs$Params, listPairs } from '../../api/fn/pairs/list-pairs';
 import { pagedList, sortParam } from '../../core/paged';
-import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { PairKind } from '../../api/models/pair-kind';
 import { apiState } from '../../core/state-filter';
 import { Side } from '../../api/models/side';
-import { apiResource } from '../../core/api';
 import { KINDS } from '../../core/kinds';
 import { liveReload } from '../../core/events';
 import { FilterOption, PairFilters } from '../../shared/pair-filters';
@@ -45,7 +43,7 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
     <mp-page-header [title]="title()" [note]="pairs.total().toString()" />
     <section class="mp-panel mp-panel-flush">
       <app-pair-filters
-        [repositories]="repositories()"
+        [pullsOnly]="kind() === 'pull'"
         [states]="states()"
         [origins]="kind() === 'issue' ? origins : []"
         [repository]="repository()"
@@ -131,13 +129,6 @@ export class Pairs {
   }));
 
   protected readonly pairs = pagedList(listPairs, () => this.params());
-  protected readonly repos = apiResource(listRepositories, () => ({}));
-  /** Pull requests only come from repositories that import them. */
-  protected readonly repositories = computed(() =>
-    (this.repos.body()?.items ?? [])
-      .filter((r) => this.kind() === 'issue' || r.pullRequests)
-      .map((r) => r.key),
-  );
 
   constructor() {
     liveReload(

@@ -8,14 +8,13 @@ import {
 import { MpListSearch, MpLoadState, MpPageHeader, mpQueryParams } from '@metapatrol/ng';
 import { ListQueue$Params, listQueue } from '../../api/fn/queue/list-queue';
 import { pagedList, sortParam } from '../../core/paged';
-import { listRepositories } from '../../api/fn/repositories/list-repositories';
-import { apiResource } from '../../core/api';
 import { liveReload } from '../../core/events';
 import { QUEUE_SORTS, QueueTable } from '../../shared/queue-table';
+import { RepositoryInput } from '../../shared/repository-input';
 
 @Component({
   selector: 'app-queue',
-  imports: [MpListSearch, MpLoadState, MpPageHeader, QueueTable],
+  imports: [MpListSearch, MpLoadState, MpPageHeader, QueueTable, RepositoryInput],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mp-page-header title="Queue" [note]="queue.total().toString()" />
@@ -40,17 +39,11 @@ import { QUEUE_SORTS, QueueTable } from '../../shared/queue-table';
           />
           failing only
         </label>
-        <label class="sr-only" for="q-repository">Repository</label>
-        <select
-          id="q-repository"
-          class="mp-input w-auto"
-          (change)="setQuery({ repository: $any($event.target).value || null })"
-        >
-          <option value="">all repositories</option>
-          @for (r of repos.body()?.items ?? []; track r.key) {
-            <option [value]="r.key" [selected]="r.key === repository()">{{ r.key }}</option>
-          }
-        </select>
+        <app-repository-input
+          class="w-72"
+          [value]="repository()"
+          (committed)="setQuery({ repository: $event || null })"
+        />
       </div>
       <mp-load-state
         [error]="queue.error()"
@@ -86,7 +79,6 @@ export class Queue {
     sort: sortParam<NonNullable<ListQueue$Params['sort']>>(this.sort(), QUEUE_SORTS),
   }));
   protected readonly queue = pagedList(listQueue, () => this.params());
-  protected readonly repos = apiResource(listRepositories, () => ({}));
 
   constructor() {
     liveReload(() => ({ view: 'queue' }), this.queue);

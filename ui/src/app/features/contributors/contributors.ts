@@ -26,7 +26,7 @@ const CONTRIBUTORS_SORTS = ['pairs', 'issues', 'pulls', 'last', 'login'];
     <section class="mp-panel mp-panel-flush">
       <header class="mp-panel-head">
         <mp-list-search
-          placeholder="Login"
+          placeholder="Name"
           [query]="q()"
           [shown]="authors.items().length"
           [total]="authors.total()"
@@ -43,7 +43,7 @@ const CONTRIBUTORS_SORTS = ['pairs', 'issues', 'pulls', 'last', 'login'];
             <thead>
               <tr>
                 <th scope="col" class="w-full">
-                  <mp-sort key="login" [sort]="sort()" [fallback]="fallback">login</mp-sort>
+                  <mp-sort key="login" [sort]="sort()" [fallback]="fallback">name</mp-sort>
                 </th>
                 <th scope="col">side</th>
                 <th scope="col" class="text-right">
