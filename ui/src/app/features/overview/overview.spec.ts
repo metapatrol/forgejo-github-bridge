@@ -64,20 +64,13 @@ describe('Overview', () => {
   });
 
   it('links every tile to its page', async () => {
+    // queue, GitHub (the system page), issues and pull requests; no bridge tile
     const el = await render(working);
     const hrefs = Array.from(el.querySelectorAll('a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toContain('/system');
     expect(hrefs).toContain('/queue?failing=true');
     expect(hrefs).toContain('/issues?state=open');
     expect(hrefs).toContain('/pulls?state=open');
-  });
-
-  it('names the working instance, and this one where it differs', async () => {
-    const text = (await render(working)).textContent ?? '';
-    expect(text).toContain('working');
-    expect(text).toContain('on bridge-0');
-    expect(text).toContain('0.4.0 · bridge-1 · bridge mode');
-    expect(text).not.toContain('No instance holds the leader lock');
   });
 
   it('warns when no instance holds the leader lock', async () => {
@@ -88,7 +81,6 @@ describe('Overview', () => {
     });
     const text = el.textContent ?? '';
     expect(text).toContain('No instance holds the leader lock: nothing is being bridged.');
-    expect(text).toContain('no instance working');
     expect(el.querySelector('mp-notice a')?.getAttribute('href')).toBe('/system');
     expect(Array.from(el.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toContain(
       '/queue',

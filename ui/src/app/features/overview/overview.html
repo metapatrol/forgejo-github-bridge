@@ -23,52 +23,10 @@
       </mp-notice>
     }
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1.6fr]">
+    <!-- GitHub, issues, pull requests, queue: four tiles, 4 · 2×2 · 1 across -->
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <a routerLink="/system" [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'">
-        <span class="mp-label mb-0"><span class="mp-label-index">01</span>bridge</span>
-        @if (working()) {
-          <span class="mp-status text-xl font-semibold" data-status="success">working</span>
-          <span class="font-mono text-xs text-fg-muted">
-            on {{ leaderHost() }}
-            @if (leaderSince(); as at) {
-              since <mp-time [value]="at" />
-            }
-          </span>
-        } @else {
-          <span class="mp-status text-xl font-semibold" data-status="error"
-            >no instance working</span
-          >
-          <span class="font-mono text-xs text-fg-muted">nothing is being bridged</span>
-        }
-        <span class="truncate font-mono text-xs text-fg-subtle" [title]="buildTip()">{{
-          instanceLine()
-        }}</span>
-      </a>
-
-      <a
-        routerLink="/queue"
-        [queryParams]="s.queue.failing > 0 ? { failing: true } : {}"
-        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'"
-      >
-        <span class="mp-label mb-0"><span class="mp-label-index">02</span>queue</span>
-        <span class="text-3xl font-semibold tabular-nums">{{ count(s.queue.depth) }}</span>
-        <span class="flex flex-wrap gap-x-3 font-mono text-xs">
-          @if (s.queue.failing > 0) {
-            <span class="text-error">{{ s.queue.failing }} failing</span>
-          } @else {
-            <span class="text-fg-muted">none failing</span>
-          }
-          @if (s.queue.oldestMarkedAt) {
-            <span class="text-fg-muted">oldest <mp-time [value]="s.queue.oldestMarkedAt" /></span>
-          }
-        </span>
-      </a>
-
-      <a
-        routerLink="/system"
-        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3 sm:col-span-2 xl:col-span-1'"
-      >
-        <span class="mp-label mb-0"><span class="mp-label-index">03</span>GitHub</span>
+        <span class="mp-label mb-0"><span class="mp-label-index">01</span>GitHub</span>
         @if (core(); as c) {
           <span
             class="text-3xl font-semibold tabular-nums"
@@ -96,37 +54,49 @@
         }
       </a>
 
-      <div
-        class="mp-panel mp-panel-flush grid grid-cols-2 divide-x divide-line overflow-hidden sm:col-span-2 xl:col-span-1"
+      <a
+        routerLink="/issues"
+        [queryParams]="open"
+        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'"
       >
-        <a
-          routerLink="/issues"
-          [queryParams]="open"
-          class="flex min-w-0 flex-col gap-2 px-4 py-3 text-fg no-underline hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal"
+        <span class="mp-label mb-0"><span class="mp-label-index">02</span>issues</span>
+        <span class="text-3xl font-semibold tabular-nums">{{ count(totals().issuesOpen) }}</span>
+        <span class="font-mono text-xs text-fg-muted"
+          >open · {{ count(totals().issuesClosed) }} closed</span
         >
-          <span class="mp-label mb-0"><span class="mp-label-index">04</span>issues</span>
-          <span class="text-3xl font-semibold tabular-nums">{{ count(totals().issuesOpen) }}</span>
-          <span class="flex flex-col font-mono text-xs text-fg-muted">
-            <span>open</span>
-            <span>{{ count(totals().issuesClosed) }} closed</span>
-          </span>
-        </a>
-        <a
-          routerLink="/pulls"
-          [queryParams]="open"
-          class="flex min-w-0 flex-col gap-2 px-4 py-3 text-fg no-underline hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal"
+      </a>
+
+      <a
+        routerLink="/pulls"
+        [queryParams]="open"
+        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'"
+      >
+        <span class="mp-label mb-0"><span class="mp-label-index">03</span>pull requests</span>
+        <span class="text-3xl font-semibold tabular-nums">{{ count(totals().pullsOpen) }}</span>
+        <span class="font-mono text-xs text-fg-muted"
+          >open · {{ count(totals().pullsMerged) }} merged ·
+          {{ count(totals().pullsClosed) }} closed</span
         >
-          <span class="mp-label mb-0"><span class="mp-label-index">05</span>pull requests</span>
-          <span class="text-3xl font-semibold tabular-nums">{{ count(totals().pullsOpen) }}</span>
-          <span class="flex flex-col font-mono text-xs text-fg-muted">
-            <span>open</span>
-            <span
-              >{{ count(totals().pullsMerged) }} merged ·
-              {{ count(totals().pullsClosed) }} closed</span
-            >
-          </span>
-        </a>
-      </div>
+      </a>
+
+      <a
+        routerLink="/queue"
+        [queryParams]="s.queue.failing > 0 ? { failing: true } : {}"
+        [class]="tileLink + ' flex min-w-0 flex-col gap-2 px-4 py-3'"
+      >
+        <span class="mp-label mb-0"><span class="mp-label-index">04</span>queue</span>
+        <span class="text-3xl font-semibold tabular-nums">{{ count(s.queue.depth) }}</span>
+        <span class="flex flex-wrap gap-x-3 font-mono text-xs">
+          @if (s.queue.failing > 0) {
+            <span class="text-error">{{ s.queue.failing }} failing</span>
+          } @else {
+            <span class="text-fg-muted">none failing</span>
+          }
+          @if (s.queue.oldestMarkedAt) {
+            <span class="text-fg-muted">oldest <mp-time [value]="s.queue.oldestMarkedAt" /></span>
+          }
+        </span>
+      </a>
     </div>
 
     <section class="flex flex-col gap-3" aria-labelledby="repositories-heading">

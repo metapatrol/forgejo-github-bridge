@@ -50,30 +50,6 @@ export class Overview {
     return due === 'due' ? 'resets now' : `resets ${due}`;
   }
   protected readonly working = computed(() => !!this.s()?.leader?.present);
-  protected readonly leaderHost = computed(() => this.s()?.leader?.instance || 'an instance');
-  protected readonly leaderSince = computed(() => this.s()?.leader?.connectedAt);
-
-  /**
-   * The muted line of the bridge tile: the version, this instance where it
-   * is not the one working, and its mode.
-   */
-  protected readonly instanceLine = computed(() => {
-    const s = this.s();
-    if (!s) {
-      return '';
-    }
-    const parts = [s.version];
-    if (s.instance !== s.leader?.instance) {
-      parts.push(s.instance);
-    }
-    parts.push(`${s.mode} mode`);
-    return parts.join(' · ');
-  });
-
-  protected readonly buildTip = computed(() => {
-    const s = this.s();
-    return s && s.commit !== 'unknown' ? `${s.commit}, built ${s.builtAt}` : 'local build';
-  });
 
   /** Sums over every repository. */
   protected readonly totals = computed(() => {

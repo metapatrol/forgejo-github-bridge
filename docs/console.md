@@ -61,7 +61,7 @@ and the bridge's error messages, which name repositories and accounts.
 
 | View | |
 |---|---|
-| Overview | whether an instance is doing the work, the queue and how much of it is failing, how much of the GitHub rate limit is left, open issues and pull requests, and every repository |
+| Overview | how much of the GitHub rate limit is left, open issues and pull requests, the queue and how much of it is failing, and every repository; a warning when no instance is doing the work |
 | Repositories | each pair's configuration, its counts, how far each poll has read on each side, its queue, and its newest issues and pull requests in panels of their own |
 | Issues | every issue pair, newest first; searchable by title or number, filterable by repository, state and the side it was opened on. An issue links to both sides and shows its comment pairs |
 | Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported. One links to both sides and shows its contrib branch, imported head and comment pairs |
