@@ -111,8 +111,8 @@ export class RepositoryInput {
       ? {
           q: this.asked() || undefined,
           sort: 'name' as const,
-          // Ask for more where some will be left out, so the list stays full.
-          limit: this.pullsOnly() ? MAX_SUGGESTIONS * 3 : MAX_SUGGESTIONS,
+          pullRequests: this.pullsOnly() || undefined,
+          limit: MAX_SUGGESTIONS,
         }
       : undefined,
   );

@@ -86,6 +86,7 @@ describe('RepositoryInput', () => {
     ]);
     expect(req.params.get('q')).toBe('gate');
     expect(req.params.get('limit')).toBe('8');
+    expect(req.params.has('pullRequests')).toBe(false);
     expect(options()).toEqual([
       'metapatrol/gateway platform/gateway',
       'metapatrol/gateway-ui platform/gateway-ui',
@@ -131,12 +132,9 @@ describe('RepositoryInput', () => {
 
   it('suggests only repositories that import pull requests, for the pull request list', async () => {
     setup('', true);
-    const req = await typeAndAnswer('', [
-      repo('metapatrol/bridge'),
-      repo('metapatrol/engram', false),
-      repo('metapatrol/gateway'),
-    ]);
-    expect(Number(req.params.get('limit'))).toBeGreaterThan(8);
+    const req = await typeAndAnswer('', [repo('metapatrol/bridge'), repo('metapatrol/gateway')]);
+    expect(req.params.get('pullRequests')).toBe('true');
+    expect(req.params.get('limit')).toBe('8');
     expect(options().map((o) => o?.split(' ')[0])).toEqual([
       'metapatrol/bridge',
       'metapatrol/gateway',
