@@ -673,13 +673,26 @@ file it was generated from.
 
 | Endpoint | Answers |
 |---|---|
-| `GET /api/v1/status` | this instance, the instance holding the leader lock and since when, the queue |
+| `GET /api/v1/status` | this instance, the instance holding the leader lock and since when, the queue, the GitHub rate limit |
 | `GET /api/v1/repositories` | the configured pairs, with counts of issues and pull requests by state, queued and failing work, and every poll cursor |
 | `GET /api/v1/pairs` | pairs, filterable by repository, kind, state, origin and a search over title and numbers: both numbers, links to both sides, origin, state, title |
 | `GET /api/v1/pairs/{id}` | one pair in full: its comment pairs, its queue entry, and for a pull request the contrib branch, imported head, frozen, touches-ci, rebase request, outcome |
 | `GET /api/v1/queue` | what is queued: due when, how many attempts, the last error |
-| `GET /api/v1/system` | the service and its database: size, connections, cache, transaction age, tables with their autovacuum thresholds and indexes, migrations, running maintenance |
+| `GET /api/v1/authors` | who opened the pairs, with how many issues and pull requests and when last |
+| `GET /api/v1/system` | the service and its database: size, connections, cache, transaction age, tables with their autovacuum thresholds and indexes, migrations, running maintenance and the bridge's maintenance rounds |
 | `GET /api/v1/events` | changes as they happen, as Server-Sent Events |
+
+**Lists.** Every list is searched (`q`), sorted (`sort`, a column, descending
+with a leading `-`) and paged (`limit`, `cursor`) by the conventions of
+mcp-gateway's inspect API, so that the metapatrol consoles behave alike.
+Unlike mcp-gateway, whose lists live in memory, these are in PostgreSQL, and
+a page is a keyset condition on the sort value and a tiebreak rather than an
+offset: a cursor names the row a page ended with, so rows added meanwhile
+neither repeat nor skip, and it is bound to the filters, `q` and `sort` it
+was handed out for. Rows without a value sort last either way. Text sorts
+case-insensitively but not naturally (`agent-10` before `agent-2`), which
+mcp-gateway does in Go and SQL does not without a collation the database may
+not have.
 
 **Live, without polling.** Triggers on the bridge's tables announce every
 change on one PostgreSQL channel (`NOTIFY`); every console listens on it and

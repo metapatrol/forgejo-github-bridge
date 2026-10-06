@@ -32,3 +32,9 @@ userMapping: {}
 
 logging:
   format: text
+
+# The read-only console (docs/console.md), reached with
+#   kubectl -n forgejo-github-bridge port-forward svc/forgejo-github-bridge-console 8090
+# or behind an authenticating proxy: it has no sign-in of its own.
+console:
+  enabled: true

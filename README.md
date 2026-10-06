@@ -101,9 +101,14 @@ flowchart LR
 - Idempotent reconciliation: every failure is retried, nothing is lost across
   restarts or outages, and a lost database can be rebuilt.
 - Prometheus metrics and a ready-made Grafana dashboard.
-- An optional read-only console: every pair with links to both sides, and
-  the queue with the reason anything is stuck.
+- An optional read-only console, live: every issue and pull request with
+  links to both sides and its history, the queue with the reason anything is
+  stuck, the GitHub rate limit, and the database and its upkeep.
 - Everything the bridge says in its own voice is a template you can reword.
+
+<p align="center">
+  <img alt="The console's overview: GitHub rate limit, open issues and pull requests, the queue, every repository and its contributors" src="docs/images/console-overview.png" width="860">
+</p>
 
 ## Quick start
 
@@ -152,9 +157,10 @@ including the checks to run before the first real contribution.
 ## Status
 
 The bridge is in the 0.x series. Issues and pull requests are complete and
-tested end to end against GitHub and Forgejo 16. Next on the
-[roadmap](docs/design.md#19-phases): CI status on GitHub, line-level review
-comments, and an optional read-only API with a web console.
+tested end to end against GitHub and Forgejo 16, and the read-only
+[console](docs/console.md) shows what the bridge holds. Next on the
+[roadmap](docs/design.md#19-phases): CI status on GitHub and line-level review
+comments.
 
 ## Contributing
 
