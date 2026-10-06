@@ -45,6 +45,7 @@ shortens a failover and nothing else.
 | console.networkPolicyFrom | list | `[]` | With `networkPolicy.enabled`: the peers allowed to reach the console, as NetworkPolicy `from` entries, e.g. the authenticating proxy's pods. Empty lets nothing in; a port-forward still works. |
 | console.port | int | `8090` | The console's port. |
 | console.service.type | string | `"ClusterIP"` |  |
+| database.activityRetention | string | `"720h"` | How long the record of what the bridge wrote is kept, for the console's activity. "0" keeps it; otherwise at least 1h. |
 | database.existingSecret | string | `""` | The Secret holding the PostgreSQL connection string. Required. |
 | database.existingSecretKey | string | `"uri"` | The key inside that Secret. Configurable because the Secret is usually somebody else's. CloudNativePG, for example, writes the connection string of its app user under "uri". |
 | database.maintenanceInterval | string | `"24h"` | Time between the bridge's database maintenance rounds (VACUUM ANALYZE of every table, invalid indexes rebuilt), run by the active instance. "0" turns them off; otherwise at least 1h. Autovacuum keeps the tables on its own; the round is the backstop. |

@@ -67,6 +67,7 @@ and the bridge's error messages, which name repositories and accounts.
 | Issues | every issue pair, newest first; searchable by title or number, sortable by every column, filterable by repository, state, author and the side it was opened on. An issue links to both sides and shows its history: when it was paired and from where, every comment that crossed, in which direction and with links to both sides, and its queue entry |
 | Pull requests | every imported pull request, with its state and flags: touches CI, frozen, rebase requested, outcome reported; searchable and sortable like the issues. One links to both sides and shows its history, contrib branch, imported head and the bridge's rebase comment |
 | Contributors | who opened the issues and pull requests the bridge holds, the most active first, searchable and sortable; a contributor's page lists what they opened. The bridge records who opened a pair, not who wrote its comments |
+| Activity | what the bridge wrote, newest first: what kind of thing on which side, what it did to it, and the issue or pull request it belongs to, linked on both sides; filterable by repository, side, kind and action. Kept for `BRIDGE_ACTIVITY_RETENTION` (30 days). An issue's or pull request's history shows its own |
 | Queue | what waits to be reconciled, the failing entries first, with attempts, when the next try is due, and the last error in full; searchable by number, repository or error |
 | System | the service (version, uptime, schedule, the instance doing the work), the GitHub rate limit, and the database: size, connections, cache hit ratio, transaction age against the wraparound limit, every table with its dead rows against autovacuum's threshold and its indexes, the schema version, the maintenance PostgreSQL runs now, and the bridge's own maintenance rounds: when the last ran, what it did, when the next is due |
 
@@ -102,6 +103,7 @@ read on its own:
 | `GET /api/v1/pairs` | pairs, filtered by `repository`, `kind`, `state`, `origin`, `author` and `q` |
 | `GET /api/v1/pairs/{id}` | one pair with its comment pairs |
 | `GET /api/v1/queue` | queued entries, by `repository`, `q`, optionally `failing` only |
+| `GET /api/v1/activity` | what the bridge wrote, by `repository`, `pair`, `side`, `kind` and `action` |
 | `GET /api/v1/authors` | who opened the pairs, by `q`, `side` and `kind` |
 | `GET /api/v1/system` | the service, the database, its tables and their upkeep |
 | `GET /api/v1/events` | changes as Server-Sent Events: which pair, queue entry or cursor changed, never its content |

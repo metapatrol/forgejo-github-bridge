@@ -198,6 +198,66 @@ func (s *server) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListActivity implements v1.ServerInterface.
+func (s *server) ListActivity(w http.ResponseWriter, r *http.Request, p v1.ListActivityParams) {
+	if p.Side != nil && !validSide(*p.Side) {
+		writeError(w, http.StatusBadRequest, "side must be github or forgejo")
+		return
+	}
+	pg, err := newPaging(p.Limit, p.Cursor, string(deref(p.Sort)), filter("repository", p.Repository),
+		filter("pair", p.Pair), filter("side", p.Side), filter("kind", p.Kind), filter("action", p.Action))
+	if err != nil {
+		s.pageError(w, r, err)
+		return
+	}
+	ctx, cancel := ctxFor(r)
+	defer cancel()
+	entries, total, next, err := s.reports.Activity(ctx, store.ActivityFilter{
+		Repository: deref(p.Repository), PairID: deref(p.Pair), Side: store.Side(deref(p.Side)),
+		Kind: deref(p.Kind), Action: deref(p.Action), Page: pg.page,
+	})
+	if err != nil {
+		s.pageError(w, r, err)
+		return
+	}
+	out := v1.ActivityPage{Items: make([]v1.ActivityEntry, 0, len(entries)), Total: total, NextCursor: pg.next(next)}
+	for _, a := range entries {
+		e := v1.ActivityEntry{Id: a.ID, At: a.At, Repository: a.Repository, Side: v1.Side(a.Side), Kind: a.Kind, Action: a.Action}
+		if a.PairID != 0 {
+			id := a.PairID
+			e.PairId = &id
+		}
+		kind := a.PairKind
+		if kind == "" && a.Kind == "pull" {
+			kind = store.KindPull
+		}
+		if kind != "" {
+			k := v1.PairKind(kind)
+			e.PairKind = &k
+		}
+		if a.GitHubNumber != 0 {
+			n := a.GitHubNumber
+			e.GithubNumber = &n
+		}
+		if a.ForgejoNumber != 0 {
+			n := a.ForgejoNumber
+			e.ForgejoNumber = &n
+		}
+		// Where it happened: the issue or pull request on the side written.
+		number := a.GitHubNumber
+		if a.Side == store.Forgejo {
+			number = a.ForgejoNumber
+		}
+		if number != 0 {
+			if u := s.issueURL(a.Repository, a.Side, kindOr(kind), number); u != "" {
+				e.Url = &u
+			}
+		}
+		out.Items = append(out.Items, e)
+	}
+	writeJSON(w, out)
+}
+
 // ListAuthors implements v1.ServerInterface.
 func (s *server) ListAuthors(w http.ResponseWriter, r *http.Request, p v1.ListAuthorsParams) {
 	if p.Q != nil && len(*p.Q) > 200 {

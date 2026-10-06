@@ -33,6 +33,7 @@ repository file changes.
 | `BRIDGE_GIT_CACHE_DIR` | `/var/cache/forgejo-github-bridge` | (an `emptyDir` of `gitCacheSize`) | bare repositories pull request heads pass through |
 | `BRIDGE_POLL_INTERVAL` | `60s` | `poll.interval` | at least 10 s |
 | `BRIDGE_FULL_RESYNC` | `6h` | `poll.fullResync` | at least 1 min |
+| `BRIDGE_ACTIVITY_RETENTION` | `720h` | `database.activityRetention` | how long the record of what the bridge wrote is kept, for the console's [activity](console.md#what-it-shows). `0` keeps it; otherwise at least 1 h |
 | `BRIDGE_DB_MAINTENANCE_INTERVAL` | `24h` | `database.maintenanceInterval` | time between database maintenance rounds: `VACUUM (ANALYZE)` of every table, invalid indexes rebuilt. `0` turns them off; otherwise at least 1 h |
 | `BRIDGE_LISTEN_ADDR` | `:8080` | `port` | `/healthz`, `/readyz`, `/metrics` |
 | `BRIDGE_CONSOLE_ADDR` | — (`:8090` in console mode) | `console.enabled`, `console.port` | the read-only [console](console.md); empty turns it off. Must differ from `BRIDGE_LISTEN_ADDR` |

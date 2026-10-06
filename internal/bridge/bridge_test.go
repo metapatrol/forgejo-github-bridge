@@ -522,3 +522,24 @@ func TestPairsKeepTheirPublicTitle(t *testing.T) {
 		t.Errorf("a frozen pair took the title GitHub never saw: %q", m.Title)
 	}
 }
+
+func TestTheBridgeRecordsWhatItWrote(t *testing.T) {
+	h := newHarness(t)
+	src := h.gh.Open(ghRepo, "alice", "Crash on start", "")
+	h.settle()
+	h.gh.Comment(ghRepo, src.Number, "alice", "any news?")
+	h.settle()
+	m, _, _ := h.st.IssueByGitHub(context.Background(), ghRepo.String(), src.Number)
+
+	var got []string
+	for _, a := range h.st.(*memory.Store).Activities() {
+		if a.PairID != m.ID || a.GitHubNumber != src.Number || a.ForgejoNumber != m.ForgejoNumber || a.Repository != ghRepo.String() {
+			t.Errorf("activity names another pair: %+v", a)
+		}
+		got = append(got, string(a.Side)+" "+a.Kind+" "+a.Action)
+	}
+	want := []string{"forgejo issue create", "forgejo comment create"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("activity = %v, want %v", got, want)
+	}
+}

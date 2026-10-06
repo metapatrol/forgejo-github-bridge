@@ -537,3 +537,43 @@ func TestQueueAndAuthorsAreSearched(t *testing.T) {
 		t.Errorf("Forgejo authors = %+v of %d", a, total)
 	}
 }
+
+func TestActivityIsRecordedListedAndForgotten(t *testing.T) {
+	st := open(t)
+	issue, pull := seedReports(t, st)
+	ctx := context.Background()
+	for _, a := range []store.Activity{
+		{Repository: "a/b", PairID: issue.ID, Side: store.Forgejo, Kind: "issue", Action: "create", GitHubNumber: 1, ForgejoNumber: 71},
+		{Repository: "a/b", PairID: pull.ID, Side: store.Forgejo, Kind: "pull", Action: "push", GitHubNumber: 3, ForgejoNumber: 73},
+		{Repository: "a/b", Side: store.GitHub, Kind: "notice", Action: "create", GitHubNumber: 30},
+		{Repository: "c/d", Side: store.GitHub, Kind: "comment", Action: "edit", GitHubNumber: 1},
+	} {
+		if err := st.RecordActivity(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all, total, _, err := st.Activity(ctx, store.ActivityFilter{})
+	if err != nil || total != 4 || all[0].Repository != "c/d" {
+		t.Fatalf("all = %+v of %d, %v", all, total, err)
+	}
+	notice := all[1]
+	if notice.PairID != 0 || notice.ForgejoNumber != 0 || notice.PairKind != "" {
+		t.Errorf("a write without a pair = %+v", notice)
+	}
+	mine, total, _, _ := st.Activity(ctx, store.ActivityFilter{PairID: pull.ID})
+	if total != 1 || mine[0].Action != "push" || mine[0].PairKind != store.KindPull {
+		t.Errorf("the pull request's = %+v", mine)
+	}
+	page, _, next, _ := st.Activity(ctx, store.ActivityFilter{Repository: "a/b", Page: store.Page{Limit: 2}})
+	if len(page) != 2 || next == nil {
+		t.Fatalf("first page = %+v", page)
+	}
+	rest, _, next, _ := st.Activity(ctx, store.ActivityFilter{Repository: "a/b", Page: store.Page{Limit: 2, After: next}})
+	if len(rest) != 1 || next != nil || rest[0].Kind != "issue" {
+		t.Errorf("second page = %+v", rest)
+	}
+	n, err := st.PruneActivity(ctx, time.Now().Add(time.Minute))
+	if err != nil || n != 4 {
+		t.Errorf("pruned %d, %v", n, err)
+	}
+}

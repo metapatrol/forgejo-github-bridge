@@ -35,6 +35,9 @@ database:
   # turns them off; otherwise at least 1h. Autovacuum keeps the tables on its
   # own; the round is the backstop.
   maintenanceInterval: 24h
+  # -- How long the record of what the bridge wrote is kept, for the
+  # console's activity. "0" keeps it; otherwise at least 1h.
+  activityRetention: 720h
 
 github:
   # -- The GitHub App's ID. Required. The App's name is not configured: the

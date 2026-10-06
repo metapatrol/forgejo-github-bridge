@@ -632,8 +632,8 @@ Status: implemented; end-to-end tested against GitHub and Forgejo 16.
 - web console on top of it, embedded into the binary
 - a console-only mode for a read-only database role
 
-Status: implemented (§23). Not yet: an activity record, sign-in through
-Forgejo.
+Status: implemented (§23), with an activity record. Not yet: sign-in
+through Forgejo.
 
 ---
 
@@ -688,6 +688,7 @@ file it was generated from.
 | `GET /api/v1/pairs` | pairs, filterable by repository, kind, state, origin and a search over title and numbers: both numbers, links to both sides, origin, state, title |
 | `GET /api/v1/pairs/{id}` | one pair in full: its comment pairs, its queue entry, and for a pull request the contrib branch, imported head, frozen, touches-ci, rebase request, outcome |
 | `GET /api/v1/queue` | what is queued: due when, how many attempts, the last error |
+| `GET /api/v1/activity` | what the bridge wrote: every write, with side, kind, action, the pair and both numbers |
 | `GET /api/v1/authors` | who opened the pairs, with how many issues and pull requests and when last |
 | `GET /api/v1/system` | the service and its database: size, connections, cache, transaction age, tables with their autovacuum thresholds and indexes, migrations, running maintenance and the bridge's maintenance rounds |
 | `GET /api/v1/events` | changes as they happen, as Server-Sent Events |
@@ -759,9 +760,15 @@ are not can have it.
   separate image (one more thing to version and deploy) or server-rendered
   pages (a second UI idiom next to the other metapatrol consoles). The cost is
   a Node toolchain in the build, paid once in CI.
-- **Activity.** Not in v1. A record of every write the bridge makes needs a
-  table, a retention and a reason to read it that the queue and the logs do
-  not already give; it waits for that reason.
+- **Activity.** Every write the bridge makes is recorded where it was
+  already counted for the metrics: what kind of thing, on which side, what was
+  done to it, the pair and both numbers, never the content. The record is
+  best effort, since a write that happened is not undone because its record
+  could not be kept, and it lives in the bridge's database for
+  `BRIDGE_ACTIVITY_RETENTION` (30 days), pruned hourly by the active
+  instance. The logs say the same at more length and for longer, where the
+  log store keeps them; the console's record is the one that links to both
+  sides and is filtered by pair.
 - **Database maintenance.** Scheduled, not triggered. Every
   `BRIDGE_DB_MAINTENANCE_INTERVAL` (24 h) the active instance runs a round,
   engram's: `VACUUM (ANALYZE)` of every table, leftovers of interrupted index

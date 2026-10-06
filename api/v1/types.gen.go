@@ -139,6 +139,48 @@ func (e StatusMode) Valid() bool {
 	}
 }
 
+// Defines values for ListActivityParamsSort.
+const (
+	ListActivityParamsSortAction          ListActivityParamsSort = "action"
+	ListActivityParamsSortAt              ListActivityParamsSort = "at"
+	ListActivityParamsSortKind            ListActivityParamsSort = "kind"
+	ListActivityParamsSortMinusAction     ListActivityParamsSort = "-action"
+	ListActivityParamsSortMinusAt         ListActivityParamsSort = "-at"
+	ListActivityParamsSortMinusKind       ListActivityParamsSort = "-kind"
+	ListActivityParamsSortMinusRepository ListActivityParamsSort = "-repository"
+	ListActivityParamsSortMinusSide       ListActivityParamsSort = "-side"
+	ListActivityParamsSortRepository      ListActivityParamsSort = "repository"
+	ListActivityParamsSortSide            ListActivityParamsSort = "side"
+)
+
+// Valid indicates whether the value is a known member of the ListActivityParamsSort enum.
+func (e ListActivityParamsSort) Valid() bool {
+	switch e {
+	case ListActivityParamsSortAction:
+		return true
+	case ListActivityParamsSortAt:
+		return true
+	case ListActivityParamsSortKind:
+		return true
+	case ListActivityParamsSortMinusAction:
+		return true
+	case ListActivityParamsSortMinusAt:
+		return true
+	case ListActivityParamsSortMinusKind:
+		return true
+	case ListActivityParamsSortMinusRepository:
+		return true
+	case ListActivityParamsSortMinusSide:
+		return true
+	case ListActivityParamsSortRepository:
+		return true
+	case ListActivityParamsSortSide:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAuthorsParamsSort.
 const (
 	ListAuthorsParamsSortIssues      ListAuthorsParamsSort = "issues"
@@ -353,6 +395,36 @@ func (e ListRepositoriesParamsSort) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// ActivityEntry defines model for ActivityEntry.
+type ActivityEntry struct {
+	Action        string    `json:"action"`
+	At            time.Time `json:"at"`
+	ForgejoNumber *int64    `json:"forgejoNumber,omitempty"`
+	GithubNumber  *int64    `json:"githubNumber,omitempty"`
+	Id            int64     `json:"id"`
+	Kind          string    `json:"kind"`
+
+	// PairId The pair it belongs to; absent for a write that belongs to none yet.
+	PairId     *int64    `json:"pairId,omitempty"`
+	PairKind   *PairKind `json:"pairKind,omitempty"`
+	Repository string    `json:"repository"`
+	Side       Side      `json:"side"`
+
+	// Url Where the write happened, on the side it happened.
+	Url *string `json:"url,omitempty"`
+}
+
+// ActivityPage defines model for ActivityPage.
+type ActivityPage struct {
+	Items []ActivityEntry `json:"items"`
+
+	// NextCursor Where the next page starts, for `cursor`. Absent on the last page.
+	NextCursor *string `json:"nextCursor,omitempty"`
+
+	// Total How many entries match, on all pages together.
+	Total int `json:"total"`
 }
 
 // Author defines model for Author.
@@ -849,6 +921,48 @@ type PageLimit = int
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
+
+// ListActivityParams defines parameters for ListActivity.
+type ListActivityParams struct {
+	Repository *string `form:"repository,omitempty" json:"repository,omitempty"`
+
+	// Pair Only what belongs to this pair.
+	Pair *int64 `form:"pair,omitempty" json:"pair,omitempty"`
+
+	// Side Only what was written on this side.
+	Side *Side `form:"side,omitempty" json:"side,omitempty"`
+
+	// Kind issue, pull, comment, line comment or notice.
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// Action create, edit, close, reopen, delete, push, rebase-target or touches-ci.
+	Action *string `form:"action,omitempty" json:"action,omitempty"`
+
+	// Limit Return at most this many items, and a `nextCursor` to read on from
+	// when there are more. Left out, every item comes in one answer.
+	Limit *PageLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Read on after the last item of a previous answer: its `nextCursor`,
+	// passed as is together with the same filters, `q`, `sort` and
+	// `limit`. A cursor names the item it follows, not a position, so
+	// items added or removed in the meantime neither repeat nor skip the
+	// ones after it.
+	//
+	// Each page is read when it is asked for; the pages together are no
+	// snapshot, and a cursor never expires. Sorted by a value that can
+	// change between two pages, such as a count or a time, an item whose
+	// value changed may cross from one page to the next and be seen twice
+	// or not at all.
+	Cursor *PageCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Sort The column to sort by, descending with a leading `-`. Ties are
+	// ordered by when they were recorded. Default `-at`, the newest
+	// first.
+	Sort *ListActivityParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+}
+
+// ListActivityParamsSort defines parameters for ListActivity.
+type ListActivityParamsSort string
 
 // ListAuthorsParams defines parameters for ListAuthors.
 type ListAuthorsParams struct {

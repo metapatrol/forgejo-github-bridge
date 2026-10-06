@@ -595,3 +595,95 @@ func (s *Store) Authors(ctx context.Context, f store.AuthorFilter) ([]store.Auth
 	out, next := cut(out, positions, f.Limit)
 	return out, total, next, nil
 }
+
+// activityColumns are what the activity sorts by; the default is the newest
+// first.
+var activityColumns = map[string]string{
+	"at":         "a.at",
+	"repository": "a.repository",
+	"kind":       "a.kind",
+	"action":     "a.action",
+	"side":       "a.side",
+}
+
+// Activity implements store.Reports.
+func (s *Store) Activity(ctx context.Context, f store.ActivityFilter) ([]store.Activity, int, *store.Position, error) {
+	keys, err := sortKeys(f.Sort, "-at", activityColumns, []string{"a.id"})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	var where []string
+	var args []any
+	arg := placeholders(&args)
+	if f.Repository != "" {
+		where = append(where, "a.repository = "+arg(f.Repository))
+	}
+	if f.PairID != 0 {
+		where = append(where, "a.pair_id = "+arg(f.PairID))
+	}
+	if f.Side != "" {
+		where = append(where, "a.side = "+arg(string(f.Side)))
+	}
+	if f.Kind != "" {
+		where = append(where, "a.kind = "+arg(f.Kind))
+	}
+	if f.Action != "" {
+		where = append(where, "a.action = "+arg(f.Action))
+	}
+	countQuery, countArgs := `SELECT count(*) FROM activity a`+clause(where), len(args)
+	if f.After != nil {
+		cond, err := keys.after(f.After, arg)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		where = append(where, cond)
+	}
+	limit := ""
+	if f.Limit > 0 {
+		limit = " LIMIT " + arg(f.Limit+1)
+	}
+
+	var out []store.Activity
+	var positions []store.Position
+	var total int
+	err = s.read(ctx, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, countQuery, args[:countArgs]...).Scan(&total); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `
+			SELECT a.id, a.at, a.repository, a.pair_id, a.side, a.kind, a.action, a.github_number, a.forgejo_number, m.kind,
+			       `+keys.selectKeys()+` FROM activity a LEFT JOIN issue_mapping m ON m.id = a.pair_id`+clause(where)+keys.orderBy()+limit, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			values, err := rows.Values()
+			if err != nil {
+				return err
+			}
+			a := store.Activity{ID: values[0].(int64), At: values[1].(time.Time), Repository: values[2].(string),
+				Side: store.Side(values[4].(string)), Kind: values[5].(string), Action: values[6].(string)}
+			if v, ok := values[3].(int64); ok {
+				a.PairID = v
+			}
+			if v, ok := values[7].(int64); ok {
+				a.GitHubNumber = v
+			}
+			if v, ok := values[8].(int64); ok {
+				a.ForgejoNumber = v
+			}
+			if v, ok := values[9].(string); ok {
+				a.PairKind = store.Kind(v)
+			}
+			out = append(out, a)
+			positions = append(positions, position(values[10:]))
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("listing the activity: %w", err)
+	}
+	out, next := cut(out, positions, f.Limit)
+	return out, total, next, nil
+}

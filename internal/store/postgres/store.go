@@ -400,3 +400,24 @@ func (s *Store) SaveRateLimits(ctx context.Context, limits []store.RateLimit) er
 	}
 	return s.pool.SendBatch(ctx, batch).Close()
 }
+
+// RecordActivity implements store.Store.
+func (s *Store) RecordActivity(ctx context.Context, a store.Activity) error {
+	nullable := func(n int64) *int64 {
+		if n == 0 {
+			return nil
+		}
+		return &n
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO activity (repository, pair_id, side, kind, action, github_number, forgejo_number)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		a.Repository, nullable(a.PairID), string(a.Side), a.Kind, a.Action, nullable(a.GitHubNumber), nullable(a.ForgejoNumber))
+	return err
+}
+
+// PruneActivity implements store.Store.
+func (s *Store) PruneActivity(ctx context.Context, before time.Time) (int, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM activity WHERE at < $1`, before)
+	return int(tag.RowsAffected()), err
+}

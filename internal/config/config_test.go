@@ -236,3 +236,15 @@ func TestMaintenanceInterval(t *testing.T) {
 		t.Error("a round every five minutes was accepted")
 	}
 }
+
+func TestActivityRetention(t *testing.T) {
+	for raw, want := range map[string]time.Duration{"": 720 * time.Hour, "0": 0, "168h": 168 * time.Hour} {
+		cfg, err := load(env(t, minimal, map[string]string{"BRIDGE_ACTIVITY_RETENTION": raw}))
+		if err != nil || cfg.ActivityRetention != want {
+			t.Errorf("%q: %s, %v", raw, cfg.ActivityRetention, err)
+		}
+	}
+	if _, err := load(env(t, minimal, map[string]string{"BRIDGE_ACTIVITY_RETENTION": "10m"})); err == nil {
+		t.Error("a retention of ten minutes was accepted")
+	}
+}

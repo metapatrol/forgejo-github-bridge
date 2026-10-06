@@ -23,6 +23,7 @@ type Store struct {
 	pulls    map[int64]store.PullRequestState
 	cursors  map[string]time.Time
 	dirty    map[store.DirtyKey]*entry
+	activity []store.Activity
 	now      func() time.Time
 }
 
@@ -330,3 +331,38 @@ func (s *Store) DirtyStats(_ context.Context) (store.QueueStats, error) {
 // SaveRateLimits implements store.Store; the memory store keeps nothing of
 // it, as nothing in the bridge reads it back.
 func (s *Store) SaveRateLimits(context.Context, []store.RateLimit) error { return nil }
+
+// RecordActivity implements store.Store.
+func (s *Store) RecordActivity(_ context.Context, a store.Activity) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextID++
+	a.ID = s.nextID
+	if a.At.IsZero() {
+		a.At = s.now()
+	}
+	s.activity = append(s.activity, a)
+	return nil
+}
+
+// PruneActivity implements store.Store.
+func (s *Store) PruneActivity(_ context.Context, before time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.activity[:0]
+	for _, a := range s.activity {
+		if !a.At.Before(before) {
+			kept = append(kept, a)
+		}
+	}
+	n := len(s.activity) - len(kept)
+	s.activity = kept
+	return n, nil
+}
+
+// Activities returns what was recorded, oldest first, for tests.
+func (s *Store) Activities() []store.Activity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]store.Activity{}, s.activity...)
+}

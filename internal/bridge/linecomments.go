@@ -9,7 +9,6 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/marker"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
-	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/translate"
 )
 
@@ -118,7 +117,7 @@ func (b *Bridge) syncLineComments(ctx context.Context, r *repo, m store.IssueMap
 				if err := b.deleteLineProjection(ctx, r, cm); err != nil && !isNotFound(err) {
 					return err
 				}
-				telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "line comment", "delete")
+				b.changed(ctx, r, store.GitHub, "line comment", "delete", refOf(m))
 			}
 			if err := b.store.DeleteComment(ctx, cm.ID); err != nil {
 				return err
@@ -154,7 +153,7 @@ func (b *Bridge) syncLineComments(ctx context.Context, r *repo, m store.IssueMap
 		if err != nil {
 			return err
 		}
-		telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "line comment", "edit")
+		b.changed(ctx, r, store.GitHub, "line comment", "edit", refOf(m))
 	}
 
 	// New line comments, in the order the reviews and their comments came.
@@ -187,7 +186,7 @@ func (b *Bridge) projectLineComment(ctx context.Context, r *repo, m store.IssueM
 		Body: body, CommitID: lc.CommitID, Path: lc.Path, Line: lc.Line, Side: lc.Side,
 	})
 	if err == nil {
-		telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "line comment", "create")
+		b.changed(ctx, r, store.GitHub, "line comment", "create", refOf(m))
 		return created.ID, store.CommentKindLine, nil
 	}
 	if !errors.Is(err, forge.ErrRejected) {
@@ -203,7 +202,7 @@ func (b *Bridge) projectLineComment(ctx context.Context, r *repo, m store.IssueM
 	if err != nil {
 		return 0, "", fmt.Errorf("projecting Forgejo line comment %d into the conversation: %w", lc.ID, err)
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "line comment", "create")
+	b.changed(ctx, r, store.GitHub, "line comment", "create", refOf(m))
 	return c.ID, store.CommentKindLineAsComment, nil
 }
 

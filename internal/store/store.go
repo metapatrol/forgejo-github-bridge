@@ -218,6 +218,33 @@ type Store interface {
 
 	// SaveRateLimits records the GitHub rate-limit windows as last seen.
 	SaveRateLimits(ctx context.Context, limits []RateLimit) error
+
+	// RecordActivity records one write the bridge made.
+	RecordActivity(ctx context.Context, a Activity) error
+	// PruneActivity forgets what was recorded before a time, and says how
+	// much.
+	PruneActivity(ctx context.Context, before time.Time) (int, error)
+}
+
+// Activity is one write the bridge made: what kind of thing it wrote, what
+// it did to it, on which side, and the pair it belongs to. Never content.
+type Activity struct {
+	ID         int64
+	At         time.Time
+	Repository string
+	// PairID is zero for a write that belongs to no pair yet, such as a
+	// notice on a pull request that is not imported.
+	PairID int64
+	Side   Side
+	// Kind is what was written: issue, pull, comment, line comment, notice.
+	Kind string
+	// Action is what was done to it: create, edit, close, reopen, delete,
+	// push, rebase-target, touches-ci.
+	Action                      string
+	GitHubNumber, ForgejoNumber int64
+	// PairKind is the kind of the pair it belongs to, when it still exists;
+	// read, never recorded.
+	PairKind Kind
 }
 
 // RateLimit is one GitHub rate-limit window as the active instance last saw

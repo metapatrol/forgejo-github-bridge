@@ -10,7 +10,6 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/marker"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
-	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/translate"
 )
 
@@ -81,12 +80,14 @@ func (b *Bridge) importIssue(ctx context.Context, r *repo, n int64) error {
 	if err != nil {
 		return fmt.Errorf("creating the Forgejo issue for GitHub #%d: %w", n, err)
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "issue", "create")
 	b.log.Info("imported a GitHub issue", "repository", r.cfg.Key(), "github", n, "forgejo", created.Number)
 
 	m, err = b.store.InsertIssue(ctx, store.IssueMapping{
 		Repository: r.cfg.Key(), GitHubNumber: n, ForgejoNumber: created.Number, Origin: store.GitHub,
 	})
+	// Recorded once the pair exists, so that its history begins with it;
+	// the issue was created either way.
+	b.changed(ctx, r, store.Forgejo, "issue", "create", pairRef{id: m.ID, github: n, forgejo: created.Number})
 	if err != nil {
 		return err
 	}
@@ -136,12 +137,12 @@ func (b *Bridge) publishIssue(ctx context.Context, r *repo, n int64) error {
 	if err != nil {
 		return fmt.Errorf("creating the GitHub issue for Forgejo #%d: %w", n, err)
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "issue", "create")
 	b.log.Info("published a Forgejo issue", "repository", r.cfg.Key(), "forgejo", n, "github", created.Number)
 
 	m, err = b.store.InsertIssue(ctx, store.IssueMapping{
 		Repository: r.cfg.Key(), GitHubNumber: created.Number, ForgejoNumber: n, Origin: store.Forgejo,
 	})
+	b.changed(ctx, r, store.GitHub, "issue", "create", pairRef{id: m.ID, github: created.Number, forgejo: n})
 	if err != nil {
 		return err
 	}
@@ -308,7 +309,7 @@ func (b *Bridge) syncContent(ctx context.Context, r *repo, m store.IssueMapping,
 		if _, err := b.forgej.EditIssue(ctx, r.cfg.Forgejo, m.ForgejoNumber, forge.IssueEdit{Title: &title, Body: &body}); err != nil {
 			return err
 		}
-		telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "issue", "edit")
+		b.changed(ctx, r, store.Forgejo, "issue", "edit", refOf(m))
 		return nil
 	}
 
@@ -323,7 +324,7 @@ func (b *Bridge) syncContent(ctx context.Context, r *repo, m store.IssueMapping,
 	if _, err := b.github.EditIssue(ctx, r.cfg.GitHub, m.GitHubNumber, forge.IssueEdit{Title: &title, Body: &body}); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "issue", "edit")
+	b.changed(ctx, r, store.GitHub, "issue", "edit", refOf(m))
 	return nil
 }
 
@@ -338,13 +339,13 @@ func (b *Bridge) syncState(ctx context.Context, r *repo, m store.IssueMapping, g
 		if _, err := b.forgej.EditIssue(ctx, r.cfg.Forgejo, m.ForgejoNumber, forge.IssueEdit{Closed: &gh.Closed}); err != nil {
 			return err
 		}
-		telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "issue", state(gh.Closed))
+		b.changed(ctx, r, store.Forgejo, "issue", state(gh.Closed), refOf(m))
 		final = gh.Closed
 	default:
 		if _, err := b.github.EditIssue(ctx, r.cfg.GitHub, m.GitHubNumber, forge.IssueEdit{Closed: &fj.Closed}); err != nil {
 			return err
 		}
-		telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "issue", state(fj.Closed))
+		b.changed(ctx, r, store.GitHub, "issue", state(fj.Closed), refOf(m))
 		final = fj.Closed
 	}
 	if final == m.SyncedClosed {

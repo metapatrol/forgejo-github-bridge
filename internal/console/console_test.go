@@ -23,18 +23,20 @@ import (
 
 // reports is a canned store.Reports that records the filters it was given.
 type reports struct {
-	leader       store.Leader
-	stats        store.QueueStats
-	sums         map[string]store.RepositorySummary
-	pairs        []store.PairReport
-	comments     []store.CommentReport
-	queue        []store.QueueReport
-	pairFilter   store.PairFilter
-	queueFilter  store.QueueFilter
-	system       store.System
-	limits       []store.RateLimit
-	authors      []store.Author
-	authorFilter store.AuthorFilter
+	leader         store.Leader
+	stats          store.QueueStats
+	sums           map[string]store.RepositorySummary
+	pairs          []store.PairReport
+	comments       []store.CommentReport
+	queue          []store.QueueReport
+	pairFilter     store.PairFilter
+	queueFilter    store.QueueFilter
+	system         store.System
+	limits         []store.RateLimit
+	authors        []store.Author
+	authorFilter   store.AuthorFilter
+	activity       []store.Activity
+	activityFilter store.ActivityFilter
 	// next is the position every list returns as where its next page starts.
 	next *store.Position
 	err  error
@@ -43,6 +45,11 @@ type reports struct {
 func (r *reports) System(context.Context) (store.System, error) { return r.system, r.err }
 
 func (r *reports) RateLimits(context.Context) ([]store.RateLimit, error) { return r.limits, r.err }
+
+func (r *reports) Activity(_ context.Context, f store.ActivityFilter) ([]store.Activity, int, *store.Position, error) {
+	r.activityFilter = f
+	return r.activity, len(r.activity), r.next, r.err
+}
 
 func (r *reports) Authors(_ context.Context, f store.AuthorFilter) ([]store.Author, int, *store.Position, error) {
 	r.authorFilter = f
@@ -471,5 +478,34 @@ func TestRepositoriesAreSearchedSortedAndPaged(t *testing.T) {
 	}
 	if got := strings.Join(seen, ","); got != "metapatrol/alpha,metapatrol/beta,metapatrol/gamma" {
 		t.Errorf("paged = %s", got)
+	}
+}
+
+func TestActivityLinksWhereTheWriteHappened(t *testing.T) {
+	r := &reports{activity: []store.Activity{
+		{ID: 9, At: now, Repository: "metapatrol/foo", PairID: 2, PairKind: store.KindPull, Side: store.Forgejo,
+			Kind: "comment", Action: "create", GitHubNumber: 8, ForgejoNumber: 72},
+		{ID: 8, At: now, Repository: "metapatrol/foo", Side: store.GitHub, Kind: "notice", Action: "create", GitHubNumber: 30},
+	}}
+	h := newConsole(t, r)
+	var page v1.ActivityPage
+	get(t, h, "/api/v1/activity?repository=metapatrol/foo&pair=2&side=forgejo&kind=comment&action=create&sort=-at&limit=5", &page)
+	want := store.ActivityFilter{Repository: "metapatrol/foo", PairID: 2, Side: store.Forgejo, Kind: "comment", Action: "create",
+		Page: store.Page{Sort: "-at", Limit: 5}}
+	if r.activityFilter != want {
+		t.Errorf("filter = %+v, want %+v", r.activityFilter, want)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("page = %+v", page)
+	}
+	c, n := page.Items[0], page.Items[1]
+	if c.Url == nil || *c.Url != "https://forgejo.example.com/platform/foo/pulls/72" || *c.PairId != 2 || *c.PairKind != v1.Pull {
+		t.Errorf("comment = %+v", c)
+	}
+	if n.Url == nil || *n.Url != "https://github.com/metapatrol/foo/issues/30" || n.PairId != nil || n.ForgejoNumber != nil {
+		t.Errorf("notice = %+v", n)
+	}
+	if res := get(t, h, "/api/v1/activity?side=gitlab", nil); res.StatusCode != http.StatusBadRequest {
+		t.Errorf("a bad side: %d", res.StatusCode)
 	}
 }

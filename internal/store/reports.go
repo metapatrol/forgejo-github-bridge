@@ -38,6 +38,10 @@ type Reports interface {
 	System(ctx context.Context) (System, error)
 	// RateLimits lists the GitHub rate-limit windows as last saved.
 	RateLimits(ctx context.Context) ([]RateLimit, error)
+	// Activity lists a page of what the bridge wrote, the newest first unless
+	// sorted otherwise, counts all that match, and says where the next page
+	// starts.
+	Activity(ctx context.Context, f ActivityFilter) ([]Activity, int, *Position, error)
 	// Authors lists a page of who opened pairs, the most active first, counts
 	// all that match, and says where the next page starts.
 	Authors(ctx context.Context, f AuthorFilter) ([]Author, int, *Position, error)
@@ -156,6 +160,16 @@ type QueueFilter struct {
 	// Query matches the repository or the last error, case-insensitively,
 	// or the number.
 	Query string
+	Page
+}
+
+// ActivityFilter narrows the activity. Zero values match everything.
+type ActivityFilter struct {
+	Repository string
+	PairID     int64
+	Side       Side
+	Kind       string
+	Action     string
 	Page
 }
 

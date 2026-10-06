@@ -8,7 +8,6 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/forge"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/marker"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
-	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/translate"
 )
 
@@ -117,7 +116,7 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 				if err := proj.client.DeleteComment(ctx, repoRef(r, proj.name), projID); err != nil && !isNotFound(err) {
 					return err
 				}
-				telemetry.RecordChange(r.cfg.Key(), string(proj.name), "comment", "delete")
+				b.changed(ctx, r, proj.name, "comment", "delete", refOf(m))
 			}
 			if err := b.store.DeleteComment(ctx, cm.ID); err != nil {
 				return err
@@ -134,7 +133,7 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 			if err != nil {
 				return err
 			}
-			telemetry.RecordChange(r.cfg.Key(), string(proj.name), "comment", "create")
+			b.changed(ctx, r, proj.name, "comment", "create", refOf(m))
 			cm.GitHubCommentID, cm.ForgejoCommentID = ids(src.name, srcID, created.ID)
 			if err := b.store.UpdateComment(ctx, cm); err != nil {
 				return err
@@ -145,7 +144,7 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 			if _, err := proj.client.EditComment(ctx, repoRef(r, proj.name), projID, body); err != nil {
 				return err
 			}
-			telemetry.RecordChange(r.cfg.Key(), string(proj.name), "comment", "edit")
+			b.changed(ctx, r, proj.name, "comment", "edit", refOf(m))
 		}
 	}
 
@@ -165,7 +164,7 @@ func (b *Bridge) syncComments(ctx context.Context, r *repo, m store.IssueMapping
 			if err != nil {
 				return fmt.Errorf("projecting %s comment %d: %w", src.name, c.ID, err)
 			}
-			telemetry.RecordChange(r.cfg.Key(), string(proj.name), "comment", "create")
+			b.changed(ctx, r, proj.name, "comment", "create", refOf(m))
 			cm := store.CommentMapping{IssueMappingID: m.ID, Origin: src.name}
 			cm.GitHubCommentID, cm.ForgejoCommentID = ids(src.name, c.ID, created.ID)
 			if _, err := b.store.InsertComment(ctx, cm); err != nil {

@@ -13,7 +13,6 @@ import (
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/gitops"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/marker"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/store"
-	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/telemetry"
 	"forgejo.metapatrol.local/platform/forgejo-github-bridge/internal/translate"
 )
 
@@ -105,12 +104,12 @@ func (b *Bridge) importPull(ctx context.Context, r *repo, n int64) error {
 	if err != nil {
 		return fmt.Errorf("opening the Forgejo pull request for GitHub #%d: %w", n, err)
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "create")
 	b.log.Info("imported a GitHub pull request", "repository", r.cfg.Key(), "github", n, "forgejo", created.Number, "head", sha)
 
 	m, err = b.store.InsertIssue(ctx, store.IssueMapping{
 		Repository: r.cfg.Key(), Kind: store.KindPull, GitHubNumber: n, ForgejoNumber: created.Number, Origin: store.GitHub,
 	})
+	b.changed(ctx, r, store.Forgejo, "pull", "create", pairRef{id: m.ID, github: n, forgejo: created.Number})
 	if err != nil {
 		return err
 	}
@@ -222,7 +221,7 @@ func (b *Bridge) syncPullContent(ctx context.Context, r *repo, m store.IssueMapp
 	if _, err := b.forgej.EditIssue(ctx, r.cfg.Forgejo, m.ForgejoNumber, forge.IssueEdit{Title: &title, Body: &body}); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "edit")
+	b.changed(ctx, r, store.Forgejo, "pull", "edit", refOf(m))
 	return nil
 }
 
@@ -267,7 +266,7 @@ func (b *Bridge) lifecycle(ctx context.Context, r *repo, m store.IssueMapping, s
 			if _, err := b.forgej.EditIssue(ctx, r.cfg.Forgejo, m.ForgejoNumber, forge.IssueEdit{Closed: &closed}); err != nil {
 				return err
 			}
-			telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "close")
+			b.changed(ctx, r, store.Forgejo, "pull", "close", refOf(m))
 			return b.deleteBranch(ctx, r, st)
 		}
 		if err := b.syncBase(ctx, r, m, gh, fj); err != nil {
@@ -294,7 +293,7 @@ func (b *Bridge) lifecycle(ctx context.Context, r *repo, m store.IssueMapping, s
 			if _, err := b.forgej.EditIssue(ctx, r.cfg.Forgejo, m.ForgejoNumber, forge.IssueEdit{Closed: &open}); err != nil {
 				return err
 			}
-			telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "reopen")
+			b.changed(ctx, r, store.Forgejo, "pull", "reopen", refOf(m))
 			*st = store.PullRequestState{IssueMappingID: st.IssueMappingID, ContribBranch: st.ContribBranch,
 				ImportedHeadSHA: sha, State: store.PullOpen, TouchesCI: st.TouchesCI, RebaseCommentID: st.RebaseCommentID}
 		}
@@ -352,7 +351,7 @@ func (b *Bridge) syncBase(ctx context.Context, r *repo, m store.IssueMapping, gh
 	if err := b.pulls.Forgejo.SetBase(ctx, r.cfg.Forgejo, m.ForgejoNumber, gh.BaseRef); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "rebase-target")
+	b.changed(ctx, r, store.Forgejo, "pull", "rebase-target", refOf(m))
 	return nil
 }
 
@@ -379,7 +378,7 @@ func (b *Bridge) syncHead(ctx context.Context, r *repo, m store.IssueMapping, st
 		return err
 	}
 	b.log.Info("imported new commits", "repository", r.cfg.Key(), "github", m.GitHubNumber, "head", sha)
-	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "push")
+	b.changed(ctx, r, store.Forgejo, "pull", "push", refOf(m))
 	st.ImportedHeadSHA = sha
 	if st.TouchesCI {
 		return nil
@@ -413,7 +412,7 @@ func (b *Bridge) checkCI(ctx context.Context, r *repo, m store.IssueMapping, st 
 		translate.Notice(marker.OriginGitHub, m.GitHubNumber, r.msg.Render("touchesCI", translate.MessageData{Paths: translate.PathList(hits)}))); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.Forgejo), "pull", "touches-ci")
+	b.changed(ctx, r, store.Forgejo, "pull", "touches-ci", refOf(m))
 	st.TouchesCI = true
 	return nil
 }
@@ -461,7 +460,7 @@ func (b *Bridge) rebaseRequest(ctx context.Context, r *repo, m store.IssueMappin
 		if err != nil {
 			return err
 		}
-		telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "create")
+		b.changed(ctx, r, store.GitHub, "notice", "create", refOf(m))
 		st.RebaseCommentID, st.RebaseRequested = created.ID, true
 		return nil
 
@@ -485,7 +484,7 @@ func (b *Bridge) editNotice(ctx context.Context, r *repo, m store.IssueMapping, 
 	if _, err := b.github.EditComment(ctx, r.cfg.GitHub, c.ID, body); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "edit")
+	b.changed(ctx, r, store.GitHub, "notice", "edit", refOf(m))
 	return nil
 }
 
@@ -502,7 +501,7 @@ func (b *Bridge) closeGitHub(ctx context.Context, r *repo, m store.IssueMapping)
 	if _, err := b.github.EditIssue(ctx, r.cfg.GitHub, m.GitHubNumber, forge.IssueEdit{Closed: &closed}); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "pull", "close")
+	b.changed(ctx, r, store.GitHub, "pull", "close", refOf(m))
 	return nil
 }
 
@@ -511,7 +510,7 @@ func (b *Bridge) notice(ctx context.Context, r *repo, n int64, text string) erro
 	if _, err := b.github.CreateComment(ctx, r.cfg.GitHub, n, translate.Notice(marker.OriginForgejo, n, text)); err != nil {
 		return err
 	}
-	telemetry.RecordChange(r.cfg.Key(), string(store.GitHub), "notice", "create")
+	b.changed(ctx, r, store.GitHub, "notice", "create", pairRef{github: n})
 	return nil
 }
 

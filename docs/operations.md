@@ -157,6 +157,8 @@ Structured, one event per line (`json` by default). The ones that matter:
 | `the contrib branch was moved by someone else; no longer importing into it` | warn | expected after a maintainer pushed to `pr/<n>` |
 | `rebuilt issue mappings from the bridge's own projections` / `adopted a projection the database did not know` / `found an unrecorded projection instead of creating a second one` | warn | recovery; expected after losing the database, otherwise worth a look |
 | `the connection holding the leader lock failed; stopping work` | error | the process exits and restarts |
+| `forgot old activity` | info | the hourly pruning of the console's activity record (`BRIDGE_ACTIVITY_RETENTION`) |
+| `recording the bridge's activity failed` | warn | the write happened; only its record in the console is missing |
 | `database maintenance round done` | info, or warn with `failures` | the scheduled `VACUUM (ANALYZE)` round; failures name the table or index |
 | `saving the GitHub rate limit for the console failed` | warn | the console shows an older figure until the next save |
 

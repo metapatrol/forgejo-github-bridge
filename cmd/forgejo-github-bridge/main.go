@@ -172,6 +172,7 @@ func run() error {
 		}
 	}()
 	go saveRateLimits(runCtx, st, log)
+	go pruneActivity(runCtx, st, cfg.ActivityRetention, log)
 	go postgres.Maintain(runCtx, st.Pool(), cfg.MaintenanceInterval, log, postgres.MaintenanceObserver{
 		Last: telemetry.SetLastMaintenance, Round: telemetry.RecordMaintenance,
 	})
@@ -232,6 +233,30 @@ func saveRateLimits(ctx context.Context, st *postgres.Store, log *slog.Logger) {
 		}
 		for _, rl := range changed {
 			saved[rl.Resource] = rl
+		}
+	}
+}
+
+// pruneActivity forgets the record of the bridge's writes once it is older
+// than retention, hourly, while this instance does the work. Zero keeps it.
+func pruneActivity(ctx context.Context, st *postgres.Store, retention time.Duration, log *slog.Logger) {
+	if retention <= 0 {
+		return
+	}
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		if n, err := st.PruneActivity(ctx, time.Now().Add(-retention)); err != nil {
+			if ctx.Err() == nil {
+				log.Warn("forgetting old activity failed", "error", err)
+			}
+		} else if n > 0 {
+			log.Info("forgot old activity", "rows", n, "older_than", retention)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

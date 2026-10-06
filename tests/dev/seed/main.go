@@ -78,6 +78,17 @@ func run(dsn string, lead bool) error {
 			Used: 5000 - remaining, ResetAt: reset, ObservedAt: time.Now()}}); err != nil && ctx.Err() == nil {
 			return err
 		}
+		// And something crosses now and then, so that the activity moves:
+		// a comment on the newest pair, carried to Forgejo.
+		var a store.Activity
+		if err := st.Pool().QueryRow(ctx, `
+			SELECT id, repository, github_number, forgejo_number FROM issue_mapping ORDER BY created_at DESC LIMIT 1`).
+			Scan(&a.PairID, &a.Repository, &a.GitHubNumber, &a.ForgejoNumber); err == nil {
+			a.Side, a.Kind, a.Action = store.Forgejo, "comment", "create"
+			if err := st.RecordActivity(ctx, a); err != nil && ctx.Err() == nil {
+				return err
+			}
+		}
 	}
 }
 
@@ -135,7 +146,7 @@ var repos = []struct {
 }
 
 func seed(ctx context.Context, st *postgres.Store) error {
-	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty, github_rate_limit, maintenance_round`); err != nil {
+	if _, err := st.Pool().Exec(ctx, `TRUNCATE issue_mapping, comment_mapping, pull_request_state, poll_cursor, dirty, github_rate_limit, maintenance_round, activity`); err != nil {
 		return err
 	}
 	if err := st.SaveRateLimits(ctx, []store.RateLimit{{Resource: "core", Limit: 5000, Remaining: 4321, Used: 679,
@@ -200,6 +211,35 @@ func seed(ctx context.Context, st *postgres.Store) error {
 		if _, err := st.Pool().Exec(ctx, `UPDATE issue_mapping SET created_at = $2, updated_at = $3 WHERE id = $1`,
 			m.ID, created, created.Add(p.age/3)); err != nil {
 			return err
+		}
+		// What the bridge wrote for it: the projection, then its comments.
+		side := store.Forgejo
+		if p.origin == store.Forgejo {
+			side = store.GitHub
+		}
+		writes := []struct {
+			kind, action string
+			at           time.Time
+		}{{string(p.kind), "create", created}}
+		for c := 0; c < p.comments; c++ {
+			writes = append(writes, struct {
+				kind, action string
+				at           time.Time
+			}{"comment", "create", created.Add(time.Duration(c+1) * p.age / time.Duration(p.comments+2))})
+		}
+		if p.closed {
+			writes = append(writes, struct {
+				kind, action string
+				at           time.Time
+			}{string(p.kind), "close", created.Add(p.age / 3)})
+		}
+		for _, w := range writes {
+			if _, err := st.Pool().Exec(ctx, `
+				INSERT INTO activity (at, repository, pair_id, side, kind, action, github_number, forgejo_number)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+				w.at, p.repo, m.ID, string(side), w.kind, w.action, gh, fj); err != nil {
+				return err
+			}
 		}
 		if p.pull != nil {
 			p.pull.IssueMappingID, p.pull.ContribBranch = m.ID, fmt.Sprintf("pr/%d", gh)

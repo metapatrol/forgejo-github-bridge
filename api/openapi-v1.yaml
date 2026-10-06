@@ -67,6 +67,7 @@ paths:
         - `leader`: the instance holding the leader lock changed: `{"present"}`.
         - `rateLimit`: the GitHub rate limit was saved anew: `{"op", "resource"}`.
         - `maintenance`: a database maintenance round started or ended: `{"op", "id", "finished"}`.
+        - `activity`: the bridge wrote something: `{"op", "id", "repository", "pairId"}`.
         - `resync`: events were missed, by a slow client or a lost database
           connection; reload everything.
 
@@ -98,6 +99,57 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/System" }
+        default: { $ref: "#/components/responses/Error" }
+
+  /activity:
+    get:
+      operationId: listActivity
+      tags: [status]
+      summary: What the bridge wrote
+      description: |
+        Every write the bridge made, kept for BRIDGE_ACTIVITY_RETENTION: what
+        kind of thing it wrote on which side, what it did to it, and the pair
+        it belongs to. It names what was written, never its content. Newest
+        first unless `sort` says otherwise.
+      parameters:
+        - name: repository
+          in: query
+          schema: { type: string }
+        - name: pair
+          in: query
+          description: Only what belongs to this pair.
+          schema: { type: integer, format: int64 }
+        - name: side
+          in: query
+          description: Only what was written on this side.
+          schema: { $ref: "#/components/schemas/Side" }
+        - name: kind
+          in: query
+          description: issue, pull, comment, line comment or notice.
+          schema: { type: string, maxLength: 50 }
+        - name: action
+          in: query
+          description: create, edit, close, reopen, delete, push, rebase-target or touches-ci.
+          schema: { type: string, maxLength: 50 }
+        - $ref: "#/components/parameters/PageLimit"
+        - $ref: "#/components/parameters/PageCursor"
+        - name: sort
+          in: query
+          description: |
+            The column to sort by, descending with a leading `-`. Ties are
+            ordered by when they were recorded. Default `-at`, the newest
+            first.
+          schema:
+            type: string
+            enum: [at, repository, kind, action, side, -at, -repository, -kind, -action, -side]
+            default: -at
+      responses:
+        "200":
+          description: The items that match, in the order `sort` gives — all of them, or one page with `limit`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ActivityPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
         default: { $ref: "#/components/responses/Error" }
 
   /authors:
@@ -559,6 +611,43 @@ components:
         nextCursor:
           type: string
           description: Where the next page starts, for `cursor`. Absent on the last page.
+
+    ActivityPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityEntry" }
+        total:
+          type: integer
+          description: How many entries match, on all pages together.
+        nextCursor:
+          type: string
+          description: Where the next page starts, for `cursor`. Absent on the last page.
+
+    ActivityEntry:
+      type: object
+      required: [id, at, repository, side, kind, action]
+      properties:
+        id: { type: integer, format: int64 }
+        at: { type: string, format: date-time }
+        repository: { type: string }
+        pairId:
+          type: integer
+          format: int64
+          description: The pair it belongs to; absent for a write that belongs to none yet.
+        pairKind:
+          $ref: "#/components/schemas/PairKind"
+        side:
+          $ref: "#/components/schemas/Side"
+        kind: { type: string }
+        action: { type: string }
+        githubNumber: { type: integer, format: int64 }
+        forgejoNumber: { type: integer, format: int64 }
+        url:
+          type: string
+          description: Where the write happened, on the side it happened.
 
     AuthorPage:
       type: object

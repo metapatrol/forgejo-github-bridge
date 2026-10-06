@@ -165,6 +165,9 @@ type Config struct {
 	// MaintenanceInterval is the time between two database maintenance
 	// rounds; zero turns them off.
 	MaintenanceInterval time.Duration
+	// ActivityRetention is how long the record of the bridge's writes is
+	// kept; zero keeps it.
+	ActivityRetention time.Duration
 
 	Repositories []Repository
 	// UserMapping maps Forgejo logins to GitHub logins. It is used for mentions
@@ -321,6 +324,11 @@ func load(getenv func(string) string) (*Config, error) {
 	cfg.FullResync = duration(env, "FULL_RESYNC", "6h", time.Minute, &errs)
 	// Zero turns maintenance off; anything else is at least an hour, since a
 	// round vacuums every table.
+	if raw := env("ACTIVITY_RETENTION", "720h"); raw == "0" {
+		cfg.ActivityRetention = 0
+	} else {
+		cfg.ActivityRetention = duration(env, "ACTIVITY_RETENTION", "720h", time.Hour, &errs)
+	}
 	if raw := env("DB_MAINTENANCE_INTERVAL", "24h"); raw == "0" {
 		cfg.MaintenanceInterval = 0
 	} else {
