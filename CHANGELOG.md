@@ -1,3 +1,24 @@
+# [0.5.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.4.0...v0.5.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/prometheus/client_model to v0.6.3 ([7648dfa](https://github.com/metapatrol/forgejo-github-bridge/commit/7648dfaac92a44222697ed1c58cf3a6bbdd357b9))
+
+
+### Features
+
+* /authors filters by side and kind ([cb388fc](https://github.com/metapatrol/forgejo-github-bridge/commit/cb388fc79db52df9bafe468fc6fa56a0d42a205e))
+* a record of what the bridge wrote, for the console ([38b0213](https://github.com/metapatrol/forgejo-github-bridge/commit/38b02138bbddce4891612a4b88d03958059c1096))
+* **chart:** alerts as an optional PrometheusRule ([d7e7140](https://github.com/metapatrol/forgejo-github-bridge/commit/d7e7140b76a61ffd42efc430d52833fec5c561a9))
+* **console:** a comment pair says its kind, and a line comment links to its discussion ([c574c39](https://github.com/metapatrol/forgejo-github-bridge/commit/c574c3953a3f173aa40f3ff457b47d2b32777c0a))
+* Forgejo line comments land on their lines on GitHub ([946c071](https://github.com/metapatrol/forgejo-github-bridge/commit/946c0712285a2fee78287dfcc5df6e4e97727bca))
+* metrics for the rate-limit windows, database maintenance and the console ([1166fdc](https://github.com/metapatrol/forgejo-github-bridge/commit/1166fdcb622eb9770bd0859299f9354b034420bc))
+* **store:** comment pairs know their kind ([05ccd5e](https://github.com/metapatrol/forgejo-github-bridge/commit/05ccd5ef108575180d2219eb0aacca21a7c1da55))
+* **ui:** link every count, repository and contributor; an author typeahead ([de53ad4](https://github.com/metapatrol/forgejo-github-bridge/commit/de53ad49e94d3358d0240b6c67d56239a9e8b917))
+* **ui:** the bridge's activity: its own page, the overview, a repository and a pair's history ([72d2614](https://github.com/metapatrol/forgejo-github-bridge/commit/72d2614d72dc5fd97f800506e113217ac4063c4b))
+* **ui:** the history tells line comments from conversation comments ([dd35bd1](https://github.com/metapatrol/forgejo-github-bridge/commit/dd35bd1092e4d1031cd211afd27e7ac52586b560))
+
 # [0.4.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.3.1...v0.4.0) (2026-10-06)
 
 

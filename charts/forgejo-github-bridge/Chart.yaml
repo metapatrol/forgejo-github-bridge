@@ -2,8 +2,8 @@ apiVersion: v2
 name: forgejo-github-bridge
 description: Keeps issues and comments in step between a private Forgejo and the public GitHub repositories it mirrors to.
 type: application
-version: 0.4.0
-appVersion: "0.4.0"
+version: 0.5.0
+appVersion: "0.5.0"
 keywords:
   - platform
   - forgejo
