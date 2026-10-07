@@ -27,6 +27,7 @@ export class App {
       {
         label: 'Operations',
         items: [
+          { path: '/activity', label: 'Activity', icon: 'activity' },
           {
             path: '/queue',
             label: 'Queue',

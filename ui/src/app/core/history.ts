@@ -1,3 +1,4 @@
+import { ActivityEntry } from '../api/models/activity-entry';
 import { PairDetail } from '../api/models/pair-detail';
 import { Side } from '../api/models/side';
 
@@ -27,6 +28,8 @@ export type HistoryEntry =
       links: HistoryLink[];
     }
   | { kind: 'import'; at: string }
+  /** Something else the bridge wrote for the pair: an edit, a close, a push, a notice. */
+  | { kind: 'activity'; at: string; entry: ActivityEntry }
   | { kind: 'change'; at: string }
   | { kind: 'queued'; at: string };
 
@@ -37,13 +40,25 @@ export function sideName(side: Side): string {
 }
 
 /**
- * A pair's history, oldest first: when it was paired, each comment the
- * bridge carried across, the pull request's import state, the last change,
- * and what is queued for it, which always comes last. The bridge records
- * no more than this: no comment texts, no comment authors, no earlier
- * states.
+ * Activity a history already tells: creating the pair's projection is its
+ * pairing, and writing a comment is the comment pair it made.
  */
-export function history(p: PairDetail): HistoryEntry[] {
+function told(e: ActivityEntry): boolean {
+  return (
+    e.action === 'create' &&
+    (e.kind === 'issue' || e.kind === 'pull' || e.kind === 'comment' || e.kind === 'line comment')
+  );
+}
+
+/**
+ * A pair's history, oldest first: when it was paired, each comment the
+ * bridge carried across, what else the bridge wrote for it (its activity:
+ * edits, closes, pushes, notices), the pull request's import state, the last
+ * change, and what is queued for it, which always comes last. The bridge
+ * records no more than this: no comment texts, no comment authors, no
+ * earlier states.
+ */
+export function history(p: PairDetail, activity: readonly ActivityEntry[] = []): HistoryEntry[] {
   const github: HistoryLink = { label: `GitHub #${p.githubNumber}`, href: p.githubUrl };
   const forgejo: HistoryLink = { label: `Forgejo #${p.forgejoNumber}`, href: p.forgejoUrl };
   const entries: HistoryEntry[] = [
@@ -70,6 +85,11 @@ export function history(p: PairDetail): HistoryEntry[] {
       line: c.kind !== 'comment',
       links: c.origin === 'github' ? links : links.reverse(),
     });
+  }
+  for (const e of activity) {
+    if (!told(e)) {
+      entries.push({ kind: 'activity', at: e.at, entry: e });
+    }
   }
   if (p.pull) {
     entries.push({ kind: 'import', at: p.pull.updatedAt });

@@ -62,6 +62,26 @@ describe('PairDetailPage', () => {
     fixture.detectChanges();
     TestBed.inject(ApplicationRef).tick();
     http.expectOne('/api/v1/pairs/7').flush(pull);
+    const act = http.expectOne((r) => r.url === '/api/v1/activity');
+    expect(act.request.params.get('pair')).toBe('7');
+    act.flush({
+      items: [
+        {
+          id: 5,
+          at: '2026-10-02T09:00:00Z',
+          repository: 'metapatrol/foo',
+          pairId: 7,
+          pairKind: 'pull',
+          side: 'forgejo',
+          kind: 'pull',
+          action: 'push',
+          githubNumber: 13,
+          forgejoNumber: 113,
+          url: 'https://forgejo.example.com/github-contrib/foo/src/branch/pr/13',
+        },
+      ],
+      total: 1,
+    });
     await fixture.whenStable();
     fixture.detectChanges();
     const links = hrefs(fixture.nativeElement as HTMLElement);
@@ -69,5 +89,7 @@ describe('PairDetailPage', () => {
     expect(links).toContain('/pulls?repository=metapatrol/foo&state=merged');
     expect(links).toContain('/queue?repository=metapatrol/foo&failing=true');
     expect(links).toContain('/contributors/github/alice');
+    // what the bridge wrote is part of the history
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('pushed to pr/13');
   });
 });

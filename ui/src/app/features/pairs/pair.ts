@@ -24,10 +24,16 @@ import { repoPath, shortSha, until } from '../../core/format';
 import { KINDS, pairLink } from '../../core/kinds';
 import { PairKind } from '../../api/models/pair-kind';
 import { liveReload } from '../../core/events';
+import { listActivity } from '../../api/fn/status/list-activity';
+import { activitySentence } from '../../core/activity';
+
 import { pairsLink, queueLink, repositoryLink } from '../../core/links';
 import { PullFlags, SideLabel, StateBadge } from '../../shared/badges';
 import { Author } from '../../shared/author';
 import { history, HistoryEntry, sideName } from '../../core/history';
+
+/** The most a pair's history weaves in; a pair with more is a very long one. */
+const ACTIVITY_LIMIT = 500;
 
 @Component({
   selector: 'app-pair',
@@ -73,10 +79,17 @@ export class PairDetailPage {
     queueLink({ repository: this.p()?.repository, failing: !!this.p()?.queued?.lastError }),
   );
   /** What the bridge holds about the pair, as a timeline. */
+  /** What the bridge wrote for the pair, oldest first, to weave into its history. */
+  protected readonly activity = apiResource(listActivity, () =>
+    Number.isFinite(this.id())
+      ? { pair: this.id(), sort: 'at' as const, limit: ACTIVITY_LIMIT }
+      : undefined,
+  );
   protected readonly entries = computed(() => {
     const p = this.p();
-    return p ? history(p) : [];
+    return p ? history(p, this.activity.body()?.items ?? []) : [];
   });
+  protected readonly activitySentence = activitySentence;
   private readonly clock = inject(MpClock);
 
   protected due(at: string): string {
@@ -94,7 +107,7 @@ export class PairDetailPage {
   protected readonly timestamp = timestamp;
 
   constructor() {
-    liveReload(() => ({ view: 'pair', id: this.id() }), this.pair);
+    liveReload(() => ({ view: 'pair', id: this.id() }), this.pair, this.activity);
     // An issue opened as a pull request's page, or the other way round, goes
     // where it belongs.
     const router = inject(Router);

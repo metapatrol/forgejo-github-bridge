@@ -220,6 +220,18 @@
                         }
                       }
                     }
+                    @case ('activity') {
+                      <span class="text-fg-muted">the bridge</span> {{ activitySentence(e.entry) }}
+                      @if (e.entry.url) {
+                        <a
+                          [href]="e.entry.url"
+                          class="mp-link ml-2 text-xs"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          >{{ e.entry.side === 'github' ? 'GitHub' : 'Forgejo' }} ↗</a
+                        >
+                      }
+                    }
                     @case ('change') {
                       <span class="text-fg-muted">last change</span>
                     }

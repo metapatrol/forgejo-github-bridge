@@ -62,6 +62,7 @@ func run(dsn string, lead bool) error {
 	fmt.Println("holding the leader lock and spending the rate limit; interrupt to stop")
 	// What a working bridge does to the rate limit: a few requests every poll.
 	remaining, reset := 4321, time.Now().Add(37*time.Minute)
+	tick := 0
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -79,12 +80,24 @@ func run(dsn string, lead bool) error {
 			return err
 		}
 		// And something crosses now and then, so that the activity moves:
-		// a comment on the newest pair, carried to Forgejo.
+		// a different pair each time, and what a working bridge would write
+		// for it.
+		tick++
 		var a store.Activity
+		var kind string
 		if err := st.Pool().QueryRow(ctx, `
-			SELECT id, repository, github_number, forgejo_number FROM issue_mapping ORDER BY created_at DESC LIMIT 1`).
-			Scan(&a.PairID, &a.Repository, &a.GitHubNumber, &a.ForgejoNumber); err == nil {
-			a.Side, a.Kind, a.Action = store.Forgejo, "comment", "create"
+			SELECT id, repository, github_number, forgejo_number, kind FROM issue_mapping
+			ORDER BY id OFFSET $1 % greatest((SELECT count(*) FROM issue_mapping), 1) LIMIT 1`, tick*7).
+			Scan(&a.PairID, &a.Repository, &a.GitHubNumber, &a.ForgejoNumber, &kind); err == nil {
+			writes := [][3]string{
+				{"forgejo", "comment", "create"}, {"github", "comment", "create"}, {"github", "comment", "edit"},
+				{"forgejo", kind, "edit"}, {"github", "notice", "edit"},
+			}
+			if kind == "pull" {
+				writes = append(writes, [3]string{"forgejo", "pull", "push"}, [3]string{"github", "line comment", "create"})
+			}
+			w := writes[tick%len(writes)]
+			a.Side, a.Kind, a.Action = store.Side(w[0]), w[1], w[2]
 			if err := st.RecordActivity(ctx, a); err != nil && ctx.Err() == nil {
 				return err
 			}

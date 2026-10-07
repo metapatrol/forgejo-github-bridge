@@ -9,6 +9,8 @@ import {
   timestamp,
 } from '@metapatrol/ng';
 import { listPairs } from '../../api/fn/pairs/list-pairs';
+import { listActivity } from '../../api/fn/status/list-activity';
+import { ActivityTable } from '../../shared/activity-table';
 import { listQueue } from '../../api/fn/queue/list-queue';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { apiResource } from '../../core/api';
@@ -34,6 +36,7 @@ const RECENT = 10;
     SideLabel,
     PairsTable,
     QueueTable,
+    ActivityTable,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './repository.html',
@@ -54,6 +57,11 @@ export class RepositoryDetail {
   protected readonly missing = computed(() => this.repos.hasValue() && !this.repo());
 
   protected readonly queue = apiResource(listQueue, () => ({ repository: this.key() }));
+  /** What the bridge wrote for it last. */
+  protected readonly activity = apiResource(listActivity, () => ({
+    repository: this.key(),
+    limit: RECENT,
+  }));
   protected readonly issues = apiResource(listPairs, () => ({
     repository: this.key(),
     kind: 'issue' as const,
@@ -80,6 +88,7 @@ export class RepositoryDetail {
       this.queue,
       this.issues,
       this.pulls,
+      this.activity,
     );
   }
 

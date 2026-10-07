@@ -10,7 +10,8 @@ export type BridgeEvent =
   | { kind: 'cursor'; op: string; repository: string; side: string; stream: string }
   | { kind: 'leader'; present: boolean }
   | { kind: 'rateLimit'; op: string; resource: string }
-  | { kind: 'maintenance'; op: string; id: number; finished: boolean };
+  | { kind: 'maintenance'; op: string; id: number; finished: boolean }
+  | { kind: 'activity'; op: string; id: number; repository: string; pairId?: number };
 
 const KINDS = [
   'ready',
@@ -21,6 +22,7 @@ const KINDS = [
   'leader',
   'rateLimit',
   'maintenance',
+  'activity',
 ] as const;
 
 /** What a view shows, as far as events are concerned. */
@@ -34,6 +36,7 @@ export type Scope =
   | { view: 'queue' }
   | { view: 'contributors' }
   | { view: 'system' }
+  | { view: 'activity' }
   | { view: 'contributor'; login: string; side: string };
 
 /**
@@ -52,6 +55,9 @@ export function concerns(e: BridgeEvent, scope: Scope): boolean {
     case 'repositories':
       return e.kind === 'pair' || e.kind === 'queue' || e.kind === 'cursor';
     case 'repository':
+      if (e.kind === 'activity') {
+        return e.repository === scope.repository;
+      }
       if (e.kind === 'pair') {
         return !e.repository || e.repository === scope.repository;
       }
@@ -65,13 +71,19 @@ export function concerns(e: BridgeEvent, scope: Scope): boolean {
       }
       return e.kind === 'queue' && (!scope.repository || e.repository === scope.repository);
     case 'pair':
-      return (e.kind === 'pair' && e.id === scope.id) || e.kind === 'queue';
+      return (
+        (e.kind === 'pair' && e.id === scope.id) ||
+        (e.kind === 'activity' && e.pairId === scope.id) ||
+        e.kind === 'queue'
+      );
     case 'queue':
       return e.kind === 'queue';
     case 'contributors':
       return e.kind === 'pair';
     case 'system':
       return e.kind === 'maintenance';
+    case 'activity':
+      return e.kind === 'activity';
     case 'contributor':
       // A pair event does not name its author: any may be theirs.
       return e.kind === 'pair' || e.kind === 'queue';

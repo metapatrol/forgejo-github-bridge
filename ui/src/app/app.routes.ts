@@ -67,6 +67,11 @@ export const routes: Routes = [
   { path: 'people', pathMatch: 'full', redirectTo: 'contributors' },
   { path: 'people/:side/:login', redirectTo: 'contributors/:side/:login' },
   {
+    path: 'activity',
+    title: title('Activity'),
+    loadComponent: () => import('./features/activity/activity').then((m) => m.Activity),
+  },
+  {
     path: 'queue',
     title: title('Queue'),
     loadComponent: () => import('./features/queue/queue').then((m) => m.Queue),

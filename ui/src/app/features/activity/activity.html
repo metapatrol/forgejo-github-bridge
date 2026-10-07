@@ -1,0 +1,82 @@
+<mp-page-header title="Activity" [note]="activity.total().toString()" />
+<p class="mb-4 max-w-3xl text-sm text-fg-muted">
+  What the bridge wrote, on either side, as it happens: the issues, pull requests and comments it
+  created and changed, the notices it posted, the branches it pushed.
+</p>
+
+@if (fresh() > 0) {
+  <div class="sticky top-2 z-30 flex justify-center">
+    <button
+      type="button"
+      class="mp-pill shadow-md"
+      data-tone="info"
+      aria-live="polite"
+      (click)="toTop()"
+    >
+      {{ fresh() }} new ↑
+    </button>
+  </div>
+}
+
+<section class="mp-panel mp-panel-flush">
+  <div class="mp-panel-head flex-wrap items-center gap-3">
+    <app-repository-input
+      class="w-72"
+      [value]="repository()"
+      (committed)="filter('repository', $event)"
+    />
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="sr-only" for="a-side">Side</label>
+      <select
+        id="a-side"
+        class="mp-input w-auto"
+        (change)="filter('side', $any($event.target).value)"
+      >
+        <option value="">either side</option>
+        <option value="github" [selected]="side() === 'github'">on GitHub</option>
+        <option value="forgejo" [selected]="side() === 'forgejo'">in Forgejo</option>
+      </select>
+      <label class="sr-only" for="a-kind">Kind</label>
+      <select
+        id="a-kind"
+        class="mp-input w-auto"
+        (change)="filter('kind', $any($event.target).value)"
+      >
+        <option value="">anything</option>
+        @for (k of kinds; track k.value) {
+          <option [value]="k.value" [selected]="k.value === kind()">{{ k.label }}</option>
+        }
+      </select>
+      <label class="sr-only" for="a-action">Action</label>
+      <select
+        id="a-action"
+        class="mp-input w-auto"
+        (change)="filter('action', $any($event.target).value)"
+      >
+        <option value="">any action</option>
+        @for (a of actions; track a.value) {
+          <option [value]="a.value" [selected]="a.value === action()">{{ a.label }}</option>
+        }
+      </select>
+    </div>
+    <span class="ml-auto text-xs text-fg-subtle"
+      >{{ activity.items().length }} of {{ activity.total() }}</span
+    >
+  </div>
+  <mp-load-state
+    [error]="activity.error()"
+    [loading]="activity.loading() && !activity.loaded()"
+    what="activity"
+  />
+  @if (activity.loaded()) {
+    <app-activity-table
+      [entries]="activity.items()"
+      [showRepository]="!repository()"
+      empty="Nothing matches."
+      sortable
+      [sort]="sort()"
+      [more]="activity.more()"
+      (nearEnd)="activity.loadMore()"
+    />
+  }
+</section>

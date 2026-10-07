@@ -115,4 +115,35 @@ describe('history', () => {
     });
     expect(entries.at(-1)?.kind).toBe('queued');
   });
+
+  it('weaves in what else the bridge wrote, leaving out what the history already says', () => {
+    const act = (id: number, at: string, kind: string, action: string) => ({
+      id,
+      at,
+      repository: 'metapatrol/foo',
+      pairId: 7,
+      pairKind: 'pull' as const,
+      side: 'github' as const,
+      kind,
+      action,
+      githubNumber: 13,
+    });
+    const entries = history(base, [
+      act(1, '2026-10-01T10:00:00Z', 'pull', 'create'),
+      act(2, '2026-10-01T11:00:00Z', 'comment', 'create'),
+      act(3, '2026-10-01T12:00:00Z', 'comment', 'edit'),
+      act(4, '2026-10-02T13:00:00Z', 'pull', 'close'),
+    ]);
+    const acts = entries.filter((e) => e.kind === 'activity');
+    expect(acts.map((e) => (e.kind === 'activity' ? e.entry.id : 0))).toEqual([3, 4]);
+    expect(entries.map((e) => e.kind)).toEqual([
+      'paired',
+      'comment',
+      'activity',
+      'comment',
+      'import',
+      'activity',
+      'change',
+    ]);
+  });
 });

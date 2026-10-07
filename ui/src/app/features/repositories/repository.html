@@ -208,5 +208,28 @@
         </p>
       }
     </mp-panel>
+
+    <mp-panel index="07" title="recent activity">
+      <a
+        mpPanelActions
+        routerLink="/activity"
+        [queryParams]="{ repository: key() }"
+        class="mp-link text-xs"
+        >all →</a
+      >
+      <mp-load-state
+        [error]="activity.error()"
+        [loading]="activity.isLoading() && !activity.hasValue()"
+        what="activity"
+      />
+      @if (activity.hasValue()) {
+        <app-activity-table
+          compact
+          [entries]="activity.body()?.items ?? []"
+          [showRepository]="false"
+          empty="The bridge has written nothing for this repository yet."
+        />
+      }
+    </mp-panel>
   </div>
 }

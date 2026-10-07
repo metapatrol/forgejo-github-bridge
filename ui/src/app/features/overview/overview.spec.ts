@@ -4,6 +4,7 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideApiConfiguration } from '../../api/api-configuration';
+import { ActivityEntry } from '../../api/models/activity-entry';
 import { Author } from '../../api/models/author';
 import { Repository } from '../../api/models/repository';
 import { Status } from '../../api/models/status';
@@ -61,6 +62,7 @@ async function render(
   repos: Repository[] = [],
   filter?: string,
   authors: Author[] = [],
+  activity: ActivityEntry[] = [],
 ): Promise<HTMLElement> {
   TestBed.configureTestingModule({
     providers: [
@@ -84,6 +86,9 @@ async function render(
   const top = http.expectOne((r) => r.url === '/api/v1/authors');
   expect(top.request.params.get('limit')).toBe('8');
   top.flush({ items: authors.slice(0, 8), total: authors.length });
+  http
+    .expectOne((r) => r.url === '/api/v1/activity')
+    .flush({ items: activity, total: activity.length });
   // The filter is searched by the API; the test answers with the repositories that contain it.
   for (let i = 0; i < 5 && filter; i++) {
     await new Promise((r) => setTimeout(r));
@@ -195,5 +200,28 @@ describe('Overview', () => {
     expect(links.length).toBe(8);
     expect(links[0]).toBe('/contributors/github/contributor-0');
     expect(el.textContent).toContain('all contributors →');
+  });
+
+  it('shows the last eight things the bridge wrote', async () => {
+    const recent: ActivityEntry[] = [
+      {
+        id: 1,
+        at: '2026-10-07T00:00:00Z',
+        repository: 'metapatrol/foo',
+        pairId: 7,
+        pairKind: 'pull',
+        side: 'forgejo',
+        kind: 'comment',
+        action: 'create',
+        githubNumber: 13,
+        forgejoNumber: 113,
+      },
+    ];
+    const el = await render(working, [], undefined, [], recent);
+    const panel = el.querySelector('section[aria-labelledby="activity-heading"]') as HTMLElement;
+    expect(panel.textContent).toContain('commented on Forgejo #113');
+    const links = Array.from(panel.querySelectorAll('a')).map((a) => a.getAttribute('href'));
+    expect(links).toContain('/activity');
+    expect(links).toContain('/pulls/7');
   });
 });

@@ -145,6 +145,25 @@
       </ul>
     </section>
 
+    <section class="mp-panel mp-panel-flush" aria-labelledby="activity-heading">
+      <header class="mp-panel-head">
+        <h2 id="activity-heading" class="mp-label">Recent activity</h2>
+        <a routerLink="/activity" class="mp-link text-xs">all activity →</a>
+      </header>
+      <mp-load-state
+        [error]="activity.error()"
+        [loading]="activity.isLoading() && !activity.hasValue()"
+        what="activity"
+      />
+      @if (activity.hasValue()) {
+        <app-activity-table
+          compact
+          [entries]="activity.body()?.items ?? []"
+          empty="The bridge has written nothing yet."
+        />
+      }
+    </section>
+
     <section class="flex flex-col gap-3" aria-labelledby="contributors-heading">
       <header class="flex items-baseline justify-between gap-3">
         <h2 id="contributors-heading" class="mp-label mb-0">Contributors</h2>

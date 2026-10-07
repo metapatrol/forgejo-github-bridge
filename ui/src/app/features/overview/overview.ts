@@ -11,6 +11,8 @@ import {
 } from '@metapatrol/ng';
 import { listRepositories } from '../../api/fn/repositories/list-repositories';
 import { listAuthors } from '../../api/fn/pairs/list-authors';
+import { listActivity } from '../../api/fn/status/list-activity';
+import { ActivityTable } from '../../shared/activity-table';
 import { contributorLink } from '../../shared/author';
 import { sideName } from '../../core/history';
 import { apiResource } from '../../core/api';
@@ -25,12 +27,25 @@ import { until } from '../../core/format';
 import { Meter } from '../../shared/meter';
 import { StatusService } from '../../core/status';
 
+/** How many entries of the activity the overview shows. */
+const RECENT_ACTIVITY = 8;
+
 /** How many contributors the overview names. */
 const TOP_AUTHORS = 8;
 
 @Component({
   selector: 'app-overview',
-  imports: [RouterLink, MpListSearch, MpLoadState, MpNotice, MpPageHeader, MpTime, Meter, RepoTile],
+  imports: [
+    RouterLink,
+    MpListSearch,
+    MpLoadState,
+    MpNotice,
+    MpPageHeader,
+    MpTime,
+    Meter,
+    RepoTile,
+    ActivityTable,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview.html',
 })
@@ -40,6 +55,8 @@ export class Overview {
   protected readonly repos = apiResource(listRepositories, () => ({}));
   /** The most active contributors, as the API orders them. */
   protected readonly authors = apiResource(listAuthors, () => ({ limit: TOP_AUTHORS }));
+  /** What the bridge wrote last. */
+  protected readonly activity = apiResource(listActivity, () => ({ limit: RECENT_ACTIVITY }));
   protected readonly topAuthors = computed(() => this.authors.body()?.items ?? []);
   protected readonly contributorLink = contributorLink;
   protected readonly sideName = sideName;
@@ -74,7 +91,13 @@ export class Overview {
   protected readonly name = computed(() => displayNames(this.all()));
 
   constructor() {
-    liveReload(() => ({ view: 'overview' }), this.repos, this.matching, this.authors);
+    liveReload(
+      () => ({ view: 'overview' }),
+      this.repos,
+      this.matching,
+      this.authors,
+      this.activity,
+    );
   }
 
   protected readonly s = computed(() => this.status.body());

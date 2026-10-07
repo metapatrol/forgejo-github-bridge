@@ -24,6 +24,13 @@ const cursor = (repository = 'o/a'): BridgeEvent => ({
 const leader: BridgeEvent = { kind: 'leader', present: false };
 const rateLimit: BridgeEvent = { kind: 'rateLimit', op: 'update', resource: 'core' };
 const maintenance: BridgeEvent = { kind: 'maintenance', op: 'insert', id: 1, finished: false };
+const activity = (repository = 'o/a', pairId?: number): BridgeEvent => ({
+  kind: 'activity',
+  op: 'insert',
+  id: 9,
+  repository,
+  pairId,
+});
 
 describe('concerns', () => {
   const every: Scope[] = [
@@ -37,6 +44,7 @@ describe('concerns', () => {
     { view: 'contributors' },
     { view: 'contributor', login: 'alice', side: 'github' },
     { view: 'system' },
+    { view: 'activity' },
   ];
 
   it('reloads everything on ready and resync', () => {
@@ -47,7 +55,7 @@ describe('concerns', () => {
   });
 
   it('reloads the overview for anything', () => {
-    for (const e of [pair(), queue(), cursor(), leader, rateLimit, maintenance]) {
+    for (const e of [pair(), queue(), cursor(), leader, rateLimit, maintenance, activity()]) {
       expect(concerns(e, { view: 'overview' })).toBe(true);
     }
   });
@@ -121,6 +129,20 @@ describe('concerns', () => {
     for (const scope of every.filter((s) => s.view !== 'system' && s.view !== 'overview')) {
       expect(concerns(maintenance, scope)).toBe(false);
     }
+  });
+
+  it('brings new activity to the list, its repository and its pair', () => {
+    expect(concerns(activity(), { view: 'activity' })).toBe(true);
+    expect(concerns(pair(), { view: 'activity' })).toBe(false);
+    expect(concerns(activity('o/a'), { view: 'repository', repository: 'o/a' })).toBe(true);
+    expect(concerns(activity('o/b'), { view: 'repository', repository: 'o/a' })).toBe(false);
+    expect(concerns(activity('o/a', 7), { view: 'pair', id: 7 })).toBe(true);
+    expect(concerns(activity('o/a', 8), { view: 'pair', id: 7 })).toBe(false);
+    expect(concerns(activity('o/a'), { view: 'pair', id: 7 })).toBe(false);
+    for (const view of ['status', 'repositories', 'queue', 'contributors', 'system'] as const) {
+      expect(concerns(activity(), { view } as Scope)).toBe(false);
+    }
+    expect(concerns(activity(), { view: 'pairs', kind: 'issue' })).toBe(false);
   });
 
   it('reloads the queue for the queue only', () => {
