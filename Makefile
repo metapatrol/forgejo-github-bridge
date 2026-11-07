@@ -6,7 +6,7 @@
 #
 # A full release tag, not a minor: the install script the lint job uses fetches a
 # GitHub release, and there is no release called v2.13.
-GOLANGCI_LINT_VERSION ?= v2.13.2
+GOLANGCI_LINT_VERSION ?= v2.15.0
 GITLEAKS_VERSION ?= v8.30.1
 HELM_VERSION ?= v3.16.3
 HELM_DOCS_VERSION ?= v1.14.2
