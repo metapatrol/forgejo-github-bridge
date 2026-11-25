@@ -26,7 +26,7 @@ repository file changes.
 | `BRIDGE_GITHUB_PRIVATE_KEY_FILE` | — | `github.existingSecret`, `.existingSecretKey` (`private-key.pem`) | PEM, PKCS #1 or #8. **Required** |
 | `BRIDGE_GITHUB_API_URL` | `https://api.github.com` | `github.apiURL` | only tests change it |
 | `BRIDGE_FORGEJO_URL` | — | `forgejo.url` | the address the bridge talks to Forgejo on. **Required** |
-| `BRIDGE_FORGEJO_WEB_URL` | — | `forgejo.webURL` | the address browsers use, when it differs; links starting with either never reach GitHub |
+| `BRIDGE_FORGEJO_WEB_URL` | — | `forgejo.webURL` | the address browsers use, when it differs; links starting with either never reach GitHub, and Forgejo's pagination links at it are followed at `forgejo.url` |
 | `BRIDGE_FORGEJO_TOKEN` | — | `forgejo.existingSecret`, `.existingSecretKey` (`token`) | the `github-bridge` account's token. **Required** |
 | `BRIDGE_FORGEJO_CONTRIB_TOKEN` | — | `forgejo.contribExistingSecret`, `.contribExistingSecretKey` (`token`) | the `github-contrib` account's token. Required as soon as a repository sets `targetBranches` |
 | `BRIDGE_FORGEJO_CA_FILE` | — | `forgejo.caSecret`, `.caSecretKey` (`ca.crt`) | an extra CA to trust for Forgejo, over HTTPS and for git |

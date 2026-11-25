@@ -230,8 +230,10 @@ userMapping:
 ```
 
 If the bridge reaches Forgejo on an in-cluster address, set `forgejo.url` to
-that and `forgejo.webURL` to the address people's browsers use: links starting
-with either are recognised as internal and kept off GitHub.
+that and `forgejo.webURL` to the address people's browsers use (Forgejo's
+`ROOT_URL`): links starting with either are recognised as internal and kept off
+GitHub, and Forgejo's pagination links, which it builds from `ROOT_URL`, are
+followed at `forgejo.url`.
 
 ```bash
 helm upgrade --install forgejo-github-bridge \

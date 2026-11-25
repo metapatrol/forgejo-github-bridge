@@ -62,6 +62,9 @@ type Client struct {
 	headers   http.Header
 	etags     *etagCache
 	observe   func(*http.Response)
+	// aliases are other addresses of the same API, such as its public one
+	// when base is an in-cluster Service.
+	aliases []*url.URL
 }
 
 // Option configures a Client.
@@ -80,6 +83,14 @@ func WithETagCache(entries int) Option {
 // WithObserver sees every response, for metrics such as a rate-limit gauge.
 func WithObserver(f func(*http.Response)) Option {
 	return func(c *Client) { c.observe = f }
+}
+
+// WithAlias names another address of the same API, such as its public one
+// when the client talks to an in-cluster Service. A next page link at the
+// alias is followed at the configured address instead: a server builds its
+// links from the address it thinks it has, not from the one it was asked at.
+func WithAlias(alias *url.URL) Option {
+	return func(c *Client) { c.aliases = append(c.aliases, alias) }
 }
 
 // New creates a client for the API at base.
@@ -143,7 +154,8 @@ func GetAll[T any](ctx context.Context, c *Client, path string, query url.Values
 
 // nextPage reads the next page's URL from a response, and refuses one that
 // points anywhere but the configured API. The next URL is what the server
-// says; following it to another host would send that host the token.
+// says; following it to another host would send that host the token. A link
+// at an alias of the API is moved onto the configured address.
 func (c *Client) nextPage(header http.Header) (string, error) {
 	next := parseNextLink(header.Values("Link"))
 	if next == "" {
@@ -153,10 +165,28 @@ func (c *Client) nextPage(header http.Header) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unparsable next page link %q: %w", next, err)
 	}
-	if !strings.EqualFold(u.Scheme, c.base.Scheme) || !strings.EqualFold(u.Host, c.base.Host) {
-		return "", fmt.Errorf("next page link %q leaves %s", next, c.base.Host)
+	if sameOrigin(u, c.base) {
+		return next, nil
 	}
-	return next, nil
+	for _, alias := range c.aliases {
+		if !sameOrigin(u, alias) {
+			continue
+		}
+		prefix := strings.TrimRight(alias.Path, "/")
+		if u.Path != prefix && !strings.HasPrefix(u.Path, prefix+"/") {
+			continue
+		}
+		moved := *u
+		moved.Scheme, moved.Host, moved.User = c.base.Scheme, c.base.Host, nil
+		moved.Path = strings.TrimRight(c.base.Path, "/") + strings.TrimPrefix(u.Path, prefix)
+		moved.RawPath = ""
+		return moved.String(), nil
+	}
+	return "", fmt.Errorf("next page link %q leaves %s", next, c.base.Host)
+}
+
+func sameOrigin(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Host, b.Host)
 }
 
 // do sends a request and returns the response's headers. The body is read

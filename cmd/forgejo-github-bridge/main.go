@@ -140,7 +140,7 @@ func run() error {
 	log.Info("holding the leader lock; this instance does the work")
 
 	gh := github.New(cfg.GitHubAPIURL, cfg.GitHubAppID, key, &http.Client{Timeout: httpTimeout}, telemetry.ObserveGitHub)
-	fj := forgejo.New(cfg.ForgejoURL, cfg.ForgejoToken, forgejoHTTP)
+	fj := forgejo.New(cfg.ForgejoURL, cfg.ForgejoToken, forgejoHTTP, cfg.ForgejoWebURL)
 	b := bridge.New(st, gh, fj, cfg.Repositories, bridge.Options{
 		PollInterval: cfg.PollInterval,
 		FullResync:   cfg.FullResync,
@@ -149,7 +149,7 @@ func run() error {
 		Messages:     cfg.Messages,
 	}, log)
 	if cfg.ForgejoContribToken != "" {
-		contrib := forgejo.New(cfg.ForgejoURL, cfg.ForgejoContribToken, forgejoHTTP)
+		contrib := forgejo.New(cfg.ForgejoURL, cfg.ForgejoContribToken, forgejoHTTP, cfg.ForgejoWebURL)
 		login, err := contrib.Self(ctx)
 		if err != nil {
 			return fmt.Errorf("identifying the Forgejo contrib account: %w", err)

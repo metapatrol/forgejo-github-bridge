@@ -39,18 +39,31 @@ type Client struct {
 var _ forge.Client = (*Client)(nil)
 
 // New creates a client for the Forgejo instance at base, e.g.
-// https://forgejo.example.com.
-func New(base *url.URL, token string, httpClient *http.Client) *Client {
-	api := *base
-	api.Path = strings.TrimRight(base.Path, "/") + "/api/v1"
+// https://forgejo.example.com. aliases are the instance's other addresses,
+// such as its ROOT_URL when base is an in-cluster Service: Forgejo builds its
+// pagination links from ROOT_URL, and those are followed at base.
+func New(base *url.URL, token string, httpClient *http.Client, aliases ...*url.URL) *Client {
 	authorize := func(_ context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", "token "+token)
 		return nil
 	}
+	var opts []rest.Option
+	for _, a := range aliases {
+		if a != nil {
+			opts = append(opts, rest.WithAlias(apiURL(a)))
+		}
+	}
 	return &Client{
-		api:    rest.New(&api, httpClient, authorize),
+		api:    rest.New(apiURL(base), httpClient, authorize, opts...),
 		labels: map[string]map[string]int64{},
 	}
+}
+
+func apiURL(base *url.URL) *url.URL {
+	api := *base
+	api.Path = strings.TrimRight(base.Path, "/") + "/api/v1"
+	api.RawPath = ""
+	return &api
 }
 
 // Self returns the login of the account the token belongs to.

@@ -167,3 +167,68 @@ func TestContribRepositories(t *testing.T) {
 		t.Errorf("push mirrors = %d, %v", n, err)
 	}
 }
+
+// Forgejo builds its pagination links from ROOT_URL. Behind an in-cluster
+// Service that is another host, and the next page must be fetched at the
+// configured address rather than refused (issue #52) or sent to ROOT_URL.
+func TestPaginationFollowsROOTURLLinksAtTheConfiguredAddress(t *testing.T) {
+	public := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("a request went to the public address: %s", r.URL)
+		fmt.Fprint(w, `[]`)
+	}))
+	defer public.Close()
+	publicURL, _ := url.Parse(public.URL + "/git")
+
+	var pages []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "token secret" {
+			t.Errorf("%s: wrong authorization", r.URL)
+		}
+		if r.URL.Path != "/forge/api/v1/repos/platform/foo/issues" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		page := r.URL.Query().Get("page")
+		pages = append(pages, page)
+		if page == "" {
+			w.Header().Set("Link", `<`+publicURL.String()+`/api/v1/repos/platform/foo/issues?limit=50&page=2&state=all>; rel="next"`)
+			fmt.Fprint(w, `[{"number":1,"title":"a","state":"open","user":{"login":"jdoe"}}]`)
+			return
+		}
+		fmt.Fprint(w, `[{"number":2,"title":"b","state":"open","user":{"login":"jdoe"}}]`)
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL + "/forge")
+
+	c := New(base, "secret", srv.Client(), publicURL)
+	got, err := c.ListIssuesSince(context.Background(), repo, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || !slices.Equal(pages, []string{"", "2"}) {
+		t.Errorf("issues = %+v, pages fetched = %q", got, pages)
+	}
+}
+
+func TestPaginationRefusesOtherHosts(t *testing.T) {
+	var leaked bool
+	evil := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		leaked = true
+		fmt.Fprint(w, `[]`)
+	}))
+	defer evil.Close()
+	public, _ := url.Parse("https://forgejo.example.com")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `<`+evil.URL+`/api/v1/repos/platform/foo/issues?page=2>; rel="next"`)
+		fmt.Fprint(w, `[]`)
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+
+	c := New(base, "secret", srv.Client(), public)
+	if _, err := c.ListIssuesSince(context.Background(), repo, time.Time{}); err == nil {
+		t.Error("a next link to another host was followed without error")
+	}
+	if leaked {
+		t.Fatal("the token was sent to another host")
+	}
+}
