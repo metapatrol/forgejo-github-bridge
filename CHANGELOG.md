@@ -1,3 +1,10 @@
+## [0.5.1](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.5.0...v0.5.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **forgejo:** follow pagination links built from ROOT_URL at the configured address ([85752ab](https://github.com/metapatrol/forgejo-github-bridge/commit/85752ab300eed46315b5beaed53cde02e9a5035d)), closes [#52](https://github.com/metapatrol/forgejo-github-bridge/issues/52)
+
 # [0.5.0](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.4.0...v0.5.0) (2026-10-07)
 
 
