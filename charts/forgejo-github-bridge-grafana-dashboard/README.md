@@ -6,8 +6,8 @@ Grafana dashboard for forgejo-github-bridge (deployed as a ConfigMap for the Gra
 
 | Field | Value |
 |---|---|
-| Version | `0.5.1` |
-| App Version | `0.5.1` |
+| Version | `0.5.2` |
+| App Version | `0.5.2` |
 | Type | `application` |
 
 ## Usage

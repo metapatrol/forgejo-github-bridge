@@ -1,3 +1,11 @@
+## [0.5.2](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.5.1...v0.5.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/prometheus/client_golang to v1.25.0 ([6734ab3](https://github.com/metapatrol/forgejo-github-bridge/commit/6734ab378afd7d42c6edea07fc3411d95d0f4661))
+* **deps:** update the console's dependencies ([080e4e6](https://github.com/metapatrol/forgejo-github-bridge/commit/080e4e6cdd13b9aad5aabe9fd68c9ecfed66c95d)), closes [#37](https://github.com/metapatrol/forgejo-github-bridge/issues/37) [#38](https://github.com/metapatrol/forgejo-github-bridge/issues/38) [#39](https://github.com/metapatrol/forgejo-github-bridge/issues/39) [#44](https://github.com/metapatrol/forgejo-github-bridge/issues/44) [#47](https://github.com/metapatrol/forgejo-github-bridge/issues/47) [#48](https://github.com/metapatrol/forgejo-github-bridge/issues/48) [#49](https://github.com/metapatrol/forgejo-github-bridge/issues/49) [#50](https://github.com/metapatrol/forgejo-github-bridge/issues/50)
+
 ## [0.5.1](https://github.com/metapatrol/forgejo-github-bridge/compare/v0.5.0...v0.5.1) (2026-11-25)
 
 
