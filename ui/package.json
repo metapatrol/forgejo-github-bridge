@@ -25,9 +25,9 @@
     "@angular/forms": "^22.1.0",
     "@angular/platform-browser": "^22.1.0",
     "@angular/router": "^22.1.0",
-    "@metapatrol/brand": "^0.8.1",
-    "@metapatrol/ng": "^0.8.1",
-    "@metapatrol/style": "^0.8.1",
+    "@metapatrol/brand": "^0.11.0",
+    "@metapatrol/ng": "^0.11.0",
+    "@metapatrol/style": "^0.11.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -37,15 +37,15 @@
     "@angular/compiler-cli": "^22.1.0",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.3.3",
-    "angular-eslint": "22.5.0",
+    "angular-eslint": "22.8.0",
     "eslint": "^10.9.1",
-    "jsdom": "^30.0.0",
+    "jsdom": "^31.0.0",
     "ng-openapi-gen": "^1.1.0",
     "postcss": "^8.5.3",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "typescript-eslint": "8.71.1",
+    "typescript-eslint": "8.74.0",
     "vitest": "^5.0.0"
   }
 }
